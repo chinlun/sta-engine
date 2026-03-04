@@ -49,3 +49,34 @@ If the goal is to offer a "Done-For-You" service where you build custom stores u
 4. Use `sta-studio` to generate the custom theme with Gemini directly into the client's store.
 5. Once the design is approved, **Transfer Ownership** of the store to the client via the Partner Dashboard.
 6. **Security:** Upon transfer, Shopify automatically disables the Custom App, revoking your API access and securing the store for the new owner. You get paid for the completed build without managing complex OAuth infrastructure.
+
+---
+
+## AI Context Injection & Token Budget
+
+The engine injects comprehensive Shopify reference documentation into the Gemini system prompt to improve theme-building accuracy. This follows the **CAT (Context, Action, Target)** strategy.
+
+### Injected Context Layers
+| Layer | File | Approximate Tokens |
+|-------|------|--------------------|
+| Role & Rules | Inline in `prompt-builder.ts` | ~800 |
+| OS 2.0 Architecture | `docs/reference/shopify-os2-architecture.md` | ~1,500 |
+| Dawn File Map | `docs/reference/dawn-file-map.md` | ~2,000 |
+| Liquid Reference | `docs/liquid-cheat-sheet.md` | ~1,000 |
+| Current Theme State | Extracted from base ZIP at runtime | ~500–2,000 |
+| Few-Shot Examples | Inline in `prompt-builder.ts` | ~500 |
+
+**Total: ~6,000–8,000 tokens per request.** With Gemini's 1M context window this is negligible (<1%), but it does mean slightly higher per-request cost vs. minimal context.
+
+### Regenerating the Dawn File Map
+If you update the base theme ZIP (e.g., upgrading from Dawn 15.4.1 to a newer version):
+
+```bash
+npx tsx scripts/generate-dawn-map.ts
+```
+
+### Future Optimization Ideas
+- **Selective injection**: Only inject sections relevant to the user's request (requires intent classification)
+- **Compressed references**: Use shorter key-value format instead of full markdown
+- **Caching**: Pre-tokenize and cache the system prompt across requests
+

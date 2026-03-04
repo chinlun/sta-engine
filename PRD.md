@@ -6,12 +6,15 @@
 **Key Change:** The system provides managed Shopify Development Stores for the user. No user-side API configuration is required for testing.
 
 ## 2. User Experience (UX)
-- **Zero-Friction Onboarding:** Users land on the chat and start designing immediately. No Shopify login or API keys required to start.
-- **The "Magic" Preview:** A side-by-side view where the left is the chat and the right is an auto-refreshing screenshot of the changes on a managed dev store.
-- **Iterative Refinement:** User can say "Make it darker," and the AI understands the current "Darkness" level from the Firestore state and adjusts accordingly.
+- **Zero-Friction Onboarding:** Users design immediately without providing Shopify credentials.
+- **The "Magic" Preview:** A side-by-side view with an auto-refreshing screenshot of changes.
+- **Iterative Refinement:** Uses Firestore state to remember past design choices for contextual updates.
 
 ## 3. High-Level Requirements (Functional)
-- **Managed Dev Store Pool:** Backend handles a pool of internal Shopify dev stores to host user previews.
-- **In-Memory Build Engine:** No physical file writes; all ZIP manipulation happens in Node.js buffers.
-- **Visual QA:** Every build must be "seen" by a headless browser to ensure the page actually rendered.
-- **Cost Efficiency:** Use Cloudflare R2 for zero-egress theme hosting to avoid GCP bandwidth costs.
+- **Managed Dev Store Pool:** Backend handles internal stores and the 20-theme limit cleanup.
+- **Visible Impact Hierarchy:** The system MUST prioritize updating `templates/index.json` and `config/settings_data.json` to ensure modifications render on the storefront.
+- **In-Memory Build Engine:** All ZIP manipulation occurs in Node.js buffers via `adm-zip`.
+- **Visual QA:** A headless browser (Playwright) verifies the render before finalizing the response.
+- **Cost Efficiency:** Cloudflare R2 for zero-egress theme hosting.
+- **Visible-First Design:** The system prioritizes architectural visibility (JSON templates) over structural logic (Liquid) to ensure every user request results in a clear visual change.
+- **Streaming Thinking UI:** The interface provides a "Gemini-like" experience by streaming internal logic to the user while the theme build is in progress.

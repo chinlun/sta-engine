@@ -7,20 +7,19 @@
 - **Models:** Vertex AI (Gemini 1.5 Pro/Flash).
 
 ## 2. Managed Shopify Integration
-- **Internal Store API:** The backend uses a pre-configured `SHOPIFY_ADMIN_ACCESS_TOKEN` and `SHOPIFY_STORE_URL` for an internal development store.
-- **Theme Multi-Tenancy:** Each user session creates a unique theme (up to the 20-theme limit per store) rather than using a unique store per user.
+- **Theme Multi-Tenancy:** Each session creates a unique theme; the "Cleanup Agent" deletes the oldest theme if the 20-theme limit is reached.
 
-## 3. The "Amnesia-Proof" Schema (Zod)
+## 3. The "Visible-First" Schema (Zod)
 ```typescript
 const ThemePlanSchema = z.object({
-  thoughtProcess: z.string().describe("Logical reasoning for these specific changes."),
+  thoughtProcess: z.string().describe("Real-time stream of the AI's logical reasoning and progress."), // New: For the Gemini-style thinking stream
   globalSettings: z.object({
     primaryColor: z.string().optional(),
     fontFamily: z.string().optional(),
   }).describe("Tracking global brand state to prevent amnesia."),
   modifications: z.array(
     z.object({
-      filePath: z.string().describe("e.g., 'sections/announcement-bar.liquid'"),
+      filePath: z.string().describe("Target file. Priority: templates/index.json, config/settings_data.json, sections/*.liquid"),
       action: z.enum(["update", "create", "delete"]),
       content: z.string().describe("The full code content for the file.")
     })
@@ -47,8 +46,20 @@ const ThemePlanSchema = z.object({
 * **Error Detection:** If the headless browser detects "Liquid error" text or a 404 status code on the preview page, the system must automatically feed the error log back to the "Fixer" agent for an immediate re-build.
 * **Theme Management:** The backend must monitor the theme count on the managed dev store. If it hits the 20-theme limit, the oldest "Unpublished" theme must be deleted before proceeding.
 
----
+### 4.5. JSON Template Architecture (The Visibility Rule)
+* **The "Three-Point Edit":** To ensure changes are visible, the AI MUST update `templates/index.json` to register sections and `config/settings_data.json` for global styles.
+* **Rendering Order:** Any new section added to `templates/index.json` must be included in the `order` array to actually appear on the page.
 
-### Key Technical Strategy: Managing the "20 Theme Limit"
-Since we are providing the stores, remember that Shopify limits each store to **20 themes**. 
-* **The "Cleanup" Agent:** You'll need a simple background function (or a step in your tool) that checks the theme count. If it hits 20, it should delete the oldest "Unpublished" theme to make room for the new build.
+## 5. Context & Knowledge Management (Non-RAG)
+
+### 5.1. Reference Files
+- All Liquid syntax rules and Shopify API limits are stored in `sta-engine/reference/*.md`.
+- These are read at runtime and injected into the Gemini System Instruction.
+
+### 5.2. State Injection
+- Before every LLM call, the engine fetches the 'Current State' from Firestore.
+- **Critical:** The current `templates/index.json` and `config/settings_data.json` are injected as primary context to Gemini to ensure it knows what it has already built.
+
+### 5.3. Token Optimization
+- While Gemini has a large window, we use a 'Sliding Window' for chat history (last 10 messages) to keep response times fast and reduce token waste.
+

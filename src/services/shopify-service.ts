@@ -1,3 +1,61 @@
+/**
+ * Checks the current theme count on the managed dev store.
+ * If the 20-theme limit is reached, deletes the oldest "unpublished" theme.
+ * Per SPEC §4.4: "Theme Management"
+ */
+export const ensureThemeSlot = async (): Promise<void> => {
+    const SHOPIFY_STORE_DOMAIN = process.env.SHOPIFY_STORE_DOMAIN;
+    const SHOPIFY_ACCESS_TOKEN = process.env.SHOPIFY_ACCESS_TOKEN;
+
+    if (!SHOPIFY_STORE_DOMAIN || !SHOPIFY_ACCESS_TOKEN) {
+        throw new Error("Missing Shopify credentials in .env");
+    }
+
+    console.log(`[Shopify] Checking theme count on ${SHOPIFY_STORE_DOMAIN}...`);
+
+    const response = await fetch(`https://${SHOPIFY_STORE_DOMAIN}/admin/api/2024-01/themes.json`, {
+        headers: { 'X-Shopify-Access-Token': SHOPIFY_ACCESS_TOKEN },
+    });
+
+    if (!response.ok) {
+        throw new Error(`Failed to list themes: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const themes = data.themes as Array<{ id: number; name: string; role: string; created_at: string }>;
+
+    console.log(`[Shopify] Current theme count: ${themes.length}/20`);
+
+    if (themes.length >= 20) {
+        // Find the oldest unpublished theme
+        const unpublished = themes
+            .filter(t => t.role === 'unpublished')
+            .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
+        if (unpublished.length === 0) {
+            throw new Error("Theme limit reached (20) but no unpublished themes to delete. Manual cleanup required.");
+        }
+
+        const oldest = unpublished[0];
+        console.log(`[Shopify] Deleting oldest unpublished theme: "${oldest.name}" (ID: ${oldest.id})`);
+
+        const deleteResponse = await fetch(
+            `https://${SHOPIFY_STORE_DOMAIN}/admin/api/2024-01/themes/${oldest.id}.json`,
+            {
+                method: 'DELETE',
+                headers: { 'X-Shopify-Access-Token': SHOPIFY_ACCESS_TOKEN },
+            }
+        );
+
+        if (!deleteResponse.ok) {
+            const errText = await deleteResponse.text();
+            throw new Error(`Failed to delete theme ${oldest.id}: ${deleteResponse.status} — ${errText}`);
+        }
+
+        console.log(`[Shopify] Deleted theme ${oldest.id}, slot freed.`);
+    }
+};
+
 export const uploadThemeToShopify = async (themeName: string, zipUrl: string) => {
     const SHOPIFY_STORE_DOMAIN = process.env.SHOPIFY_STORE_DOMAIN;
     const SHOPIFY_ACCESS_TOKEN = process.env.SHOPIFY_ACCESS_TOKEN;
@@ -12,7 +70,7 @@ export const uploadThemeToShopify = async (themeName: string, zipUrl: string) =>
         theme: {
             name: themeName,
             src: zipUrl,
-            role: "unpublished" // Important: Creates it safely as a draft
+            role: "unpublished" // Shopify ignores role during src-based creation anyway; we publish explicitly after processing
         }
     };
 
@@ -105,3 +163,38 @@ export const waitForThemeReady = async (
     throw new Error(`Theme ${themeId} did not become ready within ${maxWaitMs / 1000}s`);
 };
 
+/**
+ * Publishes a theme by setting its role to "main" (live).
+ * Must be called AFTER waitForThemeReady() to ensure the theme is fully processed.
+ */
+export const publishTheme = async (themeId: number | string): Promise<void> => {
+    const SHOPIFY_STORE_DOMAIN = process.env.SHOPIFY_STORE_DOMAIN;
+    const SHOPIFY_ACCESS_TOKEN = process.env.SHOPIFY_ACCESS_TOKEN;
+
+    if (!SHOPIFY_STORE_DOMAIN || !SHOPIFY_ACCESS_TOKEN) {
+        throw new Error("Missing Shopify credentials in .env");
+    }
+
+    console.log(`[Shopify] Publishing theme ${themeId} as main/live...`);
+
+    const response = await fetch(
+        `https://${SHOPIFY_STORE_DOMAIN}/admin/api/2024-01/themes/${themeId}.json`,
+        {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Shopify-Access-Token': SHOPIFY_ACCESS_TOKEN,
+            },
+            body: JSON.stringify({
+                theme: { id: themeId, role: 'main' }
+            }),
+        }
+    );
+
+    if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`Failed to publish theme ${themeId}: ${response.status} — ${errText}`);
+    }
+
+    console.log(`[Shopify] Theme ${themeId} is now the live theme.`);
+};
