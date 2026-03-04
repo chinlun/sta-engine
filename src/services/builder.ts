@@ -3,7 +3,7 @@ import { ThemePlan } from '../schema';
 import path from 'path';
 
 export const buildTheme = async (plan: ThemePlan): Promise<Buffer> => {
-    console.log("[Builder] Building theme based on plan:", plan.thoughtProcess);
+    console.log("[Builder] Building theme with", plan.modifications.length, "modifications");
 
     // Load the base theme
     const baseTheme = process.env.BASE_THEME_FILE || 'dawn-15.4.1.zip';
@@ -15,20 +15,30 @@ export const buildTheme = async (plan: ThemePlan): Promise<Buffer> => {
 
     const zip = new AdmZip(zipPath);
 
+    // Detect root folder prefix in the zip (e.g., "dawn-15.4.1/")
+    const entries = zip.getEntries();
+    let rootPrefix = '';
+    if (entries.length > 0) {
+        const firstEntry = entries[0].entryName;
+        // Check if the first entry is a directory that contains all other files
+        if (firstEntry.endsWith('/') && entries.every(e => e.entryName.startsWith(firstEntry))) {
+            rootPrefix = firstEntry;
+            console.log(`[Builder] Detected zip root folder: ${rootPrefix}`);
+        }
+    }
+
     // Apply global settings (stub)
     if (plan.globalSettings) {
         console.log("Applying global settings:", plan.globalSettings);
-        // Example: modify settings_data.json
     }
 
     // Apply modifications
     for (const mod of plan.modifications) {
         if (mod.action === 'create' || mod.action === 'update') {
-            console.log(`[Builder] ${mod.action.toUpperCase()} ${mod.filePath}`);
-            // Ensure path formatting is correct relative to the zip root
-            // If the zip contains a root folder (e.g., 'dawn-15.4.1/'), this logic might need adjustment depending on the zip structure.
-            // Assuming the file paths provided by AI are relative to the 'dawn' root.
-            zip.addFile(mod.filePath, Buffer.from(mod.content, "utf8"));
+            // Prepend the root folder prefix so files go into the correct location
+            const fullPath = rootPrefix + mod.filePath.replace(/^\//, '');
+            console.log(`[Builder] ${mod.action.toUpperCase()} ${fullPath}`);
+            zip.addFile(fullPath, Buffer.from(mod.content, "utf8"));
         }
     }
 

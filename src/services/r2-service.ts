@@ -28,8 +28,11 @@ export const uploadToR2 = async (key: string, body: Buffer | string, contentType
             ContentType: contentType,
         }));
 
-        // Note: This relies on the bucket being configured with this public custom domain or r2.dev subdomain
-        return `https://pub-${R2_ACCOUNT_ID}.r2.dev/${key}`;
+        const publicUrl = process.env.R2_PUBLIC_URL;
+        if (!publicUrl) {
+            throw new Error("Missing R2_PUBLIC_URL in .env");
+        }
+        return `${publicUrl}/${key}`;
     } catch (error) {
         console.error("Error uploading to R2:", error);
         throw error;

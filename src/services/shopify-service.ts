@@ -1,6 +1,3 @@
-const SHOPIFY_STORE_DOMAIN = process.env.SHOPIFY_STORE_DOMAIN || "placeholder.myshopify.com";
-const SHOPIFY_ACCESS_TOKEN = process.env.SHOPIFY_ACCESS_TOKEN || "placeholder";
-
 export const uploadThemeToShopify = async (themeName: string, zipUrl: string) => {
     const SHOPIFY_STORE_DOMAIN = process.env.SHOPIFY_STORE_DOMAIN;
     const SHOPIFY_ACCESS_TOKEN = process.env.SHOPIFY_ACCESS_TOKEN;
@@ -47,3 +44,64 @@ export const uploadThemeToShopify = async (themeName: string, zipUrl: string) =>
         throw error;
     }
 };
+
+/**
+ * Polls the Shopify API until the theme is fully processed and previewable.
+ * @param themeId - The Shopify theme ID to check
+ * @param onProgress - Optional callback to emit progress updates
+ * @param maxWaitMs - Maximum time to wait (default: 2 minutes)
+ * @param intervalMs - Polling interval (default: 3 seconds)
+ */
+export const waitForThemeReady = async (
+    themeId: number | string,
+    onProgress?: (message: string) => void,
+    maxWaitMs = 120000,
+    intervalMs = 3000
+): Promise<void> => {
+    const SHOPIFY_STORE_DOMAIN = process.env.SHOPIFY_STORE_DOMAIN;
+    const SHOPIFY_ACCESS_TOKEN = process.env.SHOPIFY_ACCESS_TOKEN;
+
+    if (!SHOPIFY_STORE_DOMAIN || !SHOPIFY_ACCESS_TOKEN) {
+        throw new Error("Missing Shopify credentials in .env");
+    }
+
+    const startTime = Date.now();
+    let attempt = 0;
+
+    while (Date.now() - startTime < maxWaitMs) {
+        attempt++;
+        try {
+            const response = await fetch(
+                `https://${SHOPIFY_STORE_DOMAIN}/admin/api/2024-01/themes/${themeId}.json`,
+                {
+                    headers: { 'X-Shopify-Access-Token': SHOPIFY_ACCESS_TOKEN },
+                }
+            );
+
+            if (!response.ok) {
+                throw new Error(`Failed to check theme status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            const theme = data.theme;
+            const processing = theme.processing;
+            const previewable = theme.previewable;
+
+            console.log(`[Shopify] Theme ${themeId} — processing: ${processing}, previewable: ${previewable} (attempt ${attempt})`);
+
+            if (!processing && previewable) {
+                onProgress?.('Theme is ready for preview!');
+                return;
+            }
+
+            onProgress?.(`Waiting for Shopify to process theme... (${Math.round((Date.now() - startTime) / 1000)}s)`);
+        } catch (error) {
+            console.error(`[Shopify] Error checking theme status:`, error);
+        }
+
+        await new Promise(resolve => setTimeout(resolve, intervalMs));
+    }
+
+    throw new Error(`Theme ${themeId} did not become ready within ${maxWaitMs / 1000}s`);
+};
+
