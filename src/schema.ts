@@ -5,23 +5,29 @@ export const ThemePlanSchema = z.object({
     thoughtProcess: z.string().describe("Real-time stream of the AI's logical reasoning and progress."),
     globalSettings: z.object({
         primaryColor: z.string().optional().describe("Primary brand color as hex (e.g., '#C9A96E'). Used to update color_schemes in settings_data.json."),
-        fontFamily: z.string().optional().describe("Shopify font handle (e.g., 'playfair_display_n4', 'montserrat_n4'). Format: <family>_<style> where style is n4, n7, i4, etc."),
-    }).describe("Tracking global brand state to prevent amnesia."),
+        secondaryColor: z.string().optional().describe("Secondary supporting color as hex."),
+        accentColor: z.string().optional().describe("Accent/CTA color as hex."),
+        backgroundColor: z.string().optional().describe("Base background color as hex."),
+        fontFamily: z.string().optional().describe("Shopify body font handle (e.g., 'playfair_display_n4', 'montserrat_n4'). Format: <family>_<style> where style is n4, n7, i4, etc."),
+        headingFont: z.string().optional().describe("Shopify heading font handle."),
+        designStyle: z.string().optional().describe("The design intent or vibe (e.g., 'luxury minimalist with warm metallics').")
+    }).describe("Tracking global brand state and design intent to prevent amnesia."),
     modifications: z.array(
         z.object({
             filePath: z.string().optional().describe(
                 "Full relative file path in the theme. Must start with a folder name, never with '/'. " +
-                "Examples: 'templates/index.json', 'sections/hero-banner.liquid', 'config/settings_data.json', 'assets/custom.css'. " +
-                "Section filenames use hyphens: 'image-banner.liquid', NOT 'image_banner.liquid'."
+                "Examples: 'templates/index.json', 'sections/hero-banner.liquid', 'assets/custom.css'. " +
+                "Section filenames use hyphens: 'image-banner.liquid', NOT 'image_banner.liquid'. " +
+                "CRITICAL: DO NOT modify 'config/settings_data.json' here. Use globalSettings instead."
             ),
             action: z.string().optional().describe(
                 "Action to perform: 'create' (new file), 'update' (replace existing file content), or 'delete' (remove file). " +
-                "Default: 'update'. Use 'create' for new sections, 'update' for modifying index.json or settings_data.json."
+                "Default: 'update'. Use 'create' for new sections, 'update' for modifying index.json."
             ),
             content: z.string().optional().describe(
                 "The COMPLETE file content — not a diff or partial snippet. " +
                 "For .liquid files: must include {% schema %} block with 'presets' array at the bottom. " +
-                "For .json files (index.json, settings_data.json): must be valid JSON. " +
+                "For .json files (index.json): must be valid JSON. " +
                 "For templates/index.json: must include BOTH the 'sections' object AND the 'order' array."
             ),
             // Catch-all for hallucinated keys so Zod passes them through to our normalizer

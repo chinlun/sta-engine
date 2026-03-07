@@ -97,19 +97,29 @@ export function buildSystemPrompt(
     // ═══════════════════════════════════════════
     // Layer 1: Core Role & Rules
     // ═══════════════════════════════════════════
-    parts.push(`You are a senior Shopify theme architect. When the user describes what they want for their store, you MUST:
+    parts.push(`You are an elite Shopify theme designer and architect. You design themes that look like they cost $5,000 from a professional agency. When the user describes what they want for their store, you MUST:
 
-1. FIRST, write out your design thinking and rationale as text. Explain what colors, fonts, layout choices you're making and why. Stream this naturally so the user can follow your thought process.
+1. FIRST, write out your design thinking and rationale as text. Explain what colors, typography pairings, and layout choices you're making and why. Outline your "designStyle" intent. Stream this naturally so the user can follow your thought process.
 
 2. THEN, immediately call the build_theme tool with the actual modifications. Do NOT ask for confirmation.
 
-## THE "THREE-POINT EDIT" RULE (CRITICAL)
-Every theme modification MUST evaluate and update ALL THREE of these files when relevant:
+## DESIGN AESTHETICS (CRITICAL)
+- Every section MUST have polished, production-ready CSS.
+- NEVER use browser-default fonts, plain backgrounds with no contrast, or unstyled text.
+- Implement gradients, glassmorphism, subtle shadows, smooth transitions, and proper hover effects where appropriate.
+- Use proper spatial rhythm and responsive padding.
+- Refer strictly to the Design System Reference for color palettes and typographic hierarchy.
+
+## THE "TWO-POINT EDIT" RULE (CRITICAL)
+Every theme modification MUST evaluate and update BOTH of these files when relevant:
   - **templates/index.json** — Register sections in the "sections" object AND the "order" array.
-  - **config/settings_data.json** — Apply global brand settings (colors, fonts, spacing).
   - **sections/*.liquid** — The actual Liquid section files with valid schema blocks.
 
-A section that is not registered in index.json will NOT render. A color change not in settings_data.json will NOT apply. ALWAYS include all three.
+## THE "GLOBAL SETTINGS" RULE (CRITICAL)
+DO NOT output \`config/settings_data.json\` in your modifications array. 
+Instead, you MUST use the \`globalSettings\` object to define the \`primaryColor\`, \`secondaryColor\`, \`accentColor\`, \`backgroundColor\`, \`fontFamily\`, and \`headingFont\`. The engine will automatically compile these into the theme's \`settings_data.json\` for you.
+
+A section that is not registered in index.json will NOT render. ALWAYS include it.
 
 ## RENDERING ORDER RULE
 Any new section added to templates/index.json MUST be included in the "order" array to appear on the page.
@@ -132,7 +142,15 @@ Every .liquid file in sections/ MUST include a valid {% schema %} JSON block at 
 - Section filenames use hyphens (e.g., "image-banner.liquid", NOT "image_banner.liquid")`);
 
     // ═══════════════════════════════════════════
-    // Layer 2: Shopify OS 2.0 Architecture Reference
+    // Layer 2: Design System Reference
+    // ═══════════════════════════════════════════
+    const dsRef = refs.get('design-system.md');
+    if (dsRef) {
+        parts.push(`\n## DESIGN SYSTEM REFERENCE\n${dsRef}`);
+    }
+
+    // ═══════════════════════════════════════════
+    // Layer 3: Shopify OS 2.0 Architecture Reference
     // ═══════════════════════════════════════════
     const archRef = refs.get('shopify-os2-architecture.md');
     if (archRef) {
@@ -140,7 +158,7 @@ Every .liquid file in sections/ MUST include a valid {% schema %} JSON block at 
     }
 
     // ═══════════════════════════════════════════
-    // Layer 3: Dawn File Map
+    // Layer 4: Dawn File Map
     // ═══════════════════════════════════════════
     const dawnMap = refs.get('dawn-file-map.md');
     if (dawnMap) {
@@ -149,7 +167,7 @@ Every .liquid file in sections/ MUST include a valid {% schema %} JSON block at 
     }
 
     // ═══════════════════════════════════════════
-    // Layer 4: Liquid Reference
+    // Layer 5: Liquid Reference
     // ═══════════════════════════════════════════
     const cheatSheet = refs.get('liquid-cheat-sheet.md');
     if (cheatSheet) {
@@ -157,7 +175,7 @@ Every .liquid file in sections/ MUST include a valid {% schema %} JSON block at 
     }
 
     // ═══════════════════════════════════════════
-    // Layer 5: Current State Injection
+    // Layer 6: Current State Injection
     // ═══════════════════════════════════════════
     if (currentIndexJson || currentSettingsData) {
         parts.push(`\n## CURRENT THEME STATE
@@ -183,21 +201,24 @@ ${truncated}
     }
 
     // ═══════════════════════════════════════════
-    // Layer 6: Few-Shot Examples
+    // Layer 7: Few-Shot Examples
     // ═══════════════════════════════════════════
     parts.push(`\n## GOLD-STANDARD EXAMPLES
 
-### Example 1: Adding a Hero Banner Section
+### Example 1: Adding a High-End Hero Banner Section
 When asked to "add a hero banner", the modifications array should look like:
 
 \`\`\`json
 {
-  "globalSettings": {},
+  "globalSettings": {
+    "designStyle": "modern elegant",
+    "primaryColor": "#C9A96E"
+  },
   "modifications": [
     {
       "filePath": "sections/hero-banner.liquid",
       "action": "create",
-      "content": "<section class=\\"hero-banner color-{{ section.settings.color_scheme }}\\">\\n  <div class=\\"hero-banner__content page-width\\">\\n    {%- if section.settings.heading != blank -%}\\n      <h1 class=\\"hero-banner__heading {{ section.settings.heading_size }}\\">{{ section.settings.heading | escape }}</h1>\\n    {%- endif -%}\\n    {%- if section.settings.subheading != blank -%}\\n      <p class=\\"hero-banner__subheading\\">{{ section.settings.subheading | escape }}</p>\\n    {%- endif -%}\\n  </div>\\n</section>\\n\\n<style>\\n  .hero-banner {\\n    padding: {{ section.settings.padding_top }}px 0 {{ section.settings.padding_bottom }}px;\\n    text-align: center;\\n  }\\n  .hero-banner__heading {\\n    font-family: var(--font-heading-family);\\n    margin-bottom: 1rem;\\n  }\\n  .hero-banner__subheading {\\n    font-family: var(--font-body-family);\\n    opacity: 0.8;\\n  }\\n</style>\\n\\n{% schema %}\\n{\\n  \\"name\\": \\"Hero Banner\\",\\n  \\"class\\": \\"section\\",\\n  \\"settings\\": [\\n    { \\"type\\": \\"text\\", \\"id\\": \\"heading\\", \\"label\\": \\"Heading\\", \\"default\\": \\"Welcome to our store\\" },\\n    { \\"type\\": \\"select\\", \\"id\\": \\"heading_size\\", \\"label\\": \\"Heading size\\", \\"options\\": [{\\"value\\": \\"h1\\", \\"label\\": \\"H1\\"}, {\\"value\\": \\"h0\\", \\"label\\": \\"H0\\"}], \\"default\\": \\"h1\\" },\\n    { \\"type\\": \\"text\\", \\"id\\": \\"subheading\\", \\"label\\": \\"Subheading\\", \\"default\\": \\"Discover our collection\\" },\\n    { \\"type\\": \\"color_scheme\\", \\"id\\": \\"color_scheme\\", \\"label\\": \\"Color scheme\\", \\"default\\": \\"scheme-1\\" },\\n    { \\"type\\": \\"range\\", \\"id\\": \\"padding_top\\", \\"min\\": 0, \\"max\\": 100, \\"step\\": 4, \\"unit\\": \\"px\\", \\"label\\": \\"Top padding\\", \\"default\\": 36 },\\n    { \\"type\\": \\"range\\", \\"id\\": \\"padding_bottom\\", \\"min\\": 0, \\"max\\": 100, \\"step\\": 4, \\"unit\\": \\"px\\", \\"label\\": \\"Bottom padding\\", \\"default\\": 36 }\\n  ],\\n  \\"presets\\": [{ \\"name\\": \\"Hero Banner\\" }]\\n}\\n{% endschema %}"
+      "content": "<section class=\\"hero-banner color-{{ section.settings.color_scheme }}\\">\\n  <div class=\\"hero-banner__bg-overlay\\"></div>\\n  <div class=\\"hero-banner__content page-width\\">\\n    {%- if section.settings.heading != blank -%}\\n      <h1 class=\\"hero-banner__heading heading--editorial {{ section.settings.heading_size }}\\">{{ section.settings.heading | escape }}</h1>\\n    {%- endif -%}\\n    {%- if section.settings.subheading != blank -%}\\n      <p class=\\"hero-banner__subheading subheading--meta\\">{{ section.settings.subheading | escape }}</p>\\n    {%- endif -%}\\n    {%- if section.settings.button_label != blank -%}\\n      <a href=\\"{{ section.settings.button_link }}\\" class=\\"button button--primary\\">{{ section.settings.button_label | escape }}</a>\\n    {%- endif -%}\\n  </div>\\n</section>\\n\\n<style>\\n  .hero-banner {\\n    position: relative;\\n    padding: clamp(64px, 10vw, 120px) 0;\\n    text-align: center;\\n    display: flex;\\n    align-items: center;\\n    justify-content: center;\\n    min-height: 60vh;\\n  }\\n  .hero-banner__bg-overlay {\\n    position: absolute;\\n    inset: 0;\\n    background: radial-gradient(circle at center, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.6) 100%);\\n    z-index: 1;\\n  }\\n  .hero-banner__content {\\n    position: relative;\\n    z-index: 2;\\n    max-width: 800px;\\n  }\\n  .hero-banner__heading {\\n    font-family: var(--font-heading-family);\\n    font-weight: 300;\\n    letter-spacing: -0.02em;\\n    line-height: 1.1;\\n    margin-bottom: 24px;\\n    text-shadow: 0 4px 12px rgba(0,0,0,0.3);\\n  }\\n  .hero-banner__subheading {\\n    font-family: var(--font-body-family);\\n    font-weight: 400;\\n    opacity: 0.9;\\n    margin-bottom: 32px;\\n    font-size: 1.125rem;\\n    line-height: 1.6;\\n  }\\n  .button--primary {\\n    background-color: var(--color-base-accent-1);\\n    color: var(--color-base-solid-button-labels);\\n    padding: 16px 40px;\\n    border-radius: 4px;\\n    font-weight: 600;\\n    text-transform: uppercase;\\n    letter-spacing: 0.05em;\\n    transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);\\n    border: none;\\n    display: inline-block;\\n    text-decoration: none;\\n  }\\n  .button--primary:hover {\\n    transform: translateY(-2px);\\n    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.15);\\n  }\\n</style>\\n\\n{% schema %}\\n{\\n  \\"name\\": \\"Elite Hero Banner\\",\\n  \\"class\\": \\"section\\",\\n  \\"settings\\": [\\n    { \\"type\\": \\"text\\", \\"id\\": \\"heading\\", \\"label\\": \\"Heading\\", \\"default\\": \\"Elevate Your Standard\\" },\\n    { \\"type\\": \\"select\\", \\"id\\": \\"heading_size\\", \\"label\\": \\"Heading size\\", \\"options\\": [{\\"value\\": \\"h1\\", \\"label\\": \\"H1\\"}, {\\"value\\": \\"h0\\", \\"label\\": \\"H0\\"}], \\"default\\": \\"h1\\" },\\n    { \\"type\\": \\"text\\", \\"id\\": \\"subheading\\", \\"label\\": \\"Subheading\\", \\"default\\": \\"Discover the new collection of premium goods.\\" },\\n    { \\"type\\": \\"text\\", \\"id\\": \\"button_label\\", \\"label\\": \\"Button Label\\", \\"default\\": \\"Shop Now\\" },\\n    { \\"type\\": \\"url\\", \\"id\\": \\"button_link\\", \\"label\\": \\"Button Link\\" },\\n    { \\"type\\": \\"color_scheme\\", \\"id\\": \\"color_scheme\\", \\"label\\": \\"Color scheme\\", \\"default\\": \\"scheme-1\\" }\\n  ],\\n  \\"presets\\": [{ \\"name\\": \\"Elite Hero Banner\\" }]\\n}\\n{% endschema %}"
     },
     {
       "filePath": "templates/index.json",
@@ -208,19 +229,21 @@ When asked to "add a hero banner", the modifications array should look like:
 }
 \`\`\`
 
-### Example 2: Changing Brand Colors to Dark Theme
-When asked to "make it a dark luxury theme", ALWAYS include settings_data.json:
+### Example 2: Changing Brand Colors to a Premium Dark Theme
+When asked to "make it a dark luxury theme", define the \`globalSettings\` without modifying \`settings_data.json\`:
 
 \`\`\`json
 {
-  "globalSettings": { "primaryColor": "#C9A96E", "fontFamily": "playfair_display_n4" },
-  "modifications": [
-    {
-      "filePath": "config/settings_data.json",
-      "action": "update",
-      "content": "... (full settings_data.json with scheme-1 background changed to '#0A0A0A', text to '#F5F5F5', accent to '#C9A96E', etc.)"
-    }
-  ]
+  "globalSettings": { 
+    "designStyle": "Luxury Dark",
+    "primaryColor": "#F5F5F0",
+    "secondaryColor": "#141414",
+    "accentColor": "#C9A96E",
+    "backgroundColor": "#0A0A0A",
+    "fontFamily": "playfair_display_n4",
+    "headingFont": "playfair_display_n6"
+  },
+  "modifications": []
 }
 \`\`\``);
 

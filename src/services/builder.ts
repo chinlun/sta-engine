@@ -280,9 +280,61 @@ export const buildTheme = async (plan: ThemePlan): Promise<Buffer> => {
         }
     }
 
-    // Apply global settings (stub)
+    // Apply global settings directly to the base settings_data.json
     if (plan.globalSettings) {
-        console.log("Applying global settings:", plan.globalSettings);
+        console.log("[Builder] Applying global settings to config/settings_data.json:", plan.globalSettings);
+        try {
+            const settingsPath = rootPrefix + 'config/settings_data.json';
+            const settingsEntry = zip.getEntry(settingsPath);
+            if (settingsEntry) {
+                const settingsJson = JSON.parse(settingsEntry.getData().toString('utf8'));
+
+                // Update typography
+                if (plan.globalSettings.fontFamily) {
+                    settingsJson.presets.Default.type_body_font = plan.globalSettings.fontFamily;
+                }
+                if (plan.globalSettings.headingFont) {
+                    settingsJson.presets.Default.type_header_font = plan.globalSettings.headingFont;
+                }
+
+                // Update scheme-1 (Default body scheme)
+                const scheme1 = settingsJson.presets.Default.color_schemes?.['scheme-1']?.settings;
+                if (scheme1) {
+                    if (plan.globalSettings.backgroundColor) scheme1.background = plan.globalSettings.backgroundColor;
+                    if (plan.globalSettings.primaryColor) scheme1.text = plan.globalSettings.primaryColor;
+                    if (plan.globalSettings.accentColor) {
+                        scheme1.button = plan.globalSettings.accentColor;
+                        scheme1.button_label = plan.globalSettings.backgroundColor || "#FFFFFF";
+                    }
+                    if (plan.globalSettings.secondaryColor) scheme1.secondary_button_label = plan.globalSettings.secondaryColor;
+                }
+
+                // Update scheme-2 (Often used for cards/secondary backgrounds)
+                const scheme2 = settingsJson.presets.Default.color_schemes?.['scheme-2']?.settings;
+                if (scheme2) {
+                    if (plan.globalSettings.secondaryColor) scheme2.background = plan.globalSettings.secondaryColor;
+                    if (plan.globalSettings.primaryColor) scheme2.text = plan.globalSettings.primaryColor;
+                    if (plan.globalSettings.accentColor) {
+                        scheme2.button = plan.globalSettings.accentColor;
+                        scheme2.button_label = plan.globalSettings.secondaryColor || "#FFFFFF";
+                    }
+                }
+
+                // Remove AI-generated settings_data.json if present to prevent it from overwriting our patched version
+                const modIdx = plan.modifications?.findIndex(m => m.filePath === 'config/settings_data.json' || m.filePath === 'settings_data.json');
+                if (modIdx !== undefined && modIdx >= 0 && plan.modifications) {
+                    console.warn(`[Builder] Intercepted AI-generated settings_data.json. Replacing it with cleanly patched version.`);
+                    plan.modifications.splice(modIdx, 1); // remove from array
+                }
+
+                // Write patched JSON back to the zip
+                zip.updateFile(settingsPath, Buffer.from(JSON.stringify(settingsJson, null, 2), 'utf8'));
+            } else {
+                console.warn(`[Builder] Could not find config/settings_data.json in base theme zip.`);
+            }
+        } catch (error) {
+            console.error("[Builder] Failed to apply global settings:", error);
+        }
     }
 
     // Apply modifications (normalize keys from LLM output)
