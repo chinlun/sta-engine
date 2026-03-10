@@ -14,29 +14,25 @@ export const ThemePlanSchema = z.object({
     }).describe("Tracking global brand state and design intent to prevent amnesia."),
     modifications: z.array(
         z.object({
-            filePath: z.string().optional().describe(
+            filePath: z.string().describe(
                 "Full relative file path in the theme. Must start with a folder name, never with '/'. " +
                 "Examples: 'templates/index.json', 'sections/hero-banner.liquid', 'assets/custom.css'. " +
                 "Section filenames use hyphens: 'image-banner.liquid', NOT 'image_banner.liquid'. " +
                 "CRITICAL: DO NOT modify 'config/settings_data.json' here. Use globalSettings instead."
             ),
-            action: z.string().optional().describe(
+            action: z.string().describe(
                 "Action to perform: 'create' (new file), 'update' (replace existing file content), or 'delete' (remove file). " +
                 "Default: 'update'. Use 'create' for new sections, 'update' for modifying index.json."
             ),
-            content: z.string().optional().describe(
-                "The COMPLETE file content — not a diff or partial snippet. " +
+            contentSource: z.array(z.string()).describe(
+                "The COMPLETE file content provided as an array of strings (one string per line). " +
+                "DO NOT use a single massive string — break it into lines to prevent JSON escaping errors. " +
                 "For .liquid files: must include {% schema %} block with 'presets' array at the bottom. " +
-                "For .json files (index.json): must be valid JSON. " +
-                "For templates/index.json: must include BOTH the 'sections' object AND the 'order' array."
-            ),
-            // Catch-all for hallucinated keys so Zod passes them through to our normalizer
-            file: z.string().optional(),
-            file_path: z.string().optional(),
-            type: z.string().optional(),
-            code: z.string().optional(),
+                "For .json files (index.json): must represent valid JSON when joined. " +
+                "If action is 'delete', provide an empty array []."
+            )
         })
-    ),
+    ).describe("List of file modifications to execute. Must be valid JSON."),
 });
 
 // Tool-specific schema: omits thoughtProcess (streamed as text-delta, not a tool param).

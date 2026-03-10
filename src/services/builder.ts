@@ -30,11 +30,15 @@ export function normalizeMod(raw: any): { filePath: string | null; action: strin
     }
 
     // Find content
-    const contentKeys = ['content', 'code', 'body', 'source', 'file_content', 'fileContent'];
+    const contentKeys = ['contentSource', 'content', 'code', 'body', 'source', 'file_content', 'fileContent'];
     let content = '';
     for (const key of contentKeys) {
-        if (raw[key] && typeof raw[key] === 'string') {
-            content = raw[key];
+        if (raw[key] !== undefined) {
+            if (Array.isArray(raw[key])) {
+                content = raw[key].join('\n');
+            } else if (typeof raw[key] === 'string') {
+                content = raw[key];
+            }
             break;
         }
     }

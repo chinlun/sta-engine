@@ -10,6 +10,10 @@ import { BuildThemeToolSchema, BuildThemeToolParams, ThemePlan } from './schema'
 import dotenv from 'dotenv';
 import { streamText, tool, generateText } from 'ai';
 import { google, createGoogleGenerativeAI } from '@ai-sdk/google';
+import previewRoutes from './routes/preview-routes';
+import { previewProxy } from './middleware/preview-proxy';
+import { flyMachineService } from './services/fly-machine-service';
+import path from 'path';
 
 // Create a custom Google provider that strips the aggressive 60s timeout
 // so that generating massive SPA layouts (which take 90+ seconds) doesn't silently fail.
@@ -18,9 +22,16 @@ const customGoogle = createGoogleGenerativeAI({
         // Remove the abort signal if it exists because @ai-sdk/google injects a 60s timeout signal
         const customOptions = { ...options };
         if (customOptions.signal) {
+            console.log(`[Fetch] 🛡️ Stripping SDK timeout signal to allow long-running generations (>60s)`);
             delete customOptions.signal;
         }
-        return fetch(url, customOptions as any);
+        return fetch(url, customOptions as any).then(res => {
+            console.log(`[Fetch] 🌐 ${url} -> ${res.status} ${res.statusText}`);
+            return res;
+        }).catch(err => {
+            console.error(`[Fetch] ❌ Network Error for ${url}:`, err);
+            throw err;
+        });
     }
 });
 
@@ -30,7 +41,14 @@ const app = express();
 const port = 8080;
 
 app.use(cors());
+
+// Mount proxy at root to catch root-level assets (/cdn/..., etc.)
+// The proxy itself will handle filtering based on machineId presence
+app.use('/', previewProxy);
+
 app.use(express.json());
+
+app.use('/api/preview', previewRoutes);
 
 app.post('/api/build', async (req, res) => {
     const { messages } = req.body;
@@ -70,140 +88,45 @@ app.post('/api/build', async (req, res) => {
 
         sendEvent({ type: 'progress', stage: 'ai_call', message: `Calling Gemini (${Math.round(systemPrompt.length / 4).toLocaleString()} tokens context)...` });
         console.log(`[${requestId}] 🚀 Calling Gemini (gemini-2.5-flash)...`);
+        console.log(`[${requestId}] 📦 LLM Request Payload (Messages):`, JSON.stringify(messages, null, 2));
         const result = await streamText({
-            model: customGoogle('gemini-2.5-flash'),
+            model: (customGoogle as any)('gemini-2.5-flash', {
+                structuredOutputs: false,
+                safetySettings: [
+                    { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
+                    { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
+                    { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
+                    { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' }
+                ]
+            }),
             system: systemPrompt,
             messages,
-            tools: {
-                build_theme: tool({
-                    description: "Builds a Shopify theme based on the plan. Call this AFTER explaining your thinking as text.",
-                    parameters: BuildThemeToolSchema,
-                    execute: async (rawArgs: any) => {
-                        console.log(`\n[${requestId}] 🐛 RAW LLM PAYLOAD:`, JSON.stringify(rawArgs, null, 2));
-                        const args = rawArgs as BuildThemeToolParams;
-                        const toolStart = Date.now();
-                        console.log(`\n[${requestId}] 🔧 ===== TOOL CALL: build_theme =====`);
-                        console.log(`[${requestId}] 🎨 Global settings:`, JSON.stringify(args.globalSettings || {}));
-                        console.log(`[${requestId}] 📝 Modifications: ${args.modifications?.length || 0} files`);
-                        args.modifications?.forEach((mod: any, i: number) => {
-                            const { filePath, action, content } = normalizeMod(mod);
-                            console.log(`[${requestId}]   [${i}] ${action.toUpperCase()} ${filePath} (${content.length} chars)`);
-                        });
-
-                        sendEvent({ type: 'tool_start', tool: 'build_theme' });
-
-                        try {
-                            // Stage 0: Validate & Auto-Repair (Item 4: Zero Broken Themes)
-                            sendEvent({ type: 'progress', stage: 'validating', message: 'Validating theme modifications...' });
-                            const validation = validateAndRepair(args as ThemePlan);
-
-                            // Log repairs and warnings
-                            for (const repair of validation.repairs) {
-                                console.log(`[${requestId}] 🔧 [Auto-Repair] ${repair}`);
-                            }
-                            for (const warning of validation.warnings) {
-                                console.warn(`[${requestId}] ⚠️ [Validation] ${warning}`);
-                            }
-
-                            // Block deploy on critical errors
-                            if (!validation.valid) {
-                                const errorMsg = `Theme validation failed: ${validation.errors.join('; ')}`;
-                                console.error(`[${requestId}] ❌ [Validation] ${errorMsg}`);
-                                sendEvent({ type: 'error', message: errorMsg });
-                                return { error: errorMsg };
-                            }
-
-                            if (validation.repairs.length > 0) {
-                                sendEvent({ type: 'progress', stage: 'validating', message: `Auto-repaired ${validation.repairs.length} issue(s)` });
-                            }
-
-                            // Stage 0.5: Gate Validator (Item 6: Cheap Clerk check)
-                            sendEvent({ type: 'progress', stage: 'gate_check', message: 'Running gate validation...' });
-                            const gateResult = await gateValidate(args.modifications || []);
-                            if (!gateResult.passed) {
-                                console.warn(`[${requestId}] ⚠️ [GateValidator] Issues found: ${gateResult.issues.join('; ')}`);
-                                sendEvent({ type: 'progress', stage: 'gate_check', message: `Gate flagged issues: ${gateResult.issues.join('; ')}` });
-                                // Log but don't block — the gate is advisory for now
-                                // TODO: In future, feed issues back for retry
-                            }
-
-                            // Stage 1: Ensure theme slot (SPEC §4.4 — 20-theme limit)
-                            sendEvent({ type: 'progress', stage: 'cleaning', message: 'Checking theme capacity...' });
-                            await ensureThemeSlot();
-
-                            // Stage 2: Build
-                            const modCount = args.modifications?.length || 0;
-                            sendEvent({ type: 'progress', stage: 'building', message: `Building theme with ${modCount} modifications...` });
-                            const zipBuffer = await buildTheme(args as ThemePlan);
-                            console.log(`[${requestId}] [Builder] Theme zip built, size: ${zipBuffer.length} bytes`);
-
-                            // Stage 3: Upload to R2 (returns signed URL per SPEC §4.3)
-                            sendEvent({ type: 'progress', stage: 'uploading', message: 'Uploading theme to cloud storage...' });
-                            const r2SignedUrl = await uploadToR2(`theme-${Date.now()}.zip`, zipBuffer, 'application/zip');
-                            console.log(`[${requestId}] [R2] Upload complete, signed URL generated`);
-
-                            // Stage 3: Deploy to Shopify
-                            sendEvent({ type: 'progress', stage: 'deploying', message: 'Deploying theme to Shopify...' });
-                            const shopifyResult = await uploadThemeToShopify(`AI Generated - ${Date.now()}`, r2SignedUrl);
-                            console.log(`[${requestId}] [Shopify] Deploy complete:`, shopifyResult);
-
-                            // Stage 5: Wait for Shopify to process the theme
-                            sendEvent({ type: 'progress', stage: 'processing', message: 'Waiting for Shopify to process theme...' });
-                            await waitForThemeReady(shopifyResult.id, (msg) => {
-                                sendEvent({ type: 'progress', stage: 'processing', message: msg });
-                            });
-
-                            // Stage 6: Publish the theme as live
-                            sendEvent({ type: 'progress', stage: 'publishing', message: 'Publishing theme as live...' });
-                            await publishTheme(shopifyResult.id);
-
-                            const toolDuration = ((Date.now() - toolStart) / 1000).toFixed(1);
-                            console.log(`[${requestId}] ✅ build_theme completed in ${toolDuration}s`);
-                            sendEvent({
-                                type: 'tool_result', result: {
-                                    ...shopifyResult,
-                                    preview_url: `http://localhost:${port}/api/preview/${shopifyResult.id}`
-                                }
-                            });
-                            return shopifyResult;
-                        } catch (error) {
-                            console.error(`[${requestId}] ❌ [build_theme error]`, error);
-                            sendEvent({ type: 'error', message: String(error) });
-                        }
-                    }
-                } as any)
-            }
+            // tools removed
         });
 
         // Use fullStream to get both text deltas and tool events
         let textChunkCount = 0;
         let totalTextLength = 0;
+        let fullText = "";
 
         for await (const chunk of result.fullStream) {
             switch (chunk.type) {
                 case 'text-delta':
                     textChunkCount++;
                     totalTextLength += chunk.text.length;
-                    sendEvent({ type: 'thinking', content: chunk.text });
-                    break;
-                case 'tool-call':
-                    console.log(`[${requestId}] 📞 [Stream] Tool call: ${chunk.toolName}`);
-                    console.log(`[${requestId}]    Text streamed so far: ${textChunkCount} chunks, ${totalTextLength} chars`);
-                    break;
-                case 'tool-result':
-                    console.log(`[${requestId}] 📦 [Stream] Tool result received`);
+                    fullText += chunk.text;
+                    sendEvent({ type: 'text', content: chunk.text });
                     break;
                 case 'error':
-                    console.error(`[${requestId}] ❌ [Stream] Error:`, chunk.error);
-                    sendEvent({ type: 'error', message: String(chunk.error) });
+                    console.error(`[${requestId}] ❌ [Stream] SDK Error:`, chunk.error);
+                    sendEvent({ type: 'error', message: `AI Stream Error: ${String(chunk.error)}` });
                     break;
                 default:
                     if (chunk.type === 'finish') {
-                        console.log(`[${requestId}] 🏁 [Stream] Finish: reason=${(chunk as any).finishReason}, usage=${JSON.stringify((chunk as any).usage)}`);
-                    } else if (chunk.type === 'finish-step') {
                         console.log(`[${requestId}] 🏁 [Stream] Finish step`);
-                    } else if (chunk.type !== 'start' && chunk.type !== 'start-step' && chunk.type !== 'text-start' && chunk.type !== 'text-end') {
-                        console.log(`[${requestId}] ❓ [Stream] Unhandled chunk type:`, chunk.type);
+                        if ((chunk as any).finishReason === 'error') {
+                            console.error(`[${requestId}] ❌ [Stream] Terminal error detected. Full chunk:`, JSON.stringify(chunk, null, 2));
+                        }
                     }
                     break;
             }
@@ -211,6 +134,125 @@ app.post('/api/build', async (req, res) => {
 
         const totalDuration = ((Date.now() - startTime) / 1000).toFixed(1);
         console.log(`[${requestId}] ✅ Request complete in ${totalDuration}s (${textChunkCount} text chunks, ${totalTextLength} chars streamed)`);
+        console.log(`[${requestId}] 📥 LLM Raw Response:\n${fullText}\n------------------------------------------------------`);
+
+        // --- PARSE MARKDOWN ---
+        console.log(`[${requestId}] 🧠 Parsing markdown for theme files...`);
+
+        let globalSettings = {};
+        try {
+            const globalSettingsMatch = fullText.match(/###\s*`globalSettings`\s*```(?:json)?\n([\s\S]*?)```/);
+            if (globalSettingsMatch) {
+                globalSettings = JSON.parse(globalSettingsMatch[1].trim());
+            }
+        } catch (e) {
+            console.warn(`[${requestId}] ⚠️ Failed to parse globalSettings JSON`);
+        }
+
+        const modifications: any[] = [];
+        const fileRegex = /###\s*`([^`]+)`\s*```(?:[a-zA-Z0-9_-]+)?\n([\s\S]*?)```/g;
+        let match;
+        while ((match = fileRegex.exec(fullText)) !== null) {
+            const filePath = match[1].trim();
+            if (filePath === 'globalSettings' || filePath.includes(' ')) continue;
+            const content = match[2];
+            modifications.push({ filePath, action: 'update', content });
+        }
+
+        if (modifications.length > 0) {
+            const toolStart = Date.now();
+            console.log(`\n[${requestId}] 🔧 ===== VIRTUAL TOOL CALL: build_theme =====`);
+            console.log(`[${requestId}] 🎨 Global settings:`, JSON.stringify(globalSettings || {}));
+            console.log(`[${requestId}] 📝 Modifications: ${modifications.length} files`);
+
+            const args = { globalSettings, modifications };
+
+            // Send synthetic tool_call event to frontend to trigger boot & sync!
+            sendEvent({ type: 'tool_call', toolName: 'build_theme', args });
+
+            // RUN THE BUILD PIPELINE DIRECTLY
+            // Server-side sync fallback
+            const machineId = req.body.machineId;
+
+            if (machineId && modifications.length) {
+                console.log(`[${requestId}] 🚢 Server-side syncing to machine: ${machineId}`);
+                try {
+                    let script = "";
+                    for (const mod of modifications) {
+                        const { filePath, content } = normalizeMod(mod);
+                        if (!filePath || !content) continue;
+
+                        const escapedContent = Buffer.from(content).toString('base64');
+                        const fullPath = path.join("/theme", filePath);
+                        const dir = path.dirname(fullPath);
+                        script += `mkdir -p ${dir} && echo "${escapedContent}" | base64 -d > ${fullPath}\n`;
+                    }
+                    const command = [
+                        "bash", "-c",
+                        `echo "${Buffer.from(script).toString('base64')}" | base64 -d | bash`
+                    ];
+                    await flyMachineService.execCommand(machineId, command);
+                    console.log(`[${requestId}] ✅ Server-side sync complete`);
+                } catch (syncErr: any) {
+                    console.error(`[${requestId}] ⚠️ Server-side sync failed:`, syncErr.message);
+                }
+            } else {
+                console.log(`[${requestId}] ℹ️ Skipping server-side sync (No machineId in session)`);
+            }
+
+            sendEvent({ type: 'tool_start', tool: 'build_theme' });
+            sendEvent({ type: 'progress', stage: 'syncing', message: 'Syncing changes to live preview...' });
+
+            try {
+                // Stage 0: Validate & Auto-Repair
+                sendEvent({ type: 'progress', stage: 'validating', message: 'Validating theme modifications...' });
+                const validation = validateAndRepair(args as ThemePlan);
+
+                for (const repair of validation.repairs) {
+                    console.log(`[${requestId}] 🔧 [Auto-Repair] ${repair}`);
+                }
+                for (const warning of validation.warnings) {
+                    console.warn(`[${requestId}] ⚠️ [Validation] ${warning}`);
+                }
+
+                if (!validation.valid) {
+                    const errorMsg = `Theme validation failed: ${validation.errors.join('; ')}`;
+                    console.error(`[${requestId}] ❌ [Validation] ${errorMsg}`);
+                    sendEvent({ type: 'error', message: errorMsg });
+                } else {
+                    if (validation.repairs.length > 0) {
+                        sendEvent({ type: 'progress', stage: 'validating', message: `Auto-repaired ${validation.repairs.length} issue(s)` });
+                    }
+
+                    // Stage 0.5: Gate Validator
+                    sendEvent({ type: 'progress', stage: 'gate_check', message: 'Running gate validation...' });
+                    const gateResult = await gateValidate(args.modifications || []);
+                    if (!gateResult.passed) {
+                        console.warn(`[${requestId}] ⚠️ [GateValidator] Issues found: ${gateResult.issues.join('; ')}`);
+                        sendEvent({ type: 'progress', stage: 'gate_check', message: `Gate flagged issues: ${gateResult.issues.join('; ')}` });
+                    }
+
+                    const toolDuration = ((Date.now() - toolStart) / 1000).toFixed(1);
+                    console.log(`[${requestId}] ✅ build_theme completed in ${toolDuration}s`);
+                    // Since we are leveraging Docker sync exclusively, we do not need to push to Shopify.
+                    // We simply return a success event to the frontend so it finishes loading.
+                    sendEvent({
+                        type: 'tool_result', result: {
+                            id: 'docker-preview',
+                            name: `AI Preview`,
+                            role: 'development',
+                            preview_url: `http://localhost:${port}/api/preview/${machineId}`
+                        }
+                    });
+                }
+            } catch (error) {
+                console.error(`[${requestId}] ❌ [build_theme error]`, error);
+                sendEvent({ type: 'error', message: String(error) });
+            }
+        } else {
+            console.log(`[${requestId}] ℹ️ No file modifications found in AI response.`);
+        }
+
         console.log(`${'='.repeat(70)}\n`);
         sendEvent({ type: 'done' });
         res.end();
@@ -226,9 +268,20 @@ app.get('/health', (req, res) => {
     res.send('OK');
 });
 
+// Mock Shopify telemetry and tracking endpoints to silence noise in development
+app.all(['/api/collect', '/.well-known/shopify/monorail/*'], (req, res) => {
+    res.status(200).send();
+});
+
 // Magic authenticating preview redirect
 app.get('/api/preview/:themeId', createMagicPreviewHandler());
 
-app.listen(port, () => {
+const server = app.listen(port, () => {
     console.log(`sta-engine listening on port ${port}`);
+});
+
+// Handle WebSocket upgrades for the Shopify CLI hot-reloading proxy
+server.on('upgrade', (req, socket, head) => {
+    // Forward all upgrades to proxy - it will only handle them if it found a machineId
+    (previewProxy as any).upgrade(req, socket, head);
 });

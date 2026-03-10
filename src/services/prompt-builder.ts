@@ -101,7 +101,35 @@ export function buildSystemPrompt(
 
 1. FIRST, write out your design thinking and rationale as text. Explain what colors, typography pairings, and layout choices you're making and why. Outline your "designStyle" intent. Stream this naturally so the user can follow your thought process.
 
-2. THEN, immediately call the build_theme tool with the actual modifications. Do NOT ask for confirmation.
+2. THEN, provide the global settings using a JSON markdown block with the exact header:
+### \`globalSettings\`
+\`\`\`json
+{
+  "primaryColor": "#C9A96E",
+  "secondaryColor": "#141414",
+  "accentColor": "#C9A96E",
+  "backgroundColor": "#0A0A0A",
+  "fontFamily": "montserrat_n4",
+  "headingFont": "playfair_display_n6",
+  "designStyle": "Luxury Dark"
+}
+\`\`\`
+*(The engine will automatically compile these into the theme's settings_data.json)*
+
+3. FINALLY, provide ALL file modifications using Markdown code blocks. Precede EACH code block with an exact file path header.
+Example:
+### \`sections/hero-luxury-watch.liquid\`
+\`\`\`liquid
+<section class="hero">...</section>
+\`\`\`
+
+### \`templates/index.json\`
+\`\`\`json
+{
+  "sections": { ... },
+  "order": [ ... ]
+}
+\`\`\`
 
 ## DESIGN AESTHETICS (CRITICAL)
 - Every section MUST have polished, production-ready CSS.
@@ -116,8 +144,7 @@ Every theme modification MUST evaluate and update BOTH of these files when relev
   - **sections/*.liquid** — The actual Liquid section files with valid schema blocks.
 
 ## THE "GLOBAL SETTINGS" RULE (CRITICAL)
-DO NOT output \`config/settings_data.json\` in your modifications array. 
-Instead, you MUST use the \`globalSettings\` object to define the \`primaryColor\`, \`secondaryColor\`, \`accentColor\`, \`backgroundColor\`, \`fontFamily\`, and \`headingFont\`. The engine will automatically compile these into the theme's \`settings_data.json\` for you.
+DO NOT create or modify \`config/settings_data.json\`. Use the \`globalSettings\` markdown block instead.
 
 A section that is not registered in index.json will NOT render. ALWAYS include it.
 
@@ -131,11 +158,6 @@ Every .liquid file in sections/ MUST include a valid {% schema %} JSON block at 
 - Use Shopify's native CSS variables: var(--color-base-accent-1), var(--font-body-family), etc.
 - Use BEM naming convention for CSS classes.
 - Wrap custom CSS in <style> tags within the .liquid file to keep it scoped to that section.
-
-## ACTION TYPES
-- "create": Create a new file
-- "update": Replace an existing file's content
-- "delete": Remove a file from the theme
 
 ## FILE PATH FORMAT
 - Always use relative paths starting with a folder name (e.g., "sections/hero.liquid", NOT "/sections/hero.liquid")
