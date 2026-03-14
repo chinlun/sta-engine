@@ -11,7 +11,6 @@ import dotenv from 'dotenv';
 import { streamText, tool, generateText } from 'ai';
 import { google, createGoogleGenerativeAI } from '@ai-sdk/google';
 import previewRoutes from './routes/preview-routes';
-import { previewProxy } from './middleware/preview-proxy';
 import { flyMachineService } from './services/fly-machine-service';
 import path from 'path';
 
@@ -41,10 +40,6 @@ const app = express();
 const port = 8080;
 
 app.use(cors());
-
-// Mount proxy at root to catch root-level assets (/cdn/..., etc.)
-// The proxy itself will handle filtering based on machineId presence
-app.use('/', previewProxy);
 
 app.use(express.json());
 
@@ -276,12 +271,11 @@ app.all(['/api/collect', '/.well-known/shopify/monorail/*'], (req, res) => {
 // Magic authenticating preview redirect
 app.get('/api/preview/:themeId', createMagicPreviewHandler());
 
-const server = app.listen(port, () => {
-    console.log(`sta-engine listening on port ${port}`);
+// Final fallthrough handler for any requests not handled by routes
+app.use((req, res) => {
+    res.status(404).send('Not Found');
 });
 
-// Handle WebSocket upgrades for the Shopify CLI hot-reloading proxy
-server.on('upgrade', (req, socket, head) => {
-    // Forward all upgrades to proxy - it will only handle them if it found a machineId
-    (previewProxy as any).upgrade(req, socket, head);
+const server = app.listen(port, () => {
+    console.log(`sta-engine listening on port ${port}`);
 });

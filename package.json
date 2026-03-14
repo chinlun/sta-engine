@@ -15,6 +15,8 @@
         "@ai-sdk/google": "^3.0.43",
         "@aws-sdk/client-s3": "^3.485.0",
         "@aws-sdk/s3-request-presigner": "^3.1001.0",
+        "@shopify/cli": "^3.92.1",
+        "@shopify/theme": "^3.58.2",
         "adm-zip": "^0.5.10",
         "ai": "^6.0.116",
         "cors": "^2.8.5",

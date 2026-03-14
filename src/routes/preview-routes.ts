@@ -18,7 +18,10 @@ router.post("/start", async (req, res) => {
         await flyMachineService.waitForMachine(machineId);
         console.log(`[Preview API] Machine ${machineId} is running.`);
 
-        res.json({ machineId });
+        const appName = process.env.FLY_APP_NAME;
+        const previewUrl = `https://${appName}.fly.dev`;
+
+        res.json({ machineId, previewUrl });
     } catch (error: any) {
         res.status(500).json({ error: error.message });
     }
@@ -99,26 +102,24 @@ router.post("/sync-bulk", async (req, res) => {
 
 router.get("/ping/:machineId", async (req, res) => {
     const { machineId } = req.params;
+    const appName = process.env.FLY_APP_NAME;
     try {
-        const response = await fetch(`http://66.241.125.193`, {
+        const response = await fetch(`https://${appName}.fly.dev`, {
             headers: {
-                "Host": `${machineId}.fly.dev`,
+                "fly-force-instance-id": machineId,
             },
-            // Don't follow redirects, just check if the server is responding instead of 502
             redirect: "manual",
-            // Abort quickly to fail fast during polling
             signal: AbortSignal.timeout(3000)
         });
 
-        // 502 = bad gateway (kernel running but node/Shopify CLI not yet listening)
+        // 502/503 = Fly proxy is up but app (Caddy/CLI) is not yet responding
         if (response.status === 502 || response.status === 503) {
             return res.json({ ready: false, status: response.status });
         }
 
-        // If it's a 2xx or 3xx or 404 (which implies node is actively denying us), it means the webserver is UP
+        // Any other status (2xx, 3xx, 4xx, 500) means Caddy is responding!
         res.json({ ready: true, status: response.status });
     } catch (error: any) {
-        // Network errors mean it's not ready
         res.json({ ready: false, error: error.message });
     }
 });
