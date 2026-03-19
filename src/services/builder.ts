@@ -215,7 +215,154 @@ export function validateAndRepair(plan: ThemePlan): ValidationResult {
         );
     }
 
+    enforceShopifyLimits(normalizedMods, result, plan);
+
     return result;
+}
+
+const SHOPIFY_LIMITS = {
+    JSON_TEMPLATE: 500 * 1024, // 500 KB (Shopify hard limit is 512KB)
+    LIQUID_FILE: 250 * 1024,   // 250 KB (Shopify hard limit is 256KB)
+    ASSET_FILE: 19 * 1024 * 1024 // 19 MB (Shopify hard limit is 20MB)
+};
+
+/**
+ * Enforces Shopify file size limits by auto-splitting or minifying large files.
+ */
+function enforceShopifyLimits(normalizedMods: any[], result: ValidationResult, plan: ThemePlan) {
+    const newMods: any[] = [];
+
+    for (const mod of normalizedMods) {
+        if (!mod.filePath || mod.action === 'delete') continue;
+
+        let contentBytes = Buffer.byteLength(mod.content, 'utf8');
+
+        // 1. JSON Templates (> 500 KB)
+        if (mod.filePath.endsWith('.json') && contentBytes > SHOPIFY_LIMITS.JSON_TEMPLATE) {
+            try {
+                // Step 1: Whitespace minification
+                const parsed = JSON.parse(mod.content);
+                let minified = JSON.stringify(parsed);
+                let newBytes = Buffer.byteLength(minified, 'utf8');
+
+                if (newBytes < contentBytes) {
+                    result.repairs.push(`Minified JSON template "${mod.filePath}" (${(contentBytes / 1024).toFixed(1)}KB -> ${(newBytes / 1024).toFixed(1)}KB)`);
+                    updateModContent(mod, minified);
+                    contentBytes = newBytes;
+                }
+
+                // Step 2: If STILL too massive, attempt to extract settings (for index.json)
+                if (contentBytes > SHOPIFY_LIMITS.JSON_TEMPLATE && mod.filePath === 'templates/index.json' && parsed.sections) {
+                    let extractedCount = 0;
+                    for (const [sectionId, sectionData] of Object.entries<any>(parsed.sections)) {
+                        if (sectionData.settings && Object.keys(sectionData.settings).length > 0) {
+                            // Convert settings string to check size
+                            const settingsBytes = Buffer.byteLength(JSON.stringify(sectionData.settings), 'utf8');
+                            if (settingsBytes > 1024) { // Only extract if section settings > 1KB
+                                const sectionType = sectionData.type || sectionId;
+                                const liquidPath = `sections/${sectionType}.liquid`;
+                                const liquidMod = normalizedMods.find(m => m.filePath === liquidPath);
+
+                                if (liquidMod && liquidMod.content) {
+                                    // Inject into schema
+                                    const schemaRegex = /\{%-?\s*schema\s*-?%\}([\s\S]*?)\{%-?\s*endschema\s*-?%\}/;
+                                    const match = liquidMod.content.match(schemaRegex);
+                                    if (match) {
+                                        try {
+                                            const schemaObj = JSON.parse(match[1]);
+                                            schemaObj.default = schemaObj.default || {};
+                                            schemaObj.default.settings = { ...schemaObj.default.settings, ...sectionData.settings };
+
+                                            // Replace schema in liquid file
+                                            const newSchemaStr = `{% schema %}\n${JSON.stringify(schemaObj, null, 2)}\n{% endschema %}`;
+                                            const newLiquidContent = liquidMod.content.replace(schemaRegex, newSchemaStr);
+
+                                            if (Buffer.byteLength(newLiquidContent, 'utf8') <= SHOPIFY_LIMITS.LIQUID_FILE) {
+                                                updateModContent(liquidMod, newLiquidContent);
+
+                                                // Remove from index
+                                                delete sectionData.settings;
+                                                extractedCount++;
+                                            }
+                                        } catch (e) { /* ignore parse errors in schema */ }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if (extractedCount > 0) {
+                        minified = JSON.stringify(parsed);
+                        newBytes = Buffer.byteLength(minified, 'utf8');
+                        result.repairs.push(`Extracted ${extractedCount} large section settings from "${mod.filePath}" into section schemas (${(contentBytes / 1024).toFixed(1)}KB -> ${(newBytes / 1024).toFixed(1)}KB)`);
+                        updateModContent(mod, minified);
+                        contentBytes = newBytes;
+                    }
+                }
+
+                // Final safety check
+                if (contentBytes > SHOPIFY_LIMITS.JSON_TEMPLATE) {
+                    result.errors.push(`JSON template "${mod.filePath}" is ${(contentBytes / 1024).toFixed(1)}KB, exceeding Shopify's 512KB limit even after extraction.`);
+                    result.valid = false;
+                }
+            } catch (e) {
+                // Ignore parse errors, already handled previously
+            }
+        }
+
+        // 2. Liquid Files (> 250 KB)
+        else if (mod.filePath.endsWith('.liquid') && contentBytes > SHOPIFY_LIMITS.LIQUID_FILE) {
+            let replacedContent = mod.content;
+            let snippetCounter = 1;
+            let extractedSnippets = 0;
+
+            // Step 1: Extract massive SVG blocks
+            const svgRegex = /<svg[\s\S]*?<\/svg>/gi;
+            replacedContent = replacedContent.replace(svgRegex, (match: string) => {
+                if (Buffer.byteLength(match, 'utf8') > 50 * 1024) { // > 50KB SVG
+                    const snippetName = `auto-extracted-svg-${Date.now()}-${snippetCounter++}`;
+                    const snippetPath = `snippets/${snippetName}.liquid`;
+
+                    const newMod = { filePath: snippetPath, action: 'create', contentSource: [match] };
+                    if (!plan.modifications) plan.modifications = [];
+                    plan.modifications.push(newMod as any); // Add to main plan so builder sees it
+                    extractedSnippets++;
+
+                    return `{% render '${snippetName}' %}`;
+                }
+                return match;
+            });
+
+            if (extractedSnippets > 0) {
+                result.repairs.push(`Auto-extracted ${extractedSnippets} massive SVG blocks from "${mod.filePath}" into snippets.`);
+                updateModContent(mod, replacedContent);
+                contentBytes = Buffer.byteLength(replacedContent, 'utf8');
+            }
+
+            // Final safety check
+            if (contentBytes > SHOPIFY_LIMITS.LIQUID_FILE) {
+                result.errors.push(`Liquid file "${mod.filePath}" is ${(contentBytes / 1024).toFixed(1)}KB, exceeding Shopify's 256KB limit even after extraction.`);
+                result.valid = false;
+            }
+        }
+    }
+}
+
+function updateModContent(mod: any, newContent: string) {
+    mod.content = newContent;
+    if (mod.raw) {
+        // Find existing key containing the content and update it
+        for (const key of ['contentSource', 'content', 'code', 'body', 'source', 'file_content', 'fileContent']) {
+            if (mod.raw[key] !== undefined) {
+                if (Array.isArray(mod.raw[key])) {
+                    mod.raw[key] = newContent.split('\n');
+                } else if (typeof mod.raw[key] === 'string') {
+                    mod.raw[key] = newContent;
+                }
+                break;
+            }
+        }
+    }
 }
 
 /**

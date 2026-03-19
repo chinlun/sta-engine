@@ -49,17 +49,7 @@ router.post("/sync", async (req, res) => {
         }
         console.log(`[Preview API] Syncing 1 file to Machine ${machineId}: ${filePath}`);
 
-        // Escape content to safely echo it inside bash
-        const escapedContent = Buffer.from(content).toString('base64');
-        const fullPath = path.join("/theme", filePath);
-        const dir = path.dirname(fullPath);
-
-        const command = [
-            "bash", "-c",
-            `mkdir -p ${dir} && echo "${escapedContent}" | base64 -d > ${fullPath}`
-        ];
-
-        await flyMachineService.execCommand(machineId, command);
+        await flyMachineService.syncFile(machineId, filePath, content);
 
         res.json({ success: true });
     } catch (error: any) {
@@ -76,22 +66,7 @@ router.post("/sync-bulk", async (req, res) => {
 
         console.log(`[PreviewRoutes] 📦 Bulk syncing ${files.length} files to machine ${machineId}`);
 
-        // Construct a single bash command to write all files
-        // We use a temporary script to avoid command line length limits if there are many files
-        let script = "";
-        for (const file of files) {
-            const escapedContent = Buffer.from(file.content).toString('base64');
-            const fullPath = path.join("/theme", file.filePath);
-            const dir = path.dirname(fullPath);
-            script += `mkdir -p ${dir} && echo "${escapedContent}" | base64 -d > ${fullPath}\n`;
-        }
-
-        const command = [
-            "bash", "-c",
-            `echo "${Buffer.from(script).toString('base64')}" | base64 -d | bash`
-        ];
-
-        await flyMachineService.execCommand(machineId, command);
+        await flyMachineService.syncBulk(machineId, files);
 
         res.json({ success: true });
     } catch (error: any) {

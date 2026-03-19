@@ -1,3 +1,5 @@
+import crypto from 'crypto';
+
 export const flyMachineService = {
     async createMachine(storeUrl: string, themeToken: string) {
         const apiToken = process.env.FLY_API_TOKEN;
@@ -149,6 +151,68 @@ export const flyMachineService = {
             if (data.stderr) console.error(`[Fly API] STDERR:\n${data.stderr}`);
         } catch (e) {
             console.log(`[Fly API] ✅ Exec command completed. Raw response:\n${rawText}`);
+        }
+    },
+
+    async syncFile(machineId: string, filePath: string, content: string) {
+        const appName = process.env.FLY_APP_NAME;
+        const themeToken = process.env.SHOPIFY_THEME_ACCESS_PASSWORD;
+        if (!appName || !themeToken) throw new Error("Missing FLY_APP_NAME or SHOPIFY_THEME_ACCESS_PASSWORD");
+
+        const targetUrl = `https://${appName}.fly.dev/sync`;
+        const payload = JSON.stringify({ filePath, content });
+
+        // Generate HMAC signature
+        const hmac = crypto.createHmac('sha256', themeToken);
+        hmac.update(payload);
+        const signature = hmac.digest('hex');
+
+        console.log(`[Fly API] 🚀 Syncing file ${filePath} to machine ${machineId} via HTTP POST...`);
+        const response = await fetch(targetUrl, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "fly-force-instance-id": machineId,
+                "x-sync-signature": signature
+            },
+            body: payload
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`[Fly API] ❌ HTTP Sync failed ${response.status}:`, errorText);
+            throw new Error(`Failed to HTTP sync: ${response.status} ${errorText}`);
+        }
+    },
+
+    async syncBulk(machineId: string, files: { filePath: string, content: string }[]) {
+        const appName = process.env.FLY_APP_NAME;
+        const themeToken = process.env.SHOPIFY_THEME_ACCESS_PASSWORD;
+        if (!appName || !themeToken) throw new Error("Missing FLY_APP_NAME or SHOPIFY_THEME_ACCESS_PASSWORD");
+
+        const targetUrl = `https://${appName}.fly.dev/sync-bulk`;
+        const payload = JSON.stringify({ files });
+
+        // Generate HMAC signature
+        const hmac = crypto.createHmac('sha256', themeToken);
+        hmac.update(payload);
+        const signature = hmac.digest('hex');
+
+        console.log(`[Fly API] 🚀 Bulk Syncing ${files.length} files to machine ${machineId} via HTTP POST...`);
+        const response = await fetch(targetUrl, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "fly-force-instance-id": machineId,
+                "x-sync-signature": signature
+            },
+            body: payload
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`[Fly API] ❌ HTTP Bulk Sync failed ${response.status}:`, errorText);
+            throw new Error(`Failed to HTTP bulk sync: ${response.status} ${errorText}`);
         }
     }
 };

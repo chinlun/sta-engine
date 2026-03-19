@@ -170,24 +170,44 @@ app.post('/api/build', async (req, res) => {
             const machineId = req.body.machineId;
 
             if (machineId && modifications.length) {
-                console.log(`[${requestId}] 🚢 Server-side syncing to machine: ${machineId}`);
+                console.log(`[${requestId}] 🚢 Server-side syncing ${modifications.length} file(s) to machine: ${machineId}`);
                 try {
-                    let script = "";
-                    for (const mod of modifications) {
-                        const { filePath, content } = normalizeMod(mod);
-                        if (!filePath || !content) continue;
+                    // Sort modifications to ensure components (sections, snippets, assets) 
+                    // are written before configurations and templates (index.json)
+                    // This prevents Shopify CLI race conditions where index.json is validated 
+                    // before its new section dependencies exist.
+                    const orderedMods = [...modifications].map(mod => normalizeMod(mod))
+                        .filter(mod => mod.filePath && mod.content)
+                        .sort((a, b) => {
+                            const aIsJson = a.filePath!.endsWith('.json');
+                            const bIsJson = b.filePath!.endsWith('.json');
+                            if (aIsJson && !bIsJson) return 1;
+                            if (!aIsJson && bIsJson) return -1;
+                            return 0;
+                        });
 
-                        const escapedContent = Buffer.from(content).toString('base64');
-                        const fullPath = path.join("/theme", filePath);
-                        const dir = path.dirname(fullPath);
-                        script += `mkdir -p ${dir} && echo "${escapedContent}" | base64 -d > ${fullPath}\n`;
+                    if (orderedMods.length > 0) {
+                        const bulkPayload = orderedMods.map(mod => ({
+                            filePath: mod.filePath!,
+                            content: mod.content
+                        }));
+
+                        console.log(`[Preview API] Bulk syncing ${bulkPayload.length} files to Machine ${machineId}`);
+                        await flyMachineService.syncBulk(machineId, bulkPayload);
                     }
-                    const command = [
-                        "bash", "-c",
-                        `echo "${Buffer.from(script).toString('base64')}" | base64 -d | bash`
-                    ];
-                    await flyMachineService.execCommand(machineId, command);
                     console.log(`[${requestId}] ✅ Server-side sync complete`);
+
+                    // Trigger the custom reload signaler so the browser refreshes
+                    console.log(`[${requestId}] 🔄 Triggering reload signal...`);
+                    try {
+                        await flyMachineService.execCommand(machineId, [
+                            "bash", "-c",
+                            "curl -s -X POST http://127.0.0.1:9295/notify || echo 'Signaler not available'"
+                        ]);
+                        console.log(`[${requestId}] ✅ Reload signal sent`);
+                    } catch (notifyErr: any) {
+                        console.warn(`[${requestId}] ⚠️ Reload signal failed (non-fatal):`, notifyErr.message);
+                    }
                 } catch (syncErr: any) {
                     console.error(`[${requestId}] ⚠️ Server-side sync failed:`, syncErr.message);
                 }
