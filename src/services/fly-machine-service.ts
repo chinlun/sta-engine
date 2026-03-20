@@ -1,6 +1,23 @@
 import crypto from 'crypto';
 
 export const flyMachineService = {
+    async listMachines() {
+        const apiToken = process.env.FLY_API_TOKEN;
+        const appName = process.env.FLY_APP_NAME;
+        if (!apiToken || !appName) throw new Error("Missing FLY_API_TOKEN or FLY_APP_NAME");
+
+        const response = await fetch(`https://api.machines.dev/v1/apps/${appName}/machines`, {
+            headers: { "Authorization": `Bearer ${apiToken}` }
+        });
+
+        if (!response.ok) {
+            console.error(`[Fly API] ❌ List machines failed ${response.status}`);
+            return [];
+        }
+
+        return await response.json();
+    },
+
     async createMachine(storeUrl: string, themeToken: string) {
         const apiToken = process.env.FLY_API_TOKEN;
         const appName = process.env.FLY_APP_NAME;
@@ -57,6 +74,23 @@ export const flyMachineService = {
         const data = JSON.parse(rawText);
         console.log(`[Fly API] ✅ Created machine: ${data.id}. Raw Response:`, rawText);
         return data.id;
+    },
+
+    async startMachine(machineId: string) {
+        const apiToken = process.env.FLY_API_TOKEN;
+        const appName = process.env.FLY_APP_NAME;
+
+        console.log(`[Fly API] ⏳ Sending start signal to machine ${machineId}...`);
+        const response = await fetch(`https://api.machines.dev/v1/apps/${appName}/machines/${machineId}/start`, {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${apiToken}` }
+        });
+
+        if (!response.ok) {
+            console.warn(`[Fly API] ⚠️ Start machine returned ${response.status}`);
+        } else {
+            console.log(`[Fly API] ✅ Start signal sent to ${machineId}`);
+        }
     },
 
     async waitForMachine(machineId: string) {
