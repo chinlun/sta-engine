@@ -17,10 +17,8 @@ import path from 'path';
 import fs from 'fs';
 
 // Create a custom Google provider that strips the aggressive 60s timeout
-// so that generating massive SPA layouts (which take 90+ seconds) doesn't silently fail.
 const customGoogle = createGoogleGenerativeAI({
     fetch: (url, options) => {
-        // Remove the abort signal if it exists because @ai-sdk/google injects a 60s timeout signal
         const customOptions = { ...options };
         if (customOptions.signal) {
             console.log(`[Fetch] 🛡️ Stripping SDK timeout signal to allow long-running generations (>60s)`);
@@ -42,9 +40,7 @@ const app = express();
 const port = 8080;
 
 app.use(cors());
-
 app.use(express.json());
-
 app.use('/api/preview', previewRoutes);
 
 function buildCurativePrompt(errorMessage: string): string {
@@ -66,12 +62,6 @@ app.post('/api/build', async (req, res) => {
 
     console.log(`\n${'='.repeat(70)}`);
     console.log(`[${requestId}] 📨 New build request received`);
-    console.log(`[${requestId}] 💬 Messages: ${messages?.length || 0} total`);
-    messages?.forEach((m: any, i: number) => {
-        const preview = typeof m.content === 'string' ? m.content.substring(0, 120) : JSON.stringify(m.content).substring(0, 120);
-        console.log(`[${requestId}]   [${i}] ${m.role}: "${preview}${m.content?.length > 120 ? '...' : ''}"`);
-    });
-    console.log(`${'repeat(requestId)'}`);
 
     // Set SSE headers
     res.setHeader('Content-Type', 'text/event-stream');
@@ -84,17 +74,11 @@ app.post('/api/build', async (req, res) => {
     };
 
     try {
-        // SPEC §5.2: Inject current index.json and settings_data.json as primary context
         sendEvent({ type: 'progress', stage: 'context', message: 'Loading theme context & reference docs...' });
         const currentIndexJson = extractFileFromBaseTheme('templates/index.json');
         const currentSettingsData = extractFileFromBaseTheme('config/settings_data.json');
-        console.log(`[${requestId}] 📄 State injection: index.json=${currentIndexJson ? `${currentIndexJson.length} chars` : 'NOT FOUND'}, settings_data.json=${currentSettingsData ? `${currentSettingsData.length} chars` : 'NOT FOUND'}`);
 
-        // SPEC §5.1: Build system prompt with cheat sheet injection
-        sendEvent({ type: 'progress', stage: 'context', message: 'Building system prompt with CAT context layers...' });
         const systemPrompt = buildSystemPrompt(currentIndexJson, currentSettingsData);
-        console.log(`[${requestId}] 🧠 System prompt built: ${systemPrompt.length} chars`);
-
         let currentMessages = [...messages];
         let globalSettings = {};
         let modifications: any[] = [];
@@ -107,22 +91,12 @@ app.post('/api/build', async (req, res) => {
         while (retryCount <= maxRetries && !buildSuccessful) {
             if (retryCount > 0) {
                 sendEvent({ type: 'progress', stage: 'ai_call', message: `Self-healing retry ${retryCount}/${maxRetries}...` });
-                console.log(`[${requestId}] � Self-healing retry ${retryCount}/${maxRetries}`);
             } else {
                 sendEvent({ type: 'progress', stage: 'ai_call', message: `Calling Gemini...` });
-                console.log(`[${requestId}] � Calling Gemini (gemini-2.5-flash)...`);
             }
 
             const result = await streamText({
-                model: (customGoogle as any)('gemini-2.5-flash', {
-                    structuredOutputs: false,
-                    safetySettings: [
-                        { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
-                        { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
-                        { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
-                        { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' }
-                    ]
-                }),
+                model: (customGoogle as any)('gemini-2.5-flash', { structuredOutputs: false }),
                 system: systemPrompt,
                 messages: currentMessages,
             });
@@ -135,15 +109,12 @@ app.post('/api/build', async (req, res) => {
                 }
             }
 
-            // --- PARSE MARKDOWN ---
             try {
                 const globalSettingsMatch = fullText.match(/###\s*`globalSettings`\s*```(?:json)?\n([\s\S]*?)```/);
                 if (globalSettingsMatch) {
                     globalSettings = { ...globalSettings, ...JSON.parse(globalSettingsMatch[1].trim()) };
                 }
-            } catch (e) {
-                console.warn(`[${requestId}] ⚠️ Failed to parse globalSettings JSON`);
-            }
+            } catch (e) { }
 
             const fileRegex = /###\s*`([^`]+)`\s*```(?:[a-zA-Z0-9_-]+)?\n([\s\S]*?)```/g;
             let match;
@@ -154,7 +125,6 @@ app.post('/api/build', async (req, res) => {
                 newModifications.push({ filePath, action: 'update', content: match[2] });
             }
 
-            // Merge modifications: existing ones are updated or kept, new ones are added
             for (const newMod of newModifications) {
                 const existingIndex = modifications.findIndex(m => m.filePath === newMod.filePath);
                 if (existingIndex > -1) {
@@ -165,22 +135,27 @@ app.post('/api/build', async (req, res) => {
             }
 
             if (modifications.length === 0) {
-                console.log(`[${requestId}] ℹ️ No file modifications found.`);
                 buildSuccessful = true;
                 continue;
             }
 
             try {
-                // --- VALIDATE ---
-                sendEvent({ type: 'progress', stage: 'validating', message: 'Validating theme integrity...' });
-                IntegrityManager.validate(modifications);
+                sendEvent({ type: 'progress', stage: 'validating', message: 'Validating and auto-repairing theme integrity...' });
+                const newPlan: any = { thoughtProcess: fullText.substring(0, 500), globalSettings, modifications };
+                const repairResult = validateAndRepair(newPlan);
 
-                // If validation passes, proceed to sync
-                const args = { globalSettings, modifications };
+                if (repairResult.errors.length > 0) {
+                    throw new ValidationError("ThemePlan", repairResult.errors.join(", "));
+                }
+
+                IntegrityManager.validate(newPlan.modifications!);
+
+                const args = { globalSettings: newPlan.globalSettings, modifications: newPlan.modifications };
                 sendEvent({ type: 'tool_call', toolName: 'build_theme', args });
 
-                if (machineId && modifications.length) {
+                if (machineId && newPlan.modifications!.length) {
                     sendEvent({ type: 'progress', stage: 'syncing', message: 'Syncing changes to live preview...' });
+                    modifications = newPlan.modifications!;
                     const orderedMods = [...modifications].map(mod => normalizeMod(mod))
                         .filter(mod => mod.filePath && mod.content)
                         .sort((a, b) => {
@@ -191,12 +166,27 @@ app.post('/api/build', async (req, res) => {
                             return 0;
                         });
 
-                    await flyMachineService.syncBulk(machineId, orderedMods.map(m => ({ filePath: m.filePath!, content: m.content })));
+                    const nonJsonMods = orderedMods.filter(m => !m.filePath!.endsWith('.json'));
+                    const jsonMods = orderedMods.filter(m => m.filePath!.endsWith('.json'));
+
+                    // Pass 1: Sync all non-JSON files (sections, snippets, etc.) first
+                    if (nonJsonMods.length > 0) {
+                        await flyMachineService.syncBulk(machineId, nonJsonMods.map(m => ({ filePath: m.filePath!, content: m.content })));
+                        // Wait for Shopify CLI to start processing these files
+                        await new Promise(resolve => setTimeout(resolve, 2000));
+                    }
+
+                    // Pass 2: Sync all JSON files (templates, config, etc.)
+                    if (jsonMods.length > 0) {
+                        await flyMachineService.syncBulk(machineId, jsonMods.map(m => ({ filePath: m.filePath!, content: m.content })));
+                    }
+
+                    // Guaranteed Reload: Tell the browser to refresh after both passes are complete.
+                    // This is a fallback in case the Shopify CLI's own --notify flag is delayed or missed.
                     try {
-                        // Use wget as a fallback if curl is missing
                         await flyMachineService.execCommand(machineId, [
                             "bash", "-c",
-                            "wget -qO- --post-data='' http://127.0.0.1:9295/notify || curl -s -X POST http://127.0.0.1:9295/notify || echo 'Signaler not available'"
+                            "wget -qO- --post-data='' http://127.0.0.1:9295/notify?source=engine || curl -s -X POST http://127.0.0.1:9295/notify?source=engine || echo 'Signaler not available'"
                         ]);
                     } catch (e) { }
                 }
@@ -212,16 +202,13 @@ app.post('/api/build', async (req, res) => {
 
                 buildSuccessful = true;
                 sendEvent({ type: 'done' });
-                console.log(`[${requestId}] ✅ Build & Sync successful after ${retryCount + 1} pass(es)`);
+                console.log(`[${requestId}] ✅ Build & Sync successful`);
 
             } catch (error) {
                 if (error instanceof ValidationError && retryCount < maxRetries) {
                     console.warn(`[${requestId}] ⚠️ Validation failed, triggering self-healing: ${error.message}`);
                     currentMessages.push({ role: 'assistant', content: fullText });
-                    currentMessages.push({
-                        role: 'user',
-                        content: buildCurativePrompt(error.reason)
-                    });
+                    currentMessages.push({ role: 'user', content: buildCurativePrompt(error.reason) });
                     retryCount++;
                 } else {
                     throw error;
@@ -230,29 +217,14 @@ app.post('/api/build', async (req, res) => {
         }
         res.end();
     } catch (error) {
-        const totalDuration = ((Date.now() - startTime) / 1000).toFixed(1);
-        console.error(`[${requestId}] ❌ Request failed after ${totalDuration}s:`, error);
+        console.error(`[${requestId}] ❌ Request failed:`, error);
         sendEvent({ type: 'error', message: String(error) });
         res.end();
     }
 });
 
-app.get('/health', (req, res) => {
-    res.send('OK');
-});
-
-// Mock Shopify telemetry and tracking endpoints to silence noise in development
-app.all(['/api/collect', '/.well-known/shopify/monorail/*'], (req, res) => {
-    res.status(200).send();
-});
-
-// Magic authenticating preview redirect
+app.get('/health', (req, res) => res.send('OK'));
 app.get('/api/preview/:themeId', createMagicPreviewHandler());
-
-// Final fallthrough handler for any requests not handled by routes
-app.use((req, res) => {
-    res.status(404).send('Not Found');
-});
 
 const server = app.listen(port, () => {
     console.log(`sta-engine listening on port ${port}`);

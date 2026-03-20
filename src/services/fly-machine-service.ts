@@ -37,6 +37,7 @@ export const flyMachineService = {
                     SHOPIFY_FLAG_STORE: storeUrl,
                     SHOPIFY_CLI_THEME_TOKEN: themeToken,
                     SHOPIFY_STORE_PASSWORD: process.env.SHOPIFY_STORE_PASSWORD || "",
+                    BASE_THEME: process.env.BASE_THEME_FILE && process.env.BASE_THEME_FILE.includes("skeleton") ? "skeleton" : "dawn",
                 },
                 services: [
                     {

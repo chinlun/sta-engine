@@ -73,7 +73,12 @@ export function extractFileFromBaseTheme(filePath: string): string | null {
         return null;
     }
 
-    return entry.getData().toString('utf-8');
+    const content = entry.getData().toString('utf-8');
+    if (filePath.endsWith('.json')) {
+        // Strip comments for AI context to ensure it sees valid JSON
+        return content.replace(/\/\*[\s\S]*?\*\/|([^:]|^)\/\/.*$/gm, '$1');
+    }
+    return content;
 }
 
 /**
@@ -180,12 +185,16 @@ Every .liquid file in sections/ MUST include a valid {% schema %} JSON block at 
     }
 
     // ═══════════════════════════════════════════
-    // Layer 4: Dawn File Map
+    // Layer 4: Base Theme File Map
     // ═══════════════════════════════════════════
-    const dawnMap = refs.get('dawn-file-map.md');
-    if (dawnMap) {
+    const baseThemeFile = process.env.BASE_THEME_FILE || 'dawn-15.4.1.zip';
+    const isSkeleton = baseThemeFile.includes('skeleton');
+    const mapName = isSkeleton ? 'skeleton-file-map.md' : 'dawn-file-map.md';
+    const themeName = isSkeleton ? 'Skeleton' : 'Dawn';
+    const fileMap = refs.get(mapName);
+    if (fileMap) {
         // Inject the full map — tells the AI exactly what files exist
-        parts.push(`\n## DAWN THEME FILE MAP\nThis is the complete file structure of the base Dawn theme you are modifying.\n${dawnMap}`);
+        parts.push(`\n## ${themeName.toUpperCase()} THEME FILE MAP\nThis is the complete file structure of the base ${themeName} theme you are modifying.\n${fileMap}`);
     }
 
     // ═══════════════════════════════════════════

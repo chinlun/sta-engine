@@ -164,7 +164,8 @@ export function validateAndRepair(plan: ThemePlan): ValidationResult {
     // Check: Sections created but not registered in index.json
     if (sectionFiles.size > 0 && indexJsonMod && indexJsonMod.content) {
         try {
-            const indexJson = JSON.parse(indexJsonMod.content);
+            const cleanContent = indexJsonMod.content.replace(/\/\*[\s\S]*?\*\/|([^:]|^)\/\/.*$/gm, '$1');
+            const indexJson = JSON.parse(cleanContent);
             const registeredTypes = new Set(
                 Object.values(indexJson.sections || {}).map((s: any) => s.type)
             );
@@ -438,36 +439,41 @@ export const buildTheme = async (plan: ThemePlan): Promise<Buffer> => {
             const settingsPath = rootPrefix + 'config/settings_data.json';
             const settingsEntry = zip.getEntry(settingsPath);
             if (settingsEntry) {
-                const settingsJson = JSON.parse(settingsEntry.getData().toString('utf8'));
+                const rawContent = settingsEntry.getData().toString('utf8');
+                const cleanContent = rawContent.replace(/\/\*[\s\S]*?\*\/|([^:]|^)\/\/.*$/gm, '$1');
+                const settingsJson = JSON.parse(cleanContent);
 
-                // Update typography
-                if (plan.globalSettings.fontFamily) {
-                    settingsJson.presets.Default.type_body_font = plan.globalSettings.fontFamily;
-                }
-                if (plan.globalSettings.headingFont) {
-                    settingsJson.presets.Default.type_header_font = plan.globalSettings.headingFont;
-                }
-
-                // Update scheme-1 (Default body scheme)
-                const scheme1 = settingsJson.presets.Default.color_schemes?.['scheme-1']?.settings;
-                if (scheme1) {
-                    if (plan.globalSettings.backgroundColor) scheme1.background = plan.globalSettings.backgroundColor;
-                    if (plan.globalSettings.primaryColor) scheme1.text = plan.globalSettings.primaryColor;
-                    if (plan.globalSettings.accentColor) {
-                        scheme1.button = plan.globalSettings.accentColor;
-                        scheme1.button_label = plan.globalSettings.backgroundColor || "#FFFFFF";
+                const preset = settingsJson.presets?.Default || settingsJson.current;
+                if (preset) {
+                    // Update typography
+                    if (plan.globalSettings.fontFamily) {
+                        preset.type_body_font = plan.globalSettings.fontFamily;
                     }
-                    if (plan.globalSettings.secondaryColor) scheme1.secondary_button_label = plan.globalSettings.secondaryColor;
-                }
+                    if (plan.globalSettings.headingFont) {
+                        preset.type_header_font = plan.globalSettings.headingFont;
+                    }
 
-                // Update scheme-2 (Often used for cards/secondary backgrounds)
-                const scheme2 = settingsJson.presets.Default.color_schemes?.['scheme-2']?.settings;
-                if (scheme2) {
-                    if (plan.globalSettings.secondaryColor) scheme2.background = plan.globalSettings.secondaryColor;
-                    if (plan.globalSettings.primaryColor) scheme2.text = plan.globalSettings.primaryColor;
-                    if (plan.globalSettings.accentColor) {
-                        scheme2.button = plan.globalSettings.accentColor;
-                        scheme2.button_label = plan.globalSettings.secondaryColor || "#FFFFFF";
+                    // Update scheme-1
+                    const scheme1 = preset.color_schemes?.['scheme-1']?.settings;
+                    if (scheme1) {
+                        if (plan.globalSettings.backgroundColor) scheme1.background = plan.globalSettings.backgroundColor;
+                        if (plan.globalSettings.primaryColor) scheme1.text = plan.globalSettings.primaryColor;
+                        if (plan.globalSettings.accentColor) {
+                            scheme1.button = plan.globalSettings.accentColor;
+                            scheme1.button_label = plan.globalSettings.backgroundColor || "#FFFFFF";
+                        }
+                        if (plan.globalSettings.secondaryColor) scheme1.secondary_button_label = plan.globalSettings.secondaryColor;
+                    }
+
+                    // Update scheme-2
+                    const scheme2 = preset.color_schemes?.['scheme-2']?.settings;
+                    if (scheme2) {
+                        if (plan.globalSettings.secondaryColor) scheme2.background = plan.globalSettings.secondaryColor;
+                        if (plan.globalSettings.primaryColor) scheme2.text = plan.globalSettings.primaryColor;
+                        if (plan.globalSettings.accentColor) {
+                            scheme2.button = plan.globalSettings.accentColor;
+                            scheme2.button_label = plan.globalSettings.secondaryColor || "#FFFFFF";
+                        }
                     }
                 }
 

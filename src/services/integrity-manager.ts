@@ -84,7 +84,8 @@ export class IntegrityManager {
      */
     static verifyTemplateIntegrity(modifications: Modification[], indexJsonContent: string): void {
         try {
-            const indexJson = JSON.parse(indexJsonContent);
+            const cleanContent = indexJsonContent.replace(/\/\*[\s\S]*?\*\/|([^:]|^)\/\/.*$/gm, '$1');
+            const indexJson = JSON.parse(cleanContent);
             const sections = indexJson.sections || {};
 
             // Build a set of all available sections from modifications
@@ -100,23 +101,29 @@ export class IntegrityManager {
                 const sectionType = section.type;
                 if (!sectionType) continue;
 
-                // Skip validation if it's a known base section in Dawn
-                if (DAWN_BASE_SECTIONS.has(sectionType)) continue;
+                // Skip validation if it's a known base section in Dawn or Skeleton
+                if (DAWN_BASE_SECTIONS.has(sectionType) || SKELETON_BASE_SECTIONS.has(sectionType)) continue;
 
                 if (!availableSections.has(sectionType)) {
                     throw new ValidationError(
                         'templates/index.json',
                         `Missing section file: sections/${sectionType}.liquid (referenced by section "${key}"). 
 If you are using a custom section, you MUST provide the .liquid file content. 
-If you intended to use a built-in Dawn section, ensure the type matches exactly (e.g., 'featured-collection', 'image-banner', 'rich-text').`
+If you intended to use a built-in Dawn or Skeleton section, ensure the type matches exactly.`
                     );
                 }
             }
         } catch (e: any) {
             if (e instanceof ValidationError) throw e;
+            console.error(`[IntegrityManager] JSON Parse Error during template verification: ${e.message}`);
         }
     }
 }
+
+const SKELETON_BASE_SECTIONS = new Set([
+    '404', 'article', 'blog', 'cart', 'collection', 'collections', 'custom-section',
+    'footer', 'header', 'hello-world', 'page', 'password', 'product', 'search'
+]);
 
 const DAWN_BASE_SECTIONS = new Set([
     'announcement-bar', 'apps', 'bulk-quick-order-list', 'cart-drawer', 'cart-icon-bubble',
