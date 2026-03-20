@@ -10,35 +10,35 @@ let referenceCache: Map<string, string> | null = null;
  * Called once at startup, results are cached for subsequent requests.
  */
 function loadReferenceFiles(): Map<string, string> {
-    if (referenceCache) return referenceCache;
+  if (referenceCache) return referenceCache;
 
-    referenceCache = new Map();
-    const docsDir = path.join(process.cwd(), 'docs');
+  referenceCache = new Map();
+  const docsDir = path.join(process.cwd(), 'docs');
 
-    // Load docs/*.md
-    loadMdFilesFromDir(docsDir, referenceCache);
+  // Load docs/*.md
+  loadMdFilesFromDir(docsDir, referenceCache);
 
-    // Load docs/reference/*.md
-    const refDir = path.join(docsDir, 'reference');
-    loadMdFilesFromDir(refDir, referenceCache);
+  // Load docs/reference/*.md
+  const refDir = path.join(docsDir, 'reference');
+  loadMdFilesFromDir(refDir, referenceCache);
 
-    console.log(`[PromptBuilder] Loaded ${referenceCache.size} reference files:`);
-    for (const [name, content] of referenceCache) {
-        console.log(`  - ${name} (${content.length} chars)`);
-    }
+  console.log(`[PromptBuilder] Loaded ${referenceCache.size} reference files:`);
+  for (const [name, content] of referenceCache) {
+    console.log(`  - ${name} (${content.length} chars)`);
+  }
 
-    return referenceCache;
+  return referenceCache;
 }
 
 function loadMdFilesFromDir(dir: string, cache: Map<string, string>): void {
-    if (!fs.existsSync(dir)) return;
-    const files = fs.readdirSync(dir).filter(f => f.endsWith('.md'));
-    for (const file of files) {
-        const filePath = path.join(dir, file);
-        if (fs.statSync(filePath).isFile()) {
-            cache.set(file, fs.readFileSync(filePath, 'utf-8'));
-        }
+  if (!fs.existsSync(dir)) return;
+  const files = fs.readdirSync(dir).filter(f => f.endsWith('.md'));
+  for (const file of files) {
+    const filePath = path.join(dir, file);
+    if (fs.statSync(filePath).isFile()) {
+      cache.set(file, fs.readFileSync(filePath, 'utf-8'));
     }
+  }
 }
 
 /**
@@ -46,39 +46,39 @@ function loadMdFilesFromDir(dir: string, cache: Map<string, string>): void {
  * Returns the file content as a string, or null if not found.
  */
 export function extractFileFromBaseTheme(filePath: string): string | null {
-    const baseTheme = process.env.BASE_THEME_FILE || 'dawn-15.4.1.zip';
-    const zipPath = path.join(process.cwd(), baseTheme);
+  const baseTheme = process.env.BASE_THEME_FILE || 'dawn-15.4.1.zip';
+  const zipPath = path.join(process.cwd(), baseTheme);
 
-    if (!fs.existsSync(zipPath)) {
-        console.warn(`[PromptBuilder] Base theme not found: ${zipPath}`);
-        return null;
+  if (!fs.existsSync(zipPath)) {
+    console.warn(`[PromptBuilder] Base theme not found: ${zipPath}`);
+    return null;
+  }
+
+  const zip = new AdmZip(zipPath);
+  const entries = zip.getEntries();
+
+  // Detect root prefix (e.g. "dawn-15.4.1/")
+  let rootPrefix = '';
+  if (entries.length > 0) {
+    const firstEntry = entries[0].entryName;
+    if (firstEntry.endsWith('/') && entries.every(e => e.entryName.startsWith(firstEntry))) {
+      rootPrefix = firstEntry;
     }
+  }
 
-    const zip = new AdmZip(zipPath);
-    const entries = zip.getEntries();
+  const fullPath = rootPrefix + filePath.replace(/^\//, '');
+  const entry = zip.getEntry(fullPath);
+  if (!entry) {
+    console.warn(`[PromptBuilder] File not found in base theme: ${fullPath}`);
+    return null;
+  }
 
-    // Detect root prefix (e.g. "dawn-15.4.1/")
-    let rootPrefix = '';
-    if (entries.length > 0) {
-        const firstEntry = entries[0].entryName;
-        if (firstEntry.endsWith('/') && entries.every(e => e.entryName.startsWith(firstEntry))) {
-            rootPrefix = firstEntry;
-        }
-    }
-
-    const fullPath = rootPrefix + filePath.replace(/^\//, '');
-    const entry = zip.getEntry(fullPath);
-    if (!entry) {
-        console.warn(`[PromptBuilder] File not found in base theme: ${fullPath}`);
-        return null;
-    }
-
-    const content = entry.getData().toString('utf-8');
-    if (filePath.endsWith('.json')) {
-        // Strip comments for AI context to ensure it sees valid JSON
-        return content.replace(/\/\*[\s\S]*?\*\/|([^:]|^)\/\/.*$/gm, '$1');
-    }
-    return content;
+  const content = entry.getData().toString('utf-8');
+  if (filePath.endsWith('.json')) {
+    // Strip comments for AI context to ensure it sees valid JSON
+    return content.replace(/\/\*[\s\S]*?\*\/|([^:]|^)\/\/.*$/gm, '$1');
+  }
+  return content;
 }
 
 /**
@@ -93,16 +93,16 @@ export function extractFileFromBaseTheme(filePath: string): string | null {
  * 6. Few-Shot Examples — Gold-standard modification examples
  */
 export function buildSystemPrompt(
-    currentIndexJson?: string | null,
-    currentSettingsData?: string | null,
+  currentIndexJson?: string | null,
+  currentSettingsData?: string | null,
 ): string {
-    const refs = loadReferenceFiles();
-    const parts: string[] = [];
+  const refs = loadReferenceFiles();
+  const parts: string[] = [];
 
-    // ═══════════════════════════════════════════
-    // Layer 1: Core Role & Rules
-    // ═══════════════════════════════════════════
-    parts.push(`You are an elite Shopify theme designer and architect. You design themes that look like they cost $5,000 from a professional agency. When the user describes what they want for their store, you MUST:
+  // ═══════════════════════════════════════════
+  // Layer 1: Core Role & Rules
+  // ═══════════════════════════════════════════
+  parts.push(`You are an elite Shopify theme designer and architect. You design themes that look like they cost $5,000 from a professional agency. When the user describes what they want for their store, you MUST:
 
 1. FIRST, write out your design thinking and rationale as text. Explain what colors, typography pairings, and layout choices you're making and why. Outline your "designStyle" intent. Stream this naturally so the user can follow your thought process.
 
@@ -166,75 +166,91 @@ Every .liquid file in sections/ MUST include a valid {% schema %} JSON block at 
 
 ## FILE PATH FORMAT
 - Always use relative paths starting with a folder name (e.g., "sections/hero.liquid", NOT "/sections/hero.liquid")
-- Section filenames use hyphens (e.g., "image-banner.liquid", NOT "image_banner.liquid")`);
+- Section filenames use hyphens (e.g., "image-banner.liquid", NOT "image_banner.liquid")
 
-    // ═══════════════════════════════════════════
-    // Layer 2: Design System Reference
-    // ═══════════════════════════════════════════
-    const dsRef = refs.get('design-system.md');
-    if (dsRef) {
-        parts.push(`\n## DESIGN SYSTEM REFERENCE\n${dsRef}`);
-    }
+## SHOPIFY SCHEMA INTEGRITY RULES (STRICT)
+- **Valid Types ONLY**: You MUST use valid Shopify schema types.
+  - USE: "product" (for single selection), "product_list" (for multiple).
+  - NEVER USE: "product_picker" (This does not exist).
+- **URL Defaults**: NEVER use the "default" key for "type": "url" settings. Shopify CLI rejects both anchor links ("#id") and blank strings ("") as defaults for URLs.
+- **Section Presets**: Every new section MUST have a "presets" array with at least one entry: [{"name": "Default Name"}].
+- **Color Schemes**: For the Skeleton theme, use "type": "color_scheme", "id": "color_scheme", "default": "scheme-1".`);
 
-    // ═══════════════════════════════════════════
-    // Layer 3: Shopify OS 2.0 Architecture Reference
-    // ═══════════════════════════════════════════
-    const archRef = refs.get('shopify-os2-architecture.md');
-    if (archRef) {
-        parts.push(`\n## SHOPIFY OS 2.0 ARCHITECTURE REFERENCE\n${archRef}`);
-    }
+  // ═══════════════════════════════════════════
+  // Layer 2: Design System Reference
+  // ═══════════════════════════════════════════
+  const dsRef = refs.get('design-system.md');
+  if (dsRef) {
+    parts.push(`\n## DESIGN SYSTEM REFERENCE\n${dsRef}`);
+  }
 
-    // ═══════════════════════════════════════════
-    // Layer 4: Base Theme File Map
-    // ═══════════════════════════════════════════
-    const baseThemeFile = process.env.BASE_THEME_FILE || 'dawn-15.4.1.zip';
-    const isSkeleton = baseThemeFile.includes('skeleton');
-    const mapName = isSkeleton ? 'skeleton-file-map.md' : 'dawn-file-map.md';
-    const themeName = isSkeleton ? 'Skeleton' : 'Dawn';
-    const fileMap = refs.get(mapName);
-    if (fileMap) {
-        // Inject the full map — tells the AI exactly what files exist
-        parts.push(`\n## ${themeName.toUpperCase()} THEME FILE MAP\nThis is the complete file structure of the base ${themeName} theme you are modifying.\n${fileMap}`);
-    }
+  // ═══════════════════════════════════════════
+  // Layer 3: Shopify OS 2.0 Architecture Reference
+  // ═══════════════════════════════════════════
+  const archRef = refs.get('shopify-os2-architecture.md');
+  if (archRef) {
+    parts.push(`\n## SHOPIFY OS 2.0 ARCHITECTURE REFERENCE\n${archRef}`);
+  }
 
-    // ═══════════════════════════════════════════
-    // Layer 5: Liquid Reference
-    // ═══════════════════════════════════════════
-    const cheatSheet = refs.get('liquid-cheat-sheet.md');
-    if (cheatSheet) {
-        parts.push(`\n## SHOPIFY LIQUID & OS 2.0 REFERENCE\n${cheatSheet}`);
-    }
+  // ═══════════════════════════════════════════
+  // Layer 4: Base Theme File Map
+  // ═══════════════════════════════════════════
+  const baseThemeFile = process.env.BASE_THEME_FILE || 'dawn-15.4.1.zip';
+  const isSkeleton = baseThemeFile.includes('skeleton');
+  const mapName = isSkeleton ? 'skeleton-file-map.md' : 'dawn-file-map.md';
+  const themeName = isSkeleton ? 'Skeleton' : 'Dawn';
+  const fileMap = refs.get(mapName);
+  if (fileMap) {
+    // Inject the full map — tells the AI exactly what files exist
+    parts.push(`\n## ${themeName.toUpperCase()} THEME FILE MAP\nThis is the complete file structure of the base ${themeName} theme you are modifying.\n${fileMap}`);
+  }
 
-    // ═══════════════════════════════════════════
-    // Layer 6: Current State Injection
-    // ═══════════════════════════════════════════
-    if (currentIndexJson || currentSettingsData) {
-        parts.push(`\n## CURRENT THEME STATE
+  // ═══════════════════════════════════════════
+  // Layer 5: Liquid Reference
+  // ═══════════════════════════════════════════
+  const cheatSheet = refs.get('liquid-cheat-sheet.md');
+  if (cheatSheet) {
+    parts.push(`\n## SHOPIFY LIQUID & OS 2.0 REFERENCE\n${cheatSheet}`);
+  }
+
+  // ═══════════════════════════════════════════
+  // Layer 5.5: Shopify Schema Standards (Reliability Layer)
+  // ═══════════════════════════════════════════
+  const schemaRef = refs.get('shopify-schema-settings.md');
+  if (schemaRef) {
+    parts.push(`\n## SHOPIFY SCHEMA & INPUT SETTINGS STANDARDS\nYou MUST follow these rules strictly to ensure the theme is valid for Shopify CLI and the Store API.\n${schemaRef}`);
+  }
+
+  // ═══════════════════════════════════════════
+  // Layer 6: Current State Injection
+  // ═══════════════════════════════════════════
+  if (currentIndexJson || currentSettingsData) {
+    parts.push(`\n## CURRENT THEME STATE
 Use this to understand what has already been built. Do NOT lose or overwrite existing sections — merge your changes with the current state.`);
 
-        if (currentIndexJson) {
-            parts.push(`\n### Current templates/index.json
+    if (currentIndexJson) {
+      parts.push(`\n### Current templates/index.json
 \`\`\`json
 ${currentIndexJson}
 \`\`\``);
-        }
+    }
 
-        if (currentSettingsData) {
-            // Truncate settings_data if very large (it can be 10k+ lines)
-            const truncated = currentSettingsData.length > 8000
-                ? currentSettingsData.substring(0, 8000) + '\n... [truncated for token efficiency]'
-                : currentSettingsData;
-            parts.push(`\n### Current config/settings_data.json
+    if (currentSettingsData) {
+      // Truncate settings_data if very large (it can be 10k+ lines)
+      const truncated = currentSettingsData.length > 8000
+        ? currentSettingsData.substring(0, 8000) + '\n... [truncated for token efficiency]'
+        : currentSettingsData;
+      parts.push(`\n### Current config/settings_data.json
 \`\`\`json
 ${truncated}
 \`\`\``);
-        }
     }
+  }
 
-    // ═══════════════════════════════════════════
-    // Layer 7: Few-Shot Examples
-    // ═══════════════════════════════════════════
-    parts.push(`\n## GOLD-STANDARD EXAMPLES
+  // ═══════════════════════════════════════════
+  // Layer 7: Few-Shot Examples
+  // ═══════════════════════════════════════════
+  parts.push(`\n## GOLD-STANDARD EXAMPLES
 
 ### Example 1: Adding a High-End Hero Banner Section
 When asked to "add a hero banner", the modifications array should look like:
@@ -278,5 +294,5 @@ When asked to "make it a dark luxury theme", define the \`globalSettings\` witho
 }
 \`\`\``);
 
-    return parts.join('\n');
+  return parts.join('\n');
 }

@@ -222,5 +222,38 @@ These show the default section configurations for each page template.
 
 ### search
 
-- **Sections**: `main` → type: `search`
-- **Order**: `main`
+---
+
+## Shopify Schema Reference (REQUIRED)
+
+When creating or modifying sections, you MUST use ONLY these valid Shopify setting types. Hallucinating types like `product_picker` will crash the theme.
+
+### Valid Setting Types
+| Type | Description |
+|---|---|
+| `checkbox` | Simple true/false toggle |
+| `number` | Numeric input |
+| `radio` | Multiple choice radio buttons |
+| `range` | Slider with min/max/step |
+| `select` | Dropdown menu |
+| `text` | Single-line text input |
+| `textarea` | Multi-line text area |
+| `color` | Color picker (hex output) |
+| `color_background` | Gradient/Background picker |
+| `image_picker` | Image upload/selection |
+| `video` | Shopify-hosted video picker |
+| `product` | Select a single product |
+| `product_list` | Select multiple products |
+| `collection` | Select a single collection |
+| `collection_list` | Select multiple collections |
+| `url` | Link/URL picker |
+| `richtext` | Rich text editor |
+| `html` | Custom HTML input |
+| `inline_richtext` | Single-line rich text |
+| `color_scheme` | Theme color scheme picker (e.g., `default: "scheme-1"`) |
+
+### Critical Schema Rules
+1. **NO `product_picker`**: Use `type: "product"` instead.
+2. **URL Defaults**: DO NOT use anchor links (e.g., `default: "#id"`) as defaults for `type: "url"`. Leave it blank or use an empty string `""`.
+3. **Color Schemes**: For the Skeleton theme, always include a `color_scheme` setting with `default: "scheme-1"`.
+4. **Presets**: Every section MUST have at least one preset in the `presets` array to be visible in the editor.

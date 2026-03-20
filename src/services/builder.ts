@@ -124,6 +124,12 @@ export function validateAndRepair(plan: ThemePlan): ValidationResult {
                     result.repairs.push(`Auto-injected {% schema %} block into "${mod.filePath}"`);
                 }
 
+                // Auto-repair: Shopify Schema Sanity (Fix hallucinations)
+                const schemaRepairCount = repairShopifySchema(mod);
+                if (schemaRepairCount > 0) {
+                    result.repairs.push(`Auto-repaired ${schemaRepairCount} schema violations in "${mod.filePath}" (e.g., product_picker → product)`);
+                }
+
                 // Check: Liquid tag balance
                 const liquidTagErrors = checkLiquidTagBalance(mod.content);
                 if (liquidTagErrors.length > 0) {
@@ -401,6 +407,66 @@ function checkLiquidTagBalance(content: string): string[] {
     }
 
     return missingTags;
+}
+
+/**
+ * Repairs common Shopify schema hallucinations from LLMs.
+ * Returns the number of repairs made.
+ */
+function repairShopifySchema(mod: any): number {
+    let repairCount = 0;
+    const schemaRegex = /({%\s*schema\s*%})([\s\S]*?)({%\s*endschema\s*%})/;
+    const match = mod.content.match(schemaRegex);
+    if (!match) return 0;
+
+    const prefix = match[1];
+    let schemaJson = match[2];
+    const suffix = match[3];
+
+    // Repair 1: product_picker -> product (Global replacement in schema JSON)
+    schemaJson = schemaJson.replace(/"type":\s*"product_picker"/g, '"type": "product"');
+    repairCount++;
+
+    // Repair 2: Remove "default" entirely for "type": "url" if it contains an anchor link (#)
+    // Case A: "type": "url" comes BEFORE "default"
+    const urlDefaultRegexA = /("type":\s*"url"[\s\S]*?),\s*"default":\s*"#[^"]*?"/g;
+    if (urlDefaultRegexA.test(schemaJson)) {
+        schemaJson = schemaJson.replace(urlDefaultRegexA, '$1');
+        repairCount++;
+    }
+
+    // Case B: "default" comes BEFORE "type": "url"
+    const urlDefaultRegexB = /"default":\s*"#[^"]*?",\s*([\s\S]*?"type":\s*"url")/g;
+    if (urlDefaultRegexB.test(schemaJson)) {
+        schemaJson = schemaJson.replace(urlDefaultRegexB, '$1');
+        repairCount++;
+    }
+
+    // Repair 3: SVG Placeholder hallucinations (e.g., "texture-1" -> "image")
+    // Shopify CLI only supports specific names. Everything else crashes the page.
+    const validPlaceholders = /^(image|product-[1-6]|collection-[1-6]|lifestyle-[1-2])$/;
+    const svgRegex = /\{\{\s*['"]([^'"]+?)['"]\s*\|\s*placeholder_svg_tag\s*\}\}/g;
+
+    let svgRepairCount = 0;
+    const newContentWithSvgFix = mod.content.replace(svgRegex, (match: string, name: string) => {
+        if (!validPlaceholders.test(name)) {
+            svgRepairCount++;
+            return `{{ 'image' | placeholder_svg_tag }}`;
+        }
+        return match;
+    });
+
+    if (svgRepairCount > 0) {
+        updateModContent(mod, newContentWithSvgFix);
+        repairCount += svgRepairCount;
+    }
+
+    if (repairCount > 0) {
+        const newContent = mod.content.replace(schemaRegex, `${prefix}${schemaJson}${suffix}`);
+        updateModContent(mod, newContent);
+    }
+
+    return repairCount;
 }
 
 // ═══════════════════════════════════════════════════════
