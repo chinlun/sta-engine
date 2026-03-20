@@ -19,7 +19,7 @@ router.post("/start", async (req, res) => {
         console.log(`[Preview API] Machine ${machineId} is running.`);
 
         const appName = process.env.FLY_APP_NAME;
-        const previewUrl = `https://${appName}.fly.dev`;
+        const previewUrl = `https://${appName}.fly.dev/?machine_id=${machineId}`;
 
         res.json({ machineId, previewUrl });
     } catch (error: any) {

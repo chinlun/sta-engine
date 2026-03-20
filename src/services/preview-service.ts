@@ -39,7 +39,7 @@ export function createMagicPreviewHandler() {
       <input type="hidden" name="form_type" value="storefront_password" />
       <input type="hidden" name="utf8" value="✓" />
       <input type="hidden" name="password" value="${storePassword}" />
-      <input type="hidden" name="return_to" value="/" />
+      <input type="hidden" name="return_to" value="/?${new URLSearchParams(req.query as any).toString()}" />
     </form>
     <script>
       // Immediately submit the password to Shopify's native auth endpoint

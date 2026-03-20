@@ -196,7 +196,7 @@ app.post('/api/build', async (req, res) => {
                         id: 'docker-preview',
                         name: `AI Preview`,
                         role: 'development',
-                        preview_url: `http://localhost:${port}/api/preview/${machineId}`
+                        preview_url: `http://localhost:${port}/api/preview/${machineId}?machine_id=${machineId}`
                     }
                 });
 
