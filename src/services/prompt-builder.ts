@@ -214,12 +214,21 @@ Every .liquid file in sections/ MUST include a valid {% schema %} JSON block at 
   }
 
   // ═══════════════════════════════════════════
-  // Layer 5.5: Shopify Schema Standards (Reliability Layer)
+  // Layer 5.5: Shopify Liquid Tag & Best Practices Reference
+  // ═══════════════════════════════════════════
+  const liquidRef = refs.get('shopify-liquid-reference.md');
+  if (liquidRef) {
+    parts.push(`\n## SHOPIFY LIQUID TAG RULES & BEST PRACTICES\nThese rules are sourced from official Shopify documentation. Follow them strictly.\n${liquidRef}`);
+  }
+
+  // ═══════════════════════════════════════════
+  // Layer 5.6: Shopify Schema Standards (Reliability Layer)
   // ═══════════════════════════════════════════
   const schemaRef = refs.get('shopify-schema-settings.md');
   if (schemaRef) {
     parts.push(`\n## SHOPIFY SCHEMA & INPUT SETTINGS STANDARDS\nYou MUST follow these rules strictly to ensure the theme is valid for Shopify CLI and the Store API.\n${schemaRef}`);
   }
+
 
   // ═══════════════════════════════════════════
   // Layer 6: Current State Injection

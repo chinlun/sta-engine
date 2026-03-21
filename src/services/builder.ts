@@ -443,8 +443,8 @@ function repairShopifySchema(mod: any): number {
     }
 
     // Repair 3: SVG Placeholder hallucinations (e.g., "texture-1" -> "image")
-    // Shopify CLI only supports specific names. Everything else crashes the page.
-    const validPlaceholders = /^(image|product-[1-6]|collection-[1-6]|lifestyle-[1-2])$/;
+    // Official list from https://shopify.dev/docs/api/liquid/filters/placeholder_svg_tag
+    const validPlaceholders = /^(image|product-[1-6]|collection-[1-6]|lifestyle-[1-2]|product-apparel-[1-4]|collection-apparel-[1-4]|hero-apparel-[1-3]|blog-apparel-[1-3]|detailed-apparel-1)$/;
     const svgRegex = /\{\{\s*['"]([^'"]+?)['"]\s*\|\s*placeholder_svg_tag\s*\}\}/g;
 
     let svgRepairCount = 0;
