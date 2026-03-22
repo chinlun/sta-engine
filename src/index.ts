@@ -9,30 +9,15 @@ import { buildSystemPrompt, extractFileFromBaseTheme } from './services/prompt-b
 import { BuildThemeToolSchema, BuildThemeToolParams, ThemePlan } from './schema';
 import dotenv from 'dotenv';
 import { streamText, tool, generateText } from 'ai';
-import { google, createGoogleGenerativeAI } from '@ai-sdk/google';
+import { google } from '@ai-sdk/google';
+import { themeWorkflow } from './graph';
+import { customGoogle } from './lib/ai';
 import previewRoutes from './routes/preview-routes';
 import { flyMachineService } from './services/fly-machine-service';
 import { IntegrityManager, ValidationError } from './services/integrity-manager';
 import path from 'path';
 import fs from 'fs';
 
-// Create a custom Google provider that strips the aggressive 60s timeout
-const customGoogle = createGoogleGenerativeAI({
-    fetch: (url, options) => {
-        const customOptions = { ...options };
-        if (customOptions.signal) {
-            console.log(`[Fetch] 🛡️ Stripping SDK timeout signal to allow long-running generations (>60s)`);
-            delete customOptions.signal;
-        }
-        return fetch(url, customOptions as any).then(res => {
-            console.log(`[Fetch] 🌐 ${url} -> ${res.status} ${res.statusText}`);
-            return res;
-        }).catch(err => {
-            console.error(`[Fetch] ❌ Network Error for ${url}:`, err);
-            throw err;
-        });
-    }
-});
 
 dotenv.config();
 
@@ -87,193 +72,151 @@ app.post('/api/build', async (req, res) => {
         let buildSuccessful = false;
 
         const { machineId } = req.body;
+        const inputs = {
+            userPrompt: messages[messages.length - 1]?.content || "",
+            tsErrors: [],
+            designErrors: [],
+            generatedFiles: []
+        };
 
-        while (retryCount <= maxRetries && !buildSuccessful) {
-            if (retryCount > 0) {
-                sendEvent({ type: 'progress', stage: 'ai_call', message: `Self-healing retry ${retryCount}/${maxRetries}...` });
-            } else {
-                sendEvent({ type: 'progress', stage: 'ai_call', message: `Calling Gemini...` });
-            }
+        const stream = await themeWorkflow.stream(inputs, {
+            recursionLimit: 20,
+        });
 
-            const result = await streamText({
-                model: (customGoogle as any)('gemini-2.5-flash', { structuredOutputs: false }),
-                system: systemPrompt,
-                messages: currentMessages,
-            });
+        let finalState: any = null;
 
-            let fullText = "";
-            for await (const chunk of result.fullStream) {
-                if (chunk.type === 'text-delta') {
-                    fullText += chunk.text;
-                    sendEvent({ type: 'text', content: chunk.text });
+        for await (const chunk of stream) {
+            const node = Object.keys(chunk)[0];
+            const output = chunk[node];
+            finalState = { ...finalState, ...output };
+
+            if (node === 'classifier') {
+                sendEvent({ type: 'progress', stage: 'classifier', message: `Archetype: ${output.catalogSize}...` });
+            } else if (node === 'planner') {
+                sendEvent({ type: 'progress', stage: 'planner', message: `Design Brief: ${output.designBrief.rationale.substring(0, 100)}...` });
+            } else if (node === 'coder') {
+                sendEvent({ type: 'progress', stage: 'coder', message: `Syncing ${output.generatedFiles.length} files...` });
+                // We stream the text content of the files to show progress
+                for (const file of output.generatedFiles) {
+                    sendEvent({ type: 'text', content: `\n### \`${file.path}\`\n\`\`\`liquid\n${file.content.substring(0, 500)}...\n\`\`\`\n` });
                 }
-            }
-
-            try {
-                const globalSettingsMatch = fullText.match(/###\s*`globalSettings`\s*```(?:json)?\n([\s\S]*?)```/);
-                if (globalSettingsMatch) {
-                    globalSettings = { ...globalSettings, ...JSON.parse(globalSettingsMatch[1].trim()) };
-                }
-            } catch (e) { }
-
-            const fileRegex = /###\s*`([^`]+)`\s*```(?:[a-zA-Z0-9_-]+)?\n([\s\S]*?)```/g;
-            let match;
-            const newModifications: any[] = [];
-            while ((match = fileRegex.exec(fullText)) !== null) {
-                const filePath = match[1].trim();
-                if (filePath === 'globalSettings' || filePath.includes(' ')) continue;
-                newModifications.push({ filePath, action: 'update', content: match[2] });
-            }
-
-            for (const newMod of newModifications) {
-                const existingIndex = modifications.findIndex(m => m.filePath === newMod.filePath);
-                if (existingIndex > -1) {
-                    modifications[existingIndex] = newMod;
+            } else if (node === 'tsQc') {
+                if (output.tsErrors && output.tsErrors.length > 0) {
+                    sendEvent({ type: 'progress', stage: 'ts_qc', message: `⚠️ Syntax issues found (${output.tsErrors.length}). Retrying...` });
                 } else {
-                    modifications.push(newMod);
+                    sendEvent({ type: 'progress', stage: 'ts_qc', message: `✅ Syntax check passed.` });
+                }
+            } else if (node === 'agenticQc') {
+                if (output.designErrors && output.designErrors.length > 0) {
+                    sendEvent({ type: 'progress', stage: 'design_qc', message: `🎨 Design review failed. Refined styles required...` });
+                } else {
+                    sendEvent({ type: 'progress', stage: 'design_qc', message: `💎 Design review passed.` });
                 }
             }
+        }
 
-            if (modifications.length === 0) {
-                buildSuccessful = true;
-                continue;
-            }
+        if (finalState && finalState.generatedFiles && finalState.generatedFiles.length > 0) {
+            modifications = finalState.generatedFiles.map((f: any) => ({
+                filePath: f.path,
+                action: 'update',
+                content: f.content
+            }));
 
-            try {
-                sendEvent({ type: 'progress', stage: 'validating', message: 'Validating and auto-repairing theme integrity...' });
-                const newPlan: any = { thoughtProcess: fullText.substring(0, 500), globalSettings, modifications };
-                const repairResult = validateAndRepair(newPlan);
+            globalSettings = finalState.designBrief?.globalSettings || {};
 
-                if (repairResult.errors.length > 0) {
-                    throw new ValidationError("ThemePlan", repairResult.errors.join(", "));
-                }
+            sendEvent({ type: 'progress', stage: 'validating', message: 'Final assembly and sync...' });
 
-                IntegrityManager.validate(newPlan.modifications!);
+            const args = { globalSettings, modifications };
+            sendEvent({ type: 'tool_call', toolName: 'build_theme', args });
 
-                const args = { globalSettings: newPlan.globalSettings, modifications: newPlan.modifications };
-                sendEvent({ type: 'tool_call', toolName: 'build_theme', args });
+            if (machineId && modifications.length) {
+                sendEvent({ type: 'progress', stage: 'syncing', message: 'Syncing changes to live preview...' });
+                const orderedMods = [...modifications].map(mod => normalizeMod(mod))
+                    .filter(mod => mod.filePath && mod.content)
+                    .sort((a, b) => {
+                        const aIsJson = a.filePath!.endsWith('.json');
+                        const bIsJson = b.filePath!.endsWith('.json');
+                        if (aIsJson && !bIsJson) return 1;
+                        if (!aIsJson && bIsJson) return -1;
+                        return 0;
+                    });
 
-                if (machineId && newPlan.modifications!.length) {
-                    sendEvent({ type: 'progress', stage: 'syncing', message: 'Syncing changes to live preview...' });
-                    modifications = newPlan.modifications!;
-                    const orderedMods = [...modifications].map(mod => normalizeMod(mod))
-                        .filter(mod => mod.filePath && mod.content)
-                        .sort((a, b) => {
-                            const aIsJson = a.filePath!.endsWith('.json');
-                            const bIsJson = b.filePath!.endsWith('.json');
-                            if (aIsJson && !bIsJson) return 1;
-                            if (!aIsJson && bIsJson) return -1;
-                            return 0;
-                        });
+                const nonJsonMods = orderedMods.filter(m => !m.filePath!.endsWith('.json'));
+                const jsonMods = orderedMods.filter(m => m.filePath!.endsWith('.json'));
 
-                    const nonJsonMods = orderedMods.filter(m => !m.filePath!.endsWith('.json'));
-                    const jsonMods = orderedMods.filter(m => m.filePath!.endsWith('.json'));
-
-                    const syncWithMonitoring = async (mods: any[]) => {
-                        const appName = process.env.FLY_APP_NAME;
-                        const controller = new AbortController();
-
-                        // Start monitoring in the background
-                        let syncError: ValidationError | null = null;
-                        const monitorPromise = (async () => {
-                            try {
-                                const response = await fetch(`https://${appName}.fly.dev/reload-events`, {
-                                    headers: { "fly-force-instance-id": machineId },
-                                    signal: controller.signal
-                                });
-                                if (!response.body) return;
-                                const reader = response.body.getReader();
-                                const decoder = new TextDecoder();
-                                while (true) {
-                                    const { done, value } = await reader.read();
-                                    if (done) break;
-                                    const chunk = decoder.decode(value);
-                                    if (chunk.includes('sync_error')) {
-                                        const eventLine = chunk.split('\n').find(l => l.includes('sync_error'));
-                                        if (eventLine) {
-                                            const event = JSON.parse(eventLine.replace('data: ', '').trim());
-                                            syncError = new ValidationError(event.filePath, event.reason);
-                                            controller.abort(); // Stop monitoring once we have an error
-                                            break;
-                                        }
+                const syncWithMonitoring = async (mods: any[]) => {
+                    const appName = process.env.FLY_APP_NAME;
+                    const controller = new AbortController();
+                    let syncError: ValidationError | null = null;
+                    const monitorPromise = (async () => {
+                        try {
+                            const response = await fetch(`https://${appName}.fly.dev/reload-events`, {
+                                headers: { "fly-force-instance-id": machineId },
+                                signal: controller.signal
+                            });
+                            if (!response.body) return;
+                            const reader = response.body.getReader();
+                            const decoder = new TextDecoder();
+                            while (true) {
+                                const { done, value } = await reader.read();
+                                if (done) break;
+                                const chunk = decoder.decode(value);
+                                if (chunk.includes('sync_error')) {
+                                    const eventLine = chunk.split('\n').find(l => l.includes('sync_error'));
+                                    if (eventLine) {
+                                        const event = JSON.parse(eventLine.replace('data: ', '').trim());
+                                        syncError = new ValidationError(event.filePath, event.reason);
+                                        controller.abort();
+                                        break;
                                     }
                                 }
-                            } catch (e) {
-                                if (e.name !== 'AbortError') console.error("[Sync] Monitor error:", e);
                             }
-                        })();
-
-                        try {
-                            // 1. Perform the actual HTTP sync
-                            await flyMachineService.syncBulk(machineId, mods.map(m => ({ filePath: m.filePath!, content: m.content })));
-
-                            // 2. MANDATORY GRACE PERIOD: Wait to see if Shopify CLI rejects it after the write.
-                            // We wait up to 5 seconds, checking periodically if an error was caught.
-                            for (let i = 0; i < 10; i++) {
-                                if (syncError) throw syncError;
-                                await new Promise(resolve => setTimeout(resolve, 500));
-                            }
-                        } finally {
-                            controller.abort(); // Ensure monitor is cleaned up
-                            await monitorPromise; // Wait for it to settle
+                        } catch (e: any) {
+                            if (e.name !== 'AbortError') console.error("[Sync] Monitor error:", e);
                         }
-                    };
+                    })();
 
-                    // Pass 1: Sync all non-JSON files (sections, snippets, etc.) first
-                    if (nonJsonMods.length > 0) {
-                        try {
-                            await syncWithMonitoring(nonJsonMods);
-                            // Wait for Shopify CLI to start processing these files
-                            await new Promise(resolve => setTimeout(resolve, 2000));
-                        } catch (e) {
-                            if (e instanceof ValidationError) throw e;
-                            console.error("[Sync] Non-critical error during Non-JSON monitoring:", e);
-                        }
-                    }
-
-                    // Pass 2: Sync all JSON files (templates, config, etc.)
-                    if (jsonMods.length > 0) {
-                        try {
-                            await syncWithMonitoring(jsonMods);
-                        } catch (e) {
-                            if (e instanceof ValidationError) throw e;
-                            console.error("[Sync] Non-critical error during JSON monitoring:", e);
-                        }
-                    }
-
-                    // Guaranteed Reload: Tell the browser to refresh after both passes are complete.
-                    // This is a fallback in case the Shopify CLI's own --notify flag is delayed or missed.
                     try {
-                        await flyMachineService.execCommand(machineId, [
-                            "bash", "-c",
-                            "wget -qO- --post-data='' http://127.0.0.1:9295/notify?source=engine || curl -s -X POST http://127.0.0.1:9295/notify?source=engine || echo 'Signaler not available'"
-                        ]);
-                    } catch (e) { }
-                }
-
-                sendEvent({
-                    type: 'tool_result', result: {
-                        id: 'docker-preview',
-                        name: `AI Preview`,
-                        role: 'development',
-                        preview_url: `http://localhost:${port}/api/preview/${machineId}?machine_id=${machineId}`
+                        await flyMachineService.syncBulk(machineId, mods.map(m => ({ filePath: m.filePath!, content: m.content })));
+                        for (let i = 0; i < 10; i++) {
+                            if (syncError) throw syncError;
+                            await new Promise(resolve => setTimeout(resolve, 500));
+                        }
+                    } finally {
+                        controller.abort();
+                        await monitorPromise;
                     }
-                });
+                };
 
-                buildSuccessful = true;
-                sendEvent({ type: 'done' });
-                console.log(`[${requestId}] ✅ Build & Sync successful`);
-
-            } catch (error) {
-                if (error instanceof ValidationError && retryCount < maxRetries) {
-                    console.warn(`[${requestId}] ⚠️ Validation failed, triggering self-healing: ${error.message}`);
-                    currentMessages.push({ role: 'assistant', content: fullText });
-                    currentMessages.push({ role: 'user', content: buildCurativePrompt(error.reason) });
-                    retryCount++;
-                } else {
-                    throw error;
+                if (nonJsonMods.length > 0) {
+                    await syncWithMonitoring(nonJsonMods);
+                    await new Promise(resolve => setTimeout(resolve, 2000));
                 }
+                if (jsonMods.length > 0) {
+                    await syncWithMonitoring(jsonMods);
+                }
+
+                try {
+                    await flyMachineService.execCommand(machineId, [
+                        "bash", "-c",
+                        "wget -qO- --post-data='' http://127.0.0.1:9295/notify?source=engine || curl -s -X POST http://127.0.0.1:9295/notify?source=engine || echo 'Signaler not available'"
+                    ]);
+                } catch (e) { }
             }
+
+            sendEvent({
+                type: 'tool_result', result: {
+                    id: 'docker-preview',
+                    name: `AI Preview`,
+                    role: 'development',
+                    preview_url: `http://localhost:${port}/api/preview/${machineId}?machine_id=${machineId}`
+                }
+            });
+
+            sendEvent({ type: 'done' });
+            console.log(`[${requestId}] ✅ LangGraph Build successful`);
+        } else {
+            throw new Error("LangGraph finished without generating files.");
         }
         res.end();
     } catch (error) {
