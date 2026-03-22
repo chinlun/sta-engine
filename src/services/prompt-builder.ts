@@ -22,6 +22,10 @@ function loadReferenceFiles(): Map<string, string> {
   const refDir = path.join(docsDir, 'reference');
   loadMdFilesFromDir(refDir, referenceCache);
 
+  // Load docs/design-system/**/*.md (recursive)
+  const dsDir = path.join(docsDir, 'design-system');
+  loadMdFilesRecursive(dsDir, referenceCache, 'ds:');
+
   console.log(`[PromptBuilder] Loaded ${referenceCache.size} reference files:`);
   for (const [name, content] of referenceCache) {
     console.log(`  - ${name} (${content.length} chars)`);
@@ -37,6 +41,24 @@ function loadMdFilesFromDir(dir: string, cache: Map<string, string>): void {
     const filePath = path.join(dir, file);
     if (fs.statSync(filePath).isFile()) {
       cache.set(file, fs.readFileSync(filePath, 'utf-8'));
+    }
+  }
+}
+
+/**
+ * Recursively loads all .md files from a directory tree.
+ * Keys are prefixed with the given prefix for namespacing (e.g., 'ds:').
+ */
+function loadMdFilesRecursive(dir: string, cache: Map<string, string>, prefix: string, baseDir: string = dir): void {
+  if (!fs.existsSync(dir)) return;
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      loadMdFilesRecursive(fullPath, cache, prefix, baseDir);
+    } else if (entry.isFile() && entry.name.endsWith('.md')) {
+      const relPath = path.relative(baseDir, fullPath);
+      cache.set(`${prefix}${relPath}`, fs.readFileSync(fullPath, 'utf-8'));
     }
   }
 }
@@ -102,9 +124,9 @@ export function buildSystemPrompt(
   // ═══════════════════════════════════════════
   // Layer 1: Core Role & Rules
   // ═══════════════════════════════════════════
-  parts.push(`You are an elite Shopify theme designer and architect. You design themes that look like they cost $5,000 from a professional agency. When the user describes what they want for their store, you MUST:
+  parts.push(`You are an elite Art Director, Shopify theme designer, and architect. You design stunning, museum-quality themes that look like they cost $50,000 from a professional, award-winning agency. When the user describes what they want for their store, you MUST:
 
-1. FIRST, write out your design thinking and rationale as text. Explain what colors, typography pairings, and layout choices you're making and why. Outline your "designStyle" intent. Stream this naturally so the user can follow your thought process.
+1. FIRST, put on your Art Director hat. Write out your design thinking and rationale as text. Explicitly reference the loaded Design System (if one is provided). Explain what colors, typography pairings, and layout choices you're making and why they align with the Design System guidelines. Outline your "designStyle" intent. Stream this naturally so the user can follow your thought process.
 
 2. THEN, provide the global settings using a JSON markdown block with the exact header:
 ### \`globalSettings\`
@@ -119,6 +141,7 @@ export function buildSystemPrompt(
   "designStyle": "Luxury Dark"
 }
 \`\`\`
+*(Note: Replace these example values with colors and fonts that match the active Design System)*
 *(The engine will automatically compile these into the theme's settings_data.json)*
 
 3. FINALLY, provide ALL file modifications using Markdown code blocks. Precede EACH code block with an exact file path header.
@@ -137,9 +160,10 @@ Example:
 \`\`\`
 
 ## DESIGN AESTHETICS (CRITICAL)
+- **YOU ARE THE ART DIRECTOR**: Treat every request as an opportunity to build an award-winning UI.
 - Every section MUST have polished, production-ready CSS.
 - NEVER use browser-default fonts, plain backgrounds with no contrast, or unstyled text.
-- Implement gradients, glassmorphism, subtle shadows, smooth transitions, and proper hover effects where appropriate.
+- Implement gradients, glassmorphism, subtle shadows, smooth transitions, and proper hover effects where appropriate (strictly abiding by the Design System).
 - Use proper spatial rhythm and responsive padding.
 - Refer strictly to the Design System Reference for color palettes and typographic hierarchy.
 
@@ -179,9 +203,22 @@ Every .liquid file in sections/ MUST include a valid {% schema %} JSON block at 
   // ═══════════════════════════════════════════
   // Layer 2: Design System Reference
   // ═══════════════════════════════════════════
-  const dsRef = refs.get('design-system.md');
-  if (dsRef) {
-    parts.push(`\n## DESIGN SYSTEM REFERENCE\n${dsRef}`);
+  const dsFiles: string[] = [];
+  for (const [name, content] of refs) {
+    if (name.startsWith('ds:')) {
+      dsFiles.push(content);
+    }
+  }
+  const legacyDs = refs.get('design-system.md');
+
+  if (dsFiles.length > 0) {
+    parts.push(`\n## ⚠️ MANDATORY DESIGN SYSTEM (YOU MUST FOLLOW THIS EXACTLY)\nThe following is the PRIMARY design system. Every visual decision — colors, typography, spacing, elevation, components, layout — MUST strictly follow these specifications. Do NOT deviate.\n${dsFiles.join('\n\n---\n\n')}`);
+    // Also include legacy as supplementary if it exists
+    if (legacyDs) {
+      parts.push(`\n## SUPPLEMENTARY DESIGN GUIDELINES\nUse the following as secondary guidance only when the primary design system above does not cover a specific case.\n${legacyDs}`);
+    }
+  } else if (legacyDs) {
+    parts.push(`\n## DESIGN SYSTEM REFERENCE\n${legacyDs}`);
   }
 
   // ═══════════════════════════════════════════
@@ -260,6 +297,7 @@ ${truncated}
   // Layer 7: Few-Shot Examples
   // ═══════════════════════════════════════════
   parts.push(`\n## GOLD-STANDARD EXAMPLES
+*(CRITICALLY IMPORTANT: The values below like "modern elegant", "#C9A96E", etc. are purely structure examples. YOU MUST USE THE COLORS, ESTHETICS, AND FONTS FROM THE ACTUAL DESIGN SYSTEM PROVIDED)*
 
 ### Example 1: Adding a High-End Hero Banner Section
 When asked to "add a hero banner", the modifications array should look like:

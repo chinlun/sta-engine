@@ -162,25 +162,63 @@ Usage: `{{ 'name' | placeholder_svg_tag }}`
 
 ---
 
-## 6. Theme Architecture (Directory Structure)
+## 6. Theme Architecture (Directory Structure & File Extensions)
 > Source: [shopify.dev/docs/storefronts/themes/architecture](https://shopify.dev/docs/storefronts/themes/architecture)
 
-Only these directories are supported (**no subdirectories**):
-| Directory | Contents |
-|---|---|
-| `assets/` | CSS, JS, images. Reference via `{{ 'file.css' \| asset_url }}`. `.liquid` extension gives access to `settings` object and filters. |
-| `config/` | `settings_schema.json` (defines settings UI), `settings_data.json` (stores values) |
-| `layout/` | `theme.liquid` (**required**), `password.liquid` |
-| `locales/` | Translation JSON files (e.g., `en.default.json`) |
-| `sections/` | Section `.liquid` files and section group `.json` files |
-| `snippets/` | Reusable `.liquid` snippet files |
-| `templates/` | Page template `.json` or `.liquid` files. Also `templates/customers/` for legacy customer accounts. |
+Only these directories are supported (**no subdirectories** except `templates/customers/`):
+
+| Directory | Required Extension | Notes |
+|---|---|---|
+| `layout/` | `.liquid` | `theme.liquid` (**required**), `password.liquid` |
+| `sections/` | `.liquid` (or `.json` for section groups) | Section files must be `.liquid`. |
+| `snippets/` | `.liquid` | ⚠️ **ALL snippet files MUST be `.liquid`**, including inline SVG icons. |
+| `templates/` | `.json` (OS 2.0) or `.liquid` (legacy) | Use `.json` for modern themes. `gift_card` and `robots.txt` must be `.liquid`. |
+| `config/` | `.json` | `settings_schema.json`, `settings_data.json` |
+| `locales/` | `.json` | Translation files (e.g., `en.default.json`) |
+| `assets/` | **Any extension** | `.css`, `.js`, `.svg`, `.png`, `.woff2`, etc. See below. |
+
+### SVG Files — Two Approaches
+1. **Static Asset** (in `assets/`): Upload as `assets/icon-logo.svg`. Reference with:
+   ```liquid
+   {{ 'icon-logo.svg' | asset_url | img_tag }}
+   ```
+2. **Inline Snippet** (in `snippets/`): Create `snippets/icon-arrow.liquid` containing raw `<svg>...</svg>` markup. Allows dynamic Liquid inside. Use with:
+   ```liquid
+   {% render 'icon-arrow' %}
+   ```
+
+### `.liquid` Extension for Assets (CSS/JS)
+Only append `.liquid` to asset files when you need `{{ }}` Liquid tags inside them:
+
+| File Type | Standard | Liquid Extension | When to Use `.liquid` |
+|---|---|---|---|
+| CSS | `theme.css` | `theme.css.liquid` | To use `{{ settings.color_primary }}` inside CSS |
+| JS | `script.js` | `script.js.liquid` | To pass store URLs or localized strings |
+| JSON | `index.json` | ❌ Not supported | Templates must be pure `.json` |
+| Images | `photo.jpg` | ❌ Not supported | Binary files cannot be processed by Liquid |
+
+> **Performance Note**: Avoid `.css.liquid` when possible — Liquid-processed CSS slightly slows the theme editor. Prefer CSS custom properties defined in `theme.liquid` instead.
 
 Only a `layout/` directory containing `theme.liquid` is required for upload.
 
 ---
 
-## 7. Official Documentation Links
+## 7. Troubleshooting Upload Errors
+If Shopify CLI throws errors during sync, check this guide:
+
+### "Section type 'x' does not refer to an existing section file"
+This is a **false positive** from Shopify CLI. It almost always means `sections/x.liquid` **exists**, but it has a **schema syntax error** that caused Shopify to ignore the file entirely.
+- **Check for Duplicate Block Types**: Ensure every block in `{% schema %}` has a unique `"type"`. Duplicate types (e.g., two "feature_item" blocks) will cause the entire file to be ignored.
+- **Check for Invalid JSON**: Ensure the `{% schema %}` block is valid JSON (no trailing commas, all strings quoted).
+- **Check for Reserved IDs**: Ensure no setting `id` conflicts with Shopify’s reserved names or other settings in the same section.
+
+### "Invalid block 'x': type is already taken"
+- Each block `type` defined in a section's schema **must be unique** within that section.
+- You can have multiple *instances* of a block in `templates/index.json`, but the *definition* in the `.liquid` file must be a unique list of available block types.
+
+---
+
+## 8. Official Documentation Links
 - [Input Settings Reference](https://shopify.dev/docs/storefronts/themes/architecture/settings/input-settings)
 - [Section Schema Reference](https://shopify.dev/docs/storefronts/themes/architecture/sections/section-schema)
 - [Theme Architecture](https://shopify.dev/docs/storefronts/themes/architecture)

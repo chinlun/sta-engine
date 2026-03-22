@@ -95,6 +95,37 @@ export function validateAndRepair(plan: ThemePlan): ValidationResult {
             mod.filePath = fixedPath;
         }
 
+        // Auto-repair: Snippet files MUST have .liquid extension (Shopify rejects .svg, .html, etc.)
+        if (mod.filePath.startsWith('snippets/') && !mod.filePath.endsWith('.liquid')) {
+            const ext = path.extname(mod.filePath);
+            const fixedPath = mod.filePath.replace(ext, '.liquid');
+            result.repairs.push(`Auto-renamed "${mod.filePath}" → "${fixedPath}" (snippets must use .liquid extension)`);
+            for (const key of ['filePath', 'file_path', 'file', 'path', 'fileName', 'file_name', 'filename']) {
+                if (mod.raw[key] === mod.filePath) {
+                    mod.raw[key] = fixedPath;
+                    break;
+                }
+            }
+            mod.filePath = fixedPath;
+        }
+
+        // Auto-repair: Enforce hyphenated filenames for sections (Shopify CLI preference)
+        if (mod.filePath.startsWith('sections/') && mod.filePath.endsWith('.liquid')) {
+            const fileName = path.basename(mod.filePath);
+            if (fileName.includes('_')) {
+                const fixedFileName = fileName.replace(/_/g, '-');
+                const fixedPath = path.join(path.dirname(mod.filePath), fixedFileName);
+                result.repairs.push(`Auto-hyphenated section filename: "${mod.filePath}" → "${fixedPath}"`);
+
+                for (const key of ['filePath', 'file_path', 'file', 'path', 'fileName', 'file_name', 'filename']) {
+                    if (mod.raw[key] === mod.filePath) {
+                        mod.raw[key] = fixedPath;
+                        break;
+                    }
+                }
+                mod.filePath = fixedPath;
+            }
+        }
         // Track sections
         if (mod.filePath.startsWith('sections/') && mod.filePath.endsWith('.liquid')) {
             const sectionType = path.basename(mod.filePath, '.liquid');
@@ -460,6 +491,56 @@ function repairShopifySchema(mod: any): number {
         updateModContent(mod, newContentWithSvgFix);
         repairCount += svgRepairCount;
     }
+
+    // Repair 4: Duplicate block types in a section schema (causes Shopify to ignore the file)
+    try {
+        const parsed = JSON.parse(schemaJson);
+        if (parsed.blocks && Array.isArray(parsed.blocks)) {
+            const seenTypes = new Set<string>();
+            const uniqueBlocks = [];
+            let deduplicated = false;
+            for (const block of parsed.blocks) {
+                if (typeof block.type === 'string') {
+                    if (seenTypes.has(block.type)) {
+                        deduplicated = true;
+                        continue; // Skip duplicate block type definitions
+                    }
+                    seenTypes.add(block.type);
+                }
+                uniqueBlocks.push(block);
+            }
+            if (deduplicated) {
+                schemaJson = JSON.stringify(parsed, null, 2);
+                repairCount++;
+            }
+        }
+    } catch (e) {
+        // Skip repair if JSON is currently invalid (will be caught by IntegrityManager)
+    }
+
+    // Repair 5: Missing "presets" or "name" in a section schema (makes it unusable in JSON templates)
+    try {
+        const parsed = JSON.parse(schemaJson);
+        let modified = false;
+
+        // Ensure "name" exists
+        if (!parsed.name) {
+            const sectionType = path.basename(mod.filePath, '.liquid');
+            parsed.name = sectionType.split('-').map((s: string) => s.charAt(0).toUpperCase() + s.slice(1)).join(' ');
+            modified = true;
+        }
+
+        // Ensure at least one preset exists for dynamic sections
+        if (!parsed.presets || !Array.isArray(parsed.presets) || parsed.presets.length === 0) {
+            parsed.presets = [{ name: parsed.name }];
+            modified = true;
+        }
+
+        if (modified) {
+            schemaJson = JSON.stringify(parsed, null, 2);
+            repairCount++;
+        }
+    } catch (e) { }
 
     if (repairCount > 0) {
         const newContent = mod.content.replace(schemaRegex, `${prefix}${schemaJson}${suffix}`);

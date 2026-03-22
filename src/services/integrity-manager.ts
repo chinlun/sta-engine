@@ -69,8 +69,23 @@ export class IntegrityManager {
         if (match) {
             const jsonContent = match[1].trim();
             try {
-                JSON.parse(jsonContent);
+                const parsed = JSON.parse(jsonContent);
+                if (parsed.blocks && Array.isArray(parsed.blocks)) {
+                    const seenTypes = new Set<string>();
+                    for (const block of parsed.blocks) {
+                        if (typeof block.type === 'string') {
+                            if (seenTypes.has(block.type)) {
+                                throw new ValidationError(
+                                    filePath,
+                                    `Duplicate block type "${block.type}" in section schema. All block types within a section must be unique.`
+                                );
+                            }
+                            seenTypes.add(block.type);
+                        }
+                    }
+                }
             } catch (e: any) {
+                if (e instanceof ValidationError) throw e;
                 throw new ValidationError(
                     filePath,
                     `Invalid JSON in {% schema %} block: ${e.message}`
@@ -88,12 +103,12 @@ export class IntegrityManager {
             const indexJson = JSON.parse(cleanContent);
             const sections = indexJson.sections || {};
 
-            // Build a set of all available sections from modifications
-            const availableSections = new Set<string>();
+            // Build a map of available sections and their defined block types
+            const availableSections = new Map<string, Set<string> | null>();
             for (const mod of modifications) {
                 if (mod.filePath.startsWith('sections/') && mod.filePath.endsWith('.liquid')) {
                     const sectionName = path.basename(mod.filePath, '.liquid');
-                    availableSections.add(sectionName);
+                    availableSections.set(sectionName, this.extractSchemaBlockTypes(mod.content));
                 }
             }
 
@@ -112,11 +127,45 @@ If you are using a custom section, you MUST provide the .liquid file content.
 If you intended to use a built-in Dawn or Skeleton section, ensure the type matches exactly.`
                     );
                 }
+
+                // New: Validate block types within the section
+                const validBlockTypes = availableSections.get(sectionType);
+                if (validBlockTypes && section.blocks) {
+                    for (const [blockKey, block] of Object.entries<any>(section.blocks)) {
+                        if (block.type && !validBlockTypes.has(block.type)) {
+                            throw new ValidationError(
+                                'templates/index.json',
+                                `Invalid block type "${block.type}" in section "${key}" (block "${blockKey}"). 
+Available block types in "sections/${sectionType}.liquid" are: ${Array.from(validBlockTypes).join(', ') || '(none)'}.
+Please update the template to use a valid block type or update the section schema.`
+                            );
+                        }
+                    }
+                }
             }
         } catch (e: any) {
             if (e instanceof ValidationError) throw e;
             console.error(`[IntegrityManager] JSON Parse Error during template verification: ${e.message}`);
         }
+    }
+
+    /**
+     * Helper to extract block types from a liquid section's schema.
+     */
+    private static extractSchemaBlockTypes(content: string): Set<string> | null {
+        const schemaRegex = /\{%\s*schema\s*%\}([\s\S]*?)\{%\s*endschema\s*%\}/;
+        const match = content.match(schemaRegex);
+        if (!match) return null;
+
+        try {
+            const schema = JSON.parse(match[1].trim());
+            if (schema.blocks && Array.isArray(schema.blocks)) {
+                return new Set(schema.blocks.map((b: any) => b.type).filter((t: any) => typeof t === 'string'));
+            }
+        } catch (e) {
+            // If schema is invalid, validateSchemaJSON will catch it elsewhere
+        }
+        return new Set();
     }
 }
 

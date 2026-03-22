@@ -169,16 +169,76 @@ app.post('/api/build', async (req, res) => {
                     const nonJsonMods = orderedMods.filter(m => !m.filePath!.endsWith('.json'));
                     const jsonMods = orderedMods.filter(m => m.filePath!.endsWith('.json'));
 
+                    const syncWithMonitoring = async (mods: any[]) => {
+                        const appName = process.env.FLY_APP_NAME;
+                        const controller = new AbortController();
+
+                        // Start monitoring in the background
+                        let syncError: ValidationError | null = null;
+                        const monitorPromise = (async () => {
+                            try {
+                                const response = await fetch(`https://${appName}.fly.dev/reload-events`, {
+                                    headers: { "fly-force-instance-id": machineId },
+                                    signal: controller.signal
+                                });
+                                if (!response.body) return;
+                                const reader = response.body.getReader();
+                                const decoder = new TextDecoder();
+                                while (true) {
+                                    const { done, value } = await reader.read();
+                                    if (done) break;
+                                    const chunk = decoder.decode(value);
+                                    if (chunk.includes('sync_error')) {
+                                        const eventLine = chunk.split('\n').find(l => l.includes('sync_error'));
+                                        if (eventLine) {
+                                            const event = JSON.parse(eventLine.replace('data: ', '').trim());
+                                            syncError = new ValidationError(event.filePath, event.reason);
+                                            controller.abort(); // Stop monitoring once we have an error
+                                            break;
+                                        }
+                                    }
+                                }
+                            } catch (e) {
+                                if (e.name !== 'AbortError') console.error("[Sync] Monitor error:", e);
+                            }
+                        })();
+
+                        try {
+                            // 1. Perform the actual HTTP sync
+                            await flyMachineService.syncBulk(machineId, mods.map(m => ({ filePath: m.filePath!, content: m.content })));
+
+                            // 2. MANDATORY GRACE PERIOD: Wait to see if Shopify CLI rejects it after the write.
+                            // We wait up to 5 seconds, checking periodically if an error was caught.
+                            for (let i = 0; i < 10; i++) {
+                                if (syncError) throw syncError;
+                                await new Promise(resolve => setTimeout(resolve, 500));
+                            }
+                        } finally {
+                            controller.abort(); // Ensure monitor is cleaned up
+                            await monitorPromise; // Wait for it to settle
+                        }
+                    };
+
                     // Pass 1: Sync all non-JSON files (sections, snippets, etc.) first
                     if (nonJsonMods.length > 0) {
-                        await flyMachineService.syncBulk(machineId, nonJsonMods.map(m => ({ filePath: m.filePath!, content: m.content })));
-                        // Wait for Shopify CLI to start processing these files
-                        await new Promise(resolve => setTimeout(resolve, 2000));
+                        try {
+                            await syncWithMonitoring(nonJsonMods);
+                            // Wait for Shopify CLI to start processing these files
+                            await new Promise(resolve => setTimeout(resolve, 2000));
+                        } catch (e) {
+                            if (e instanceof ValidationError) throw e;
+                            console.error("[Sync] Non-critical error during Non-JSON monitoring:", e);
+                        }
                     }
 
                     // Pass 2: Sync all JSON files (templates, config, etc.)
                     if (jsonMods.length > 0) {
-                        await flyMachineService.syncBulk(machineId, jsonMods.map(m => ({ filePath: m.filePath!, content: m.content })));
+                        try {
+                            await syncWithMonitoring(jsonMods);
+                        } catch (e) {
+                            if (e instanceof ValidationError) throw e;
+                            console.error("[Sync] Non-critical error during JSON monitoring:", e);
+                        }
                     }
 
                     // Guaranteed Reload: Tell the browser to refresh after both passes are complete.
