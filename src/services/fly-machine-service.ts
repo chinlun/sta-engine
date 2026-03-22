@@ -27,7 +27,7 @@ export const flyMachineService = {
         const payload = {
             config: {
                 image: `registry.fly.io/${appName}:latest`,
-                auto_destroy: true, // Automatically delete the machine when it stops
+                auto_destroy: true,
                 guest: {
                     cpu_kind: 'shared',
                     cpus: 1,
@@ -54,27 +54,45 @@ export const flyMachineService = {
             }
         };
 
-        console.log(`[Fly API] 📦 Create Machine Payload:`, JSON.stringify(payload, null, 2));
+        let lastError = null;
+        for (let attempt = 1; attempt <= 3; attempt++) {
+            try {
+                const response = await fetch(`https://api.machines.dev/v1/apps/${appName}/machines`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${apiToken}`,
+                    },
+                    body: JSON.stringify(payload)
+                });
 
-        const response = await fetch(`https://api.machines.dev/v1/apps/${appName}/machines`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${apiToken}`,
-            },
-            body: JSON.stringify(payload)
-        });
+                const rawText = await response.text();
 
-        const rawText = await response.text();
+                if (!response.ok) {
+                    console.warn(`[Fly API] ⚠️ Create machine attempt ${attempt} failed with ${response.status}: ${rawText}`);
+                    if (response.status >= 500) {
+                        lastError = new Error(`Fly API ${response.status}: ${rawText}`);
+                        const delay = Math.pow(2, attempt) * 1000;
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        continue;
+                    }
+                    throw new Error(`Failed to create machine: ${response.status} ${rawText}`);
+                }
 
-        if (!response.ok) {
-            console.error(`[Fly API] ❌ Create machine failed ${response.status}:`, rawText);
-            throw new Error(`Failed to create machine: ${response.status} ${rawText}`);
+                const data = JSON.parse(rawText);
+                console.log(`[Fly API] ✅ Created machine: ${data.id}.`);
+                return data.id;
+            } catch (err: any) {
+                lastError = err;
+                if (err.message && err.message.includes("Fly API")) {
+                    // Already handled by the retry loop condition above
+                    continue;
+                }
+                throw err;
+            }
         }
 
-        const data = JSON.parse(rawText);
-        console.log(`[Fly API] ✅ Created machine: ${data.id}. Raw Response:`, rawText);
-        return data.id;
+        throw lastError || new Error("Failed to create machine after retries");
     },
 
     async startMachine(machineId: string) {
