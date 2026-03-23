@@ -19,6 +19,10 @@ const ThemeGenerationState = Annotation.Root({
         reducer: (x, y) => y,
         default: () => [],
     }),
+    reasoning: Annotation({
+        reducer: (x, y) => [...(x || []), y],
+        default: () => [],
+    }),
     referenceImageBase64: Annotation(),
     referenceHtml: Annotation(),
 });

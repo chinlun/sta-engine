@@ -17,6 +17,7 @@ import { flyMachineService } from './services/fly-machine-service';
 import { IntegrityManager, ValidationError } from './services/integrity-manager';
 import path from 'path';
 import fs from 'fs';
+import { logger } from './lib/logger';
 
 
 dotenv.config();
@@ -45,8 +46,7 @@ app.post('/api/build', async (req, res) => {
     const requestId = `req-${Date.now()}`;
     const startTime = Date.now();
 
-    console.log(`\n${'='.repeat(70)}`);
-    console.log(`[${requestId}] 📨 New build request received`);
+    logger.info(`[${requestId}] 📨 New build request received`);
 
     // Set SSE headers
     res.setHeader('Content-Type', 'text/event-stream');
@@ -60,7 +60,7 @@ app.post('/api/build', async (req, res) => {
 
     try {
         let { messages, machineId, referenceHtml, referenceImageBase64 } = req.body;
-        console.log(`[/api/build] 📥 Received build request (HTML=${!!referenceHtml}, Image=${!!referenceImageBase64})`);
+        logger.info(`[/api/build] 📥 Received build request (HTML=${!!referenceHtml}, Image=${!!referenceImageBase64})`);
 
         // --- Auto-Discovery for Tri-Modal context if missing from request ---
         if (!referenceHtml || !referenceImageBase64) {
@@ -69,11 +69,11 @@ app.post('/api/build', async (req, res) => {
             const localImagePath = path.join(curatedPath, 'screen.png');
 
             if (!referenceHtml && fs.existsSync(localHtmlPath)) {
-                console.log(`[Build] 📂 Auto-loading local HTML from: ${localHtmlPath}`);
+                logger.info(`[Build] 📂 Auto-loading local HTML from: ${localHtmlPath}`);
                 referenceHtml = fs.readFileSync(localHtmlPath, 'utf8');
             }
             if (!referenceImageBase64 && fs.existsSync(localImagePath)) {
-                console.log(`[Build] 📂 Auto-loading local Image from: ${localImagePath}`);
+                logger.info(`[Build] 📂 Auto-loading local Image from: ${localImagePath}`);
                 referenceImageBase64 = fs.readFileSync(localImagePath).toString('base64');
             }
         }
@@ -85,7 +85,7 @@ app.post('/api/build', async (req, res) => {
         if (!designBrief && userPrompt.toLowerCase().includes('tablet')) {
             const blueprintPath = path.join(process.cwd(), 'docs/design-system/single-page-app/tablet_collection_blueprint.json');
             if (fs.existsSync(blueprintPath)) {
-                console.log(`[Build] 📜 Injecting strict JSON blueprint for Tablet: ${blueprintPath}`);
+                logger.info(`[Build] 📜 Injecting strict JSON blueprint for Tablet: ${blueprintPath}`);
                 designBrief = JSON.parse(fs.readFileSync(blueprintPath, 'utf8'));
             }
         }
@@ -113,6 +113,9 @@ app.post('/api/build', async (req, res) => {
 
         const stream = await themeWorkflow.stream(inputs, {
             recursionLimit: 40,
+            configurable: {
+                sendEvent: (e: any) => sendEvent(e)
+            }
         });
 
         let finalState: any = null;
@@ -121,6 +124,15 @@ app.post('/api/build', async (req, res) => {
             const node = Object.keys(chunk)[0];
             const output = chunk[node];
             finalState = { ...finalState, ...output };
+
+            // Stream reasoning/thinking if present
+            if (output.reasoning) {
+                sendEvent({
+                    type: 'thinking',
+                    node: output.reasoning.node,
+                    content: output.reasoning.text
+                });
+            }
 
             if (node === 'classifier') {
                 sendEvent({ type: 'progress', stage: 'classifier', message: `Archetype: ${output.catalogSize}...` });
@@ -246,13 +258,13 @@ app.post('/api/build', async (req, res) => {
             });
 
             sendEvent({ type: 'done' });
-            console.log(`[${requestId}] ✅ LangGraph Build successful`);
+            logger.info(`[${requestId}] ✅ LangGraph Build successful`);
         } else {
             throw new Error("LangGraph finished without generating files.");
         }
         res.end();
     } catch (error) {
-        console.error(`[${requestId}] ❌ Request failed:`, error);
+        logger.error({ error }, `[${requestId}] ❌ Request failed:`);
         sendEvent({ type: 'error', message: String(error) });
         res.end();
     }
@@ -262,5 +274,5 @@ app.get('/health', (req, res) => res.send('OK'));
 app.get('/api/preview/:themeId', createMagicPreviewHandler());
 
 const server = app.listen(port, () => {
-    console.log(`sta-engine listening on port ${port}`);
+    logger.info(`sta-engine listening on port ${port}`);
 });

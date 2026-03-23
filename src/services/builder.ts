@@ -190,7 +190,23 @@ export function validateAndRepair(plan: ThemePlan): ValidationResult {
         // Check: JSON validity for .json files
         if (mod.filePath.endsWith('.json') && mod.action !== 'delete' && mod.content) {
             try {
-                JSON.parse(mod.content);
+                const parsed = JSON.parse(mod.content);
+
+                // Auto-repair: config/settings_schema.json must have 'settings' array in each section
+                if (mod.filePath === 'config/settings_schema.json' && Array.isArray(parsed)) {
+                    let modificationMade = false;
+                    for (const section of parsed) {
+                        if (typeof section === 'object' && section !== null && !section.settings) {
+                            section.settings = [];
+                            modificationMade = true;
+                        }
+                    }
+                    if (modificationMade) {
+                        const updatedContent = JSON.stringify(parsed, null, 2);
+                        updateModContent(mod, updatedContent);
+                        result.repairs.push(`Auto-added missing "settings" arrays to config/settings_schema.json`);
+                    }
+                }
             } catch (e) {
                 result.errors.push(`Invalid JSON in "${mod.filePath}": ${(e as Error).message}`);
                 result.valid = false;

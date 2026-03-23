@@ -1,44 +1,112 @@
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
+import { wrapLanguageModel } from 'ai';
 import { Agent, setGlobalDispatcher } from 'undici';
-import dotenv from 'dotenv';
+import * as dotenv from 'dotenv';
 
 dotenv.config();
 
-// Override the default Node.js undici timeout (300s -> 15m) to allow massive theme generation AI responses
+// Completely disable timeouts to allow massive multimodal generations
 const globalAgent = new Agent({
-    headersTimeout: 15 * 60 * 1000,
-    bodyTimeout: 15 * 60 * 1000
+    headersTimeout: 0,
+    bodyTimeout: 0,
+    connectTimeout: 60 * 1000,
+    keepAliveTimeout: 10 * 60 * 1000,
 });
 setGlobalDispatcher(globalAgent);
 
-
 /**
  * Custom Google provider that strips the aggressive 60s timeout 
- * to allow long-running theme generations.
  */
 export const customGoogle = createGoogleGenerativeAI({
     fetch: (url, options) => {
-        const customOptions = { ...options };
+        const customOptions = { ...options, dispatcher: globalAgent };
         if (customOptions.signal) {
             console.log(`[AI] 🛡️ Stripping SDK timeout signal`);
             delete customOptions.signal;
         }
-        return fetch(url, customOptions as any).then(res => {
+        return (globalThis.fetch as any)(url, customOptions).then((res: any) => {
             return res;
-        }).catch(err => {
+        }).catch((err: any) => {
             console.error(`[AI] ❌ Network Error for ${url}:`, err);
             throw err;
         });
     }
 });
 
-export const models = {
-    flash: customGoogle('gemini-2.5-flash'),
-    pro: customGoogle('gemini-2.5-pro'), // Using 2.5 pro as per existing code, or 3.1 as requested if available
-};
+/**
+ * High-Availability Wrapper
+ * Supports a chain of fallbacks. If the first fails with 503/429, it tries the next, and so on.
+ */
+function wrapResilientModel(modelIds: string[]) {
+    if (modelIds.length === 0) throw new Error("At least one model ID is required");
 
-// If the user specifically asked for Gemini 3.1 Pro, we should try to use it if the SDK supports it.
-// The user prompt said: "Use Gemini 3.1 Pro". 
-// I'll define them specifically as requested.
+    const models = modelIds.map(id => customGoogle(id));
+
+    return wrapLanguageModel({
+        model: models[0],
+        middleware: {
+            specificationVersion: 'v3',
+            wrapGenerate: async ({ params, doGenerate }) => {
+                let lastErr: any;
+                for (let i = 0; i < models.length; i++) {
+                    try {
+                        const result = i === 0 ? await doGenerate() : await models[i].doGenerate(params);
+
+                        // Detect "silent failures": model returns OK but with empty content
+                        const hasContent = result.content.some(part =>
+                            part.type === 'text' ||
+                            part.type === 'tool-call' ||
+                            part.type === 'reasoning'
+                        );
+
+                        if (!hasContent && result.finishReason.unified === 'other' && i < models.length - 1) {
+                            console.warn(`[AI] ⚠️ ${modelIds[i]} returned empty (finishReason: other). Falling back to ${modelIds[i + 1]}...`);
+                            continue;
+                        }
+                        return result;
+                    } catch (err: any) {
+                        lastErr = err;
+                        const isRetryable = err.statusCode === 503 || err.statusCode === 429 ||
+                            err.status === 503 || err.status === 429 ||
+                            (err.data?.error?.code === 503 || err.data?.error?.code === 429);
+
+                        if (isRetryable && i < models.length - 1) {
+                            console.warn(`[AI] ⚠️ ${modelIds[i]} unavailable (${err.statusCode || err.status || '503'}). Falling back to ${modelIds[i + 1]}...`);
+                            continue;
+                        }
+                        throw err;
+                    }
+                }
+                throw lastErr;
+            },
+            wrapStream: async ({ params, doStream }) => {
+                let lastErr: any;
+                for (let i = 0; i < models.length; i++) {
+                    try {
+                        if (i === 0) return await doStream();
+                        return await models[i].doStream(params);
+                    } catch (err: any) {
+                        lastErr = err;
+                        const isRetryable = err.statusCode === 503 || err.statusCode === 429 ||
+                            err.status === 503 || err.status === 429 ||
+                            (err.data?.error?.code === 503 || err.data?.error?.code === 429);
+
+                        if (isRetryable && i < models.length - 1) {
+                            console.warn(`[AI] ⚠️ ${modelIds[i]} unavailable (${err.statusCode || err.status || '503'}). Falling back to ${modelIds[i + 1]}...`);
+                            continue;
+                        }
+                        throw err;
+                    }
+                }
+                throw lastErr;
+            }
+        }
+    });
+}
+
+export const gemini31Pro = wrapResilientModel([
+    'gemini-3.1-pro-preview',
+    'gemini-2.5-pro',
+    'gemini-2.5-flash'
+]);
 export const gemini3Flash = customGoogle('gemini-3-flash-preview');
-export const gemini31Pro = customGoogle('gemini-3.1-pro-preview');
