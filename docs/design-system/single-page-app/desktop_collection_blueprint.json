@@ -1,0 +1,37 @@
+{
+  "screen_name": "Desktop_Collection",
+  "device": "Desktop (1440px+)",
+  "design_system": "Aura Mono + Electric",
+  "spacing_scale": {
+    "section_padding": "px-8 py-24",
+    "grid_gap": "gap-12",
+    "inner_spacing": "gap-y-6",
+    "max_width": "max-w-[1440px]"
+  },
+  "typography_tokens": {
+    "h1_hero": "text-[120px] leading-[0.9] font-black tracking-[-0.04em] uppercase",
+    "h2_section": "text-[48px] leading-tight font-bold tracking-tight",
+    "body_copy": "text-[18px] leading-relaxed font-normal text-black/80",
+    "nav_link": "text-[14px] font-bold tracking-tight uppercase",
+    "price_tag": "text-[20px] font-medium"
+  },
+  "structural_mapping": {
+    "hero_section": "<section className='relative h-screen w-full flex items-center px-12 overflow-hidden'>",
+    "product_grid": "<div className='grid grid-cols-2 gap-16 px-12 mt-24'>",
+    "stagger_strategy": "Column 1: mt-0, Column 2: mt-32",
+    "cart_drawer": "<aside className='fixed right-0 top-0 h-full w-[400px] bg-white z-[60] shadow-2xl transition-transform duration-500 ease-out'>"
+  },
+  "interaction_states": {
+    "image_hover": "transition-transform duration-700 ease-[cubic-bezier(0.25,1,0.5,1)] hover:scale-105",
+    "cta_button": "bg-black text-white px-8 py-4 transition-all duration-300 hover:bg-white hover:text-black hover:ring-1 hover:ring-black",
+    "nav_hover": "border-b-2 border-transparent hover:border-black transition-all"
+  },
+  "shopify_schema": {
+    "section_id": "collection_main",
+    "blocks": [
+      { "type": "hero", "settings": ["title", "subtext", "background_image"] },
+      { "type": "product_item", "settings": ["product_handle", "show_price"] }
+    ]
+  },
+  "system_prompt_injection": "CONSTRAINT: Use only Tailwind arbitrary values for typography text-[120px]. Structural grid must follow a 2-column staggered layout where column-2 has an offset margin-top of 8rem. Cart must be a right-aligned fixed drawer with backdrop-blur-xl."
+}

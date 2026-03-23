@@ -1,0 +1,30 @@
+{
+  "screen_name": "Mobile_Collection",
+  "device": "Mobile (375px - 430px)",
+  "design_system": "Aura Mono + Electric",
+  "spacing_scale": {
+    "section_padding": "px-4 py-12",
+    "grid_gap": "gap-y-12",
+    "max_width": "w-full"
+  },
+  "typography_tokens": {
+    "h1_hero": "text-[56px] leading-[1] font-black tracking-[-0.02em] uppercase",
+    "h2_section": "text-[28px] font-bold",
+    "body_copy": "text-[15px] leading-relaxed",
+    "bottom_nav_label": "text-[10px] uppercase tracking-widest"
+  },
+  "structural_mapping": {
+    "hero_section": "<section className='h-screen flex flex-col justify-end pb-24 px-6'>",
+    "product_list": "<div className='flex flex-col gap-12 px-4'>",
+    "bottom_nav": "<nav className='fixed bottom-0 w-full h-16 flex justify-around items-center bg-white/90 backdrop-blur-xl border-t border-black/5'>"
+  },
+  "interaction_states": {
+    "active_tab": "text-black border-t-2 border-black pt-1",
+    "drawer_overlay": "fixed inset-0 bg-black/40 backdrop-blur-sm z-50 transition-opacity duration-300"
+  },
+  "shopify_schema": {
+    "section_id": "mobile_layout",
+    "blocks": ["navigation_icons", "footer_socials"]
+  },
+  "system_prompt_injection": "CONSTRAINT: Mobile layout must be single-column stack. Bottom navigation must remain persistent with z-50. Cart transitions from side-drawer to a full-screen bottom-sheet overlay."
+}

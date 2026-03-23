@@ -59,6 +59,37 @@ app.post('/api/build', async (req, res) => {
     };
 
     try {
+        let { messages, machineId, referenceHtml, referenceImageBase64 } = req.body;
+        console.log(`[/api/build] 📥 Received build request (HTML=${!!referenceHtml}, Image=${!!referenceImageBase64})`);
+
+        // --- Auto-Discovery for Tri-Modal context if missing from request ---
+        if (!referenceHtml || !referenceImageBase64) {
+            const curatedPath = path.join(process.cwd(), 'docs/design-system/single-page-app/stitch_digital_atelier_curated_collection/digital_atelier_curated_collection');
+            const localHtmlPath = path.join(curatedPath, 'code.html');
+            const localImagePath = path.join(curatedPath, 'screen.png');
+
+            if (!referenceHtml && fs.existsSync(localHtmlPath)) {
+                console.log(`[Build] 📂 Auto-loading local HTML from: ${localHtmlPath}`);
+                referenceHtml = fs.readFileSync(localHtmlPath, 'utf8');
+            }
+            if (!referenceImageBase64 && fs.existsSync(localImagePath)) {
+                console.log(`[Build] 📂 Auto-loading local Image from: ${localImagePath}`);
+                referenceImageBase64 = fs.readFileSync(localImagePath).toString('base64');
+            }
+        }
+
+        let designBrief = req.body.designBrief;
+        const userPrompt = messages[messages.length - 1]?.content || "";
+
+        // If it's a tablet-focused prompt, auto-load the strict JSON blueprint
+        if (!designBrief && userPrompt.toLowerCase().includes('tablet')) {
+            const blueprintPath = path.join(process.cwd(), 'docs/design-system/single-page-app/tablet_collection_blueprint.json');
+            if (fs.existsSync(blueprintPath)) {
+                console.log(`[Build] 📜 Injecting strict JSON blueprint for Tablet: ${blueprintPath}`);
+                designBrief = JSON.parse(fs.readFileSync(blueprintPath, 'utf8'));
+            }
+        }
+
         sendEvent({ type: 'progress', stage: 'context', message: 'Loading theme context & reference docs...' });
         const currentIndexJson = extractFileFromBaseTheme('templates/index.json');
         const currentSettingsData = extractFileFromBaseTheme('config/settings_data.json');
@@ -70,17 +101,18 @@ app.post('/api/build', async (req, res) => {
         let retryCount = 0;
         const maxRetries = 2;
         let buildSuccessful = false;
-
-        const { machineId } = req.body;
         const inputs = {
-            userPrompt: messages[messages.length - 1]?.content || "",
+            userPrompt,
             tsErrors: [],
             designErrors: [],
-            generatedFiles: []
+            generatedFiles: [],
+            referenceHtml,
+            referenceImageBase64,
+            designBrief // Pass through the injected/explicit blueprint
         };
 
         const stream = await themeWorkflow.stream(inputs, {
-            recursionLimit: 20,
+            recursionLimit: 40,
         });
 
         let finalState: any = null;

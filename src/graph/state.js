@@ -19,6 +19,8 @@ const ThemeGenerationState = Annotation.Root({
         reducer: (x, y) => y,
         default: () => [],
     }),
+    referenceImageBase64: Annotation(),
+    referenceHtml: Annotation(),
 });
 
 module.exports = { ThemeGenerationState };

@@ -1,7 +1,16 @@
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
+import { Agent, setGlobalDispatcher } from 'undici';
 import dotenv from 'dotenv';
 
 dotenv.config();
+
+// Override the default Node.js undici timeout (300s -> 15m) to allow massive theme generation AI responses
+const globalAgent = new Agent({
+    headersTimeout: 15 * 60 * 1000,
+    bodyTimeout: 15 * 60 * 1000
+});
+setGlobalDispatcher(globalAgent);
+
 
 /**
  * Custom Google provider that strips the aggressive 60s timeout 
