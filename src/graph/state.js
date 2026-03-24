@@ -6,9 +6,22 @@ const { Annotation } = require("@langchain/langgraph");
 const ThemeGenerationState = Annotation.Root({
     userPrompt: Annotation(),
     catalogSize: Annotation(),
-    designBrief: Annotation(),
-    generatedFiles: Annotation({
+    designBrief: Annotation(), // Deprecated, replaced by designTokens
+    designTokens: Annotation(),
+    components: Annotation({
+        reducer: (x, y) => [...(x || []), ...y],
+        default: () => [],
+    }),
+    currentComponentIndex: Annotation({
         reducer: (x, y) => y,
+        default: () => 0,
+    }),
+    currentComponentFiles: Annotation({
+        reducer: (x, y) => y,
+        default: () => [],
+    }),
+    generatedFiles: Annotation({
+        reducer: (x, y) => [...(x || []), ...y],
         default: () => [],
     }),
     tsErrors: Annotation({

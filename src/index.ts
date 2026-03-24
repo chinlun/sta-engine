@@ -137,12 +137,20 @@ app.post('/api/build', async (req, res) => {
             if (node === 'classifier') {
                 sendEvent({ type: 'progress', stage: 'classifier', message: `Archetype: ${output.catalogSize}...` });
             } else if (node === 'planner') {
-                sendEvent({ type: 'progress', stage: 'planner', message: `Design Brief: ${output.designBrief.rationale.substring(0, 100)}...` });
+                sendEvent({ type: 'progress', stage: 'planner', message: `Architected ${output.components?.length} components...` });
             } else if (node === 'coder') {
-                sendEvent({ type: 'progress', stage: 'coder', message: `Syncing ${output.generatedFiles.length} files...` });
-                // We stream the text content of the files to show progress
-                for (const file of output.generatedFiles) {
-                    sendEvent({ type: 'text', content: `\n### \`${file.path}\`\n\`\`\`liquid\n${file.content.substring(0, 500)}...\n\`\`\`\n` });
+                sendEvent({ type: 'progress', stage: 'coder', message: `Building component files...` });
+                if (output.currentComponentFiles) {
+                    for (const file of output.currentComponentFiles) {
+                        sendEvent({ type: 'text', content: `\n### \`${file.path}\`\n\`\`\`liquid\n${file.content.substring(0, 500)}...\n\`\`\`\n` });
+                    }
+                }
+            } else if (node === 'assembler') {
+                sendEvent({ type: 'progress', stage: 'assembler', message: `Assembling finalized theme structure...` });
+                if (output.generatedFiles) {
+                    for (const file of output.generatedFiles) {
+                        sendEvent({ type: 'text', content: `\n### \`${file.path}\`\n\`\`\`liquid\n${file.content.substring(0, 500)}...\n\`\`\`\n` });
+                    }
                 }
             } else if (node === 'tsQc') {
                 if (output.tsErrors && output.tsErrors.length > 0) {
@@ -166,7 +174,7 @@ app.post('/api/build', async (req, res) => {
                 content: f.content
             }));
 
-            globalSettings = finalState.designBrief?.globalSettings || {};
+            globalSettings = finalState.designTokens || {};
 
             sendEvent({ type: 'progress', stage: 'validating', message: 'Final assembly and sync...' });
 
