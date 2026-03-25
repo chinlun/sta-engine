@@ -1,0 +1,19 @@
+# .theme-check-gate-a.yml
+extends: nothing
+
+checks:
+  LiquidHTMLSyntaxError: enabled
+  ValidSchema: enabled
+  ValidDocParamTypes: enabled
+  UniqueDocParamNames: enabled
+  ReservedDocParamNames: enabled
+  UnclosedHTMLElement: enabled
+  JSONSyntaxError: enabled
+  
+  # Explicitly disable cross-reference checks and required file checks for Gate A
+  MissingTemplate: disabled
+  MissingAsset: disabled
+  RequiredLayoutFile: disabled
+  MissingRequiredTemplateFiles: disabled
+  UnusedAssign: disabled
+  UndefinedObject: disabled

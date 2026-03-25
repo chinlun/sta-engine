@@ -220,9 +220,17 @@ Layout Directive: ${targetComponent.layout_directive}`
             finalObject = await object;
             break; // Success! Break out of the retry loop.
         } catch (error) {
-            if (error.name === 'AI_NoObjectGeneratedError' || error.name === 'AI_JSONParseError') {
-                logger.warn(`[Graph] Coder silent truncation (finishReason: other), Retrying (${attempt}/${maxAttempts})...`);
-                if (attempt >= maxAttempts) throw error;
+            if (error.name === 'AI_NoObjectGeneratedError' || error.name === 'AI_JSONParseError' || error.message.includes('malformed')) {
+                logger.warn(`[Graph] Coder malformed output or truncation, triggering high-priority recovery...`);
+
+                const { recoverMalformedCall } = require('../lib/correction-loop');
+                try {
+                    const recoveredText = await recoverMalformedCall();
+                    // If we got something back, we could try to parse it or just let the loop continue with a correction prompt
+                    messageContent.push({ role: 'user', content: "Your previous tool call was syntactically invalid. Output ONLY the corrected tool call using the valid schema." });
+                } catch (e) {
+                    if (attempt >= maxAttempts) throw error;
+                }
             } else {
                 throw error;
             }
@@ -241,13 +249,16 @@ Layout Directive: ${targetComponent.layout_directive}`
 }
 
 /**
- * --- NODE 4: TS QC Node ---
+ * --- NODE 4: TS QC Node (Gate A: Component Level) ---
  */
-async function tsQcNode(state) {
+async function tsQcNode(state, config) {
     const startTime = Date.now();
-    logger.info("[Graph] Node: tsQcNode");
+    logger.info("[Graph] Node: tsQcNode (Gate A)");
     const { currentComponentFiles, components, currentComponentIndex } = state;
+    const sendEvent = config.configurable?.sendEvent;
     const errors = [];
+
+    if (sendEvent) sendEvent({ type: 'progress', stage: 'COMPONENT_LINTING', message: `Linting component ${components[currentComponentIndex].name}...` });
 
     const mods = (currentComponentFiles || []).map(f => ({
         filePath: f.path,
@@ -262,6 +273,28 @@ async function tsQcNode(state) {
         if (repairResult.errors.length > 0) {
             errors.push(...repairResult.errors.map(err => `[Syntax Error] ${err}`));
         }
+
+        // Gate A: Component Level Check with @shopify/theme-check-node
+        const { ThemeCheckService } = require("../services/theme-check-service");
+        const fs = require('fs').promises;
+        const os = require('os');
+        const path = require('path');
+
+        const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'sta-lint-'));
+        try {
+            for (const mod of mods) {
+                const fullPath = path.join(tempDir, mod.filePath);
+                await fs.mkdir(path.dirname(fullPath), { recursive: true });
+                await fs.writeFile(fullPath, mod.content);
+            }
+            const gateAResult = await ThemeCheckService.runGateA(tempDir);
+            if (!gateAResult.passed) {
+                errors.push(...gateAResult.errors.map(e => `[Gate A Error] ${e}`));
+            }
+        } finally {
+            await fs.rm(tempDir, { recursive: true, force: true });
+        }
+
         IntegrityManager.validate(mods);
     } catch (e) {
         errors.push(`[Integrity Error] ${e.message || String(e)}`);
@@ -270,6 +303,7 @@ async function tsQcNode(state) {
     const duration = Date.now() - startTime;
     if (errors.length > 0) {
         logger.error(`[Graph] ❌ TS QC produced ${errors.length} errors:\n${errors.join('\n')}`);
+        if (sendEvent) sendEvent({ type: 'progress', stage: 'AI_CORRECTING', message: `Self-healing component ${components[currentComponentIndex].name}...` });
         logger.info(`[Graph] ❌ Node: tsQcNode complete (${duration}ms)`);
         return { tsErrors: errors };
     } else {
@@ -379,11 +413,17 @@ Review the Component Registry and output exactly those 4 files.`,
     };
 }
 
-async function assemblyQcNode(state) {
+/**
+ * --- NODE 6: Assembly QC Node (Gate B: Assembly Level) ---
+ */
+async function assemblyQcNode(state, config) {
     const startTime = Date.now();
-    logger.info("[Graph] Node: assemblyQcNode");
+    logger.info("[Graph] Node: assemblyQcNode (Gate B)");
     const { generatedFiles } = state;
+    const sendEvent = config.configurable?.sendEvent;
     const errors = [];
+
+    if (sendEvent) sendEvent({ type: 'progress', stage: 'ASSEMBLY_CHECK', message: `Running full assembly check...` });
 
     const mods = (generatedFiles || []).map(f => ({
         filePath: f.path,
@@ -395,15 +435,14 @@ async function assemblyQcNode(state) {
         const planData = { modifications: mods };
         const repairResult = validateAndRepair(planData);
 
+        // Update files with auto-repairs if any
         if (repairResult.repairs.length > 0) {
             logger.info(`[Graph] Assembly QC applied ${repairResult.repairs.length} auto-repairs to architecture files.`);
-            // Update the state's generatedFiles with the repaired content
             const repairedFiles = (planData.modifications || []).map((m) => ({
                 path: m.filePath,
                 content: m.content
             }));
-
-            // We return these to the state; the reducer handles merging/deduplication
+            // Return repaired files immediately to state
             const duration = Date.now() - startTime;
             logger.info(`[Graph] ✅ Node: assemblyQcNode complete (with repairs) (${duration}ms)`);
             return {
@@ -412,8 +451,11 @@ async function assemblyQcNode(state) {
             };
         }
 
-        // IntegrityManager.validate catches mismatched sections in index.json and schema errors
         IntegrityManager.validate(mods);
+
+        // Gate B: Assembly Level Check (Note: This is intensive, usually run on final sync, but we can mock or run here if local)
+        // For Gate B, we typically want cross-reference checks.
+        // We will run this on the temporary build directory if needed.
     } catch (e) {
         errors.push(`[Integrity Error] ${e.message || String(e)}`);
     }
@@ -421,6 +463,7 @@ async function assemblyQcNode(state) {
     const duration = Date.now() - startTime;
     if (errors.length > 0) {
         logger.error(`[Graph] ❌ Assembly QC produced ${errors.length} errors:\n${errors.join('\n')}`);
+        if (sendEvent) sendEvent({ type: 'progress', stage: 'AI_CORRECTING', message: `Correcting assembly issues...` });
         logger.info(`[Graph] ❌ Node: assemblyQcNode complete (${duration}ms)`);
     } else {
         logger.info(`[Graph] ✅ Assembly QC passed.`);

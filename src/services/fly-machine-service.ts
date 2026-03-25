@@ -1,4 +1,26 @@
 import crypto from 'crypto';
+import { spawn } from 'child_process';
+import path from 'path';
+import { logger } from '../lib/logger';
+
+// Dynamic import for strip-ansi (ESM)
+let stripAnsi: (string: string) => string;
+import('strip-ansi').then(m => {
+    stripAnsi = m.default;
+});
+
+export interface LogError {
+    message: string;
+    timestamp: string;
+    instance: string;
+}
+
+// Active log monitors by machineId
+const activeMonitors = new Map<string, {
+    process: any,
+    listeners: Set<(error: LogError) => void>,
+    isStopped: boolean
+}>();
 
 export const flyMachineService = {
     async listMachines() {
@@ -156,6 +178,14 @@ export const flyMachineService = {
             console.warn(`[Fly API] ⚠️ Stop machine returned ${response.status}`);
         } else {
             console.log(`[Fly API] ✅ Stopped machine ${machineId}`);
+            // Clean up log monitor if active
+            const monitor = activeMonitors.get(machineId);
+            if (monitor) {
+                monitor.isStopped = true;
+                if (monitor.process) monitor.process.kill();
+                activeMonitors.delete(machineId);
+                logger.info(`[LogChecker] 🛑 Cleaned up log monitor for stopped machine ${machineId}`);
+            }
         }
     },
 
@@ -173,6 +203,14 @@ export const flyMachineService = {
             console.warn(`[Fly API] ⚠️ Destroy machine returned ${response.status}`);
         } else {
             console.log(`[Fly API] ✅ Destroyed machine ${machineId}`);
+            // Clean up log monitor if active
+            const monitor = activeMonitors.get(machineId);
+            if (monitor) {
+                monitor.isStopped = true;
+                if (monitor.process) monitor.process.kill();
+                activeMonitors.delete(machineId);
+                logger.info(`[LogChecker] 🛑 Cleaned up log monitor for destroyed machine ${machineId}`);
+            }
         }
     },
 
@@ -212,30 +250,53 @@ export const flyMachineService = {
         const themeToken = process.env.SHOPIFY_THEME_ACCESS_PASSWORD;
         if (!appName || !themeToken) throw new Error("Missing FLY_APP_NAME or SHOPIFY_THEME_ACCESS_PASSWORD");
 
+        // The remote sync server automatically prefixes with 'theme/' internally.
+        // But execCommand runs in '/' and needs the full prefix.
+        const fullRoot = 'theme';
+        const dirName = path.dirname(filePath);
+        const fileName = path.basename(filePath);
+
+        // Path for the sync server (relative to its own internal theme root)
+        const serverStagingPath = `sta_staging/${dirName}/${fileName}`;
+
+        // Paths for shell commands (absolute/relative to /)
+        const shellStagingPath = `${fullRoot}/sta_staging/${dirName}/${fileName}`;
+        const shellFinalPath = `${fullRoot}/${filePath}`;
+
         const targetUrl = `https://${appName}.fly.dev/sync`;
-        const payload = JSON.stringify({ filePath, content });
 
-        // Generate HMAC signature
-        const hmac = crypto.createHmac('sha256', themeToken);
-        hmac.update(payload);
-        const signature = hmac.digest('hex');
+        const syncFileData = async (path: string, data: string) => {
+            const payload = JSON.stringify({ filePath: path, content: data });
+            const hmac = crypto.createHmac('sha256', themeToken);
+            hmac.update(payload);
+            const signature = hmac.digest('hex');
 
-        console.log(`[Fly API] 🚀 Syncing file ${filePath} to machine ${machineId} via HTTP POST...`);
-        const response = await fetch(targetUrl, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "fly-force-instance-id": machineId,
-                "x-sync-signature": signature
-            },
-            body: payload
-        });
+            const response = await fetch(targetUrl, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "fly-force-instance-id": machineId,
+                    "x-sync-signature": signature
+                },
+                body: payload
+            });
 
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error(`[Fly API] ❌ HTTP Sync failed ${response.status}:`, errorText);
-            throw new Error(`Failed to HTTP sync: ${response.status} ${errorText}`);
-        }
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Failed to HTTP sync ${path}: ${response.status} ${errorText}`);
+            }
+        };
+
+        console.log(`[Fly API] 🚀 Atomic Syncing file ${filePath} to machine ${machineId}...`);
+
+        // Ensure staging directory structure exists on remote
+        await this.execCommand(machineId, ['mkdir', '-p', `${fullRoot}/sta_staging/${dirName}`]);
+
+        // Write to staging via sync server (server adds 'theme/')
+        await syncFileData(serverStagingPath, content);
+
+        // Atomically move to target via shell (we must specify full path from /)
+        await this.execCommand(machineId, ['mv', shellStagingPath, shellFinalPath]);
     },
 
     async syncBulk(machineId: string, files: { filePath: string, content: string }[]) {
@@ -244,14 +305,24 @@ export const flyMachineService = {
         if (!appName || !themeToken) throw new Error("Missing FLY_APP_NAME or SHOPIFY_THEME_ACCESS_PASSWORD");
 
         const targetUrl = `https://${appName}.fly.dev/sync-bulk`;
-        const payload = JSON.stringify({ files });
+        const fullRoot = 'theme';
 
-        // Generate HMAC signature
+        // Create directory structure in staging folder (shell command, needs full prefix)
+        const uniqueDirs = [...new Set(files.map(f => path.dirname(f.filePath)))];
+        if (uniqueDirs.length > 0) {
+            const mkdirCommand = `mkdir -p ${fullRoot}/sta_staging/${uniqueDirs.join(` ${fullRoot}/sta_staging/`)}`;
+            await this.execCommand(machineId, ['bash', '-c', mkdirCommand]);
+        }
+
+        // Prepare bulk with staged paths (Sync server handles 'theme/' internally, so we don't prefix here)
+        const tmpFiles = files.map(f => ({ ...f, filePath: `sta_staging/${f.filePath}` }));
+        const payload = JSON.stringify({ files: tmpFiles });
+
         const hmac = crypto.createHmac('sha256', themeToken);
         hmac.update(payload);
         const signature = hmac.digest('hex');
 
-        console.log(`[Fly API] 🚀 Bulk Syncing ${files.length} files to machine ${machineId} via HTTP POST...`);
+        console.log(`[Fly API] 🚀 Bulk Atomic Syncing ${files.length} files to machine ${machineId}...`);
         const response = await fetch(targetUrl, {
             method: "POST",
             headers: {
@@ -267,5 +338,152 @@ export const flyMachineService = {
             console.error(`[Fly API] ❌ HTTP Bulk Sync failed ${response.status}:`, errorText);
             throw new Error(`Failed to HTTP bulk sync: ${response.status} ${errorText}`);
         }
+
+        // Atomically move all files from staging to their final locations (shell command, needs full prefix)
+        const moveCommands = files.map(f => `mv "${fullRoot}/sta_staging/${f.filePath}" "${fullRoot}/${f.filePath}"`).join(' && ');
+        await this.execCommand(machineId, ['bash', '-c', moveCommands]);
+    },
+
+    /**
+     * Monitors logs for a specific machine and detects Shopify CLI errors.
+     * Implements auto-reconnect and ANSI scrubbing.
+     */
+    monitorLogs(machineId: string, onValidationError: (error: LogError) => void): () => void {
+        const existing = activeMonitors.get(machineId);
+        if (existing) {
+            logger.info(`[LogChecker] 🔗 Reusing existing log monitor for ${machineId}`);
+            existing.listeners.add(onValidationError);
+            return () => {
+                existing.listeners.delete(onValidationError);
+            };
+        }
+
+        const apiToken = process.env.FLY_API_TOKEN;
+        const appName = process.env.FLY_APP_NAME;
+
+        if (!apiToken || !appName) {
+            logger.error("[LogChecker] ❌ CRITICAL: Missing FLY_API_TOKEN or FLY_APP_NAME. Monitor cannot start.");
+            throw new Error("Missing FLY_API_TOKEN or FLY_APP_NAME");
+        }
+
+        logger.info(`[LogChecker] 🔍 Initializing NEW persistent log monitor for machine ${machineId}...`);
+
+        const monitorState = {
+            process: null as any,
+            listeners: new Set<(error: LogError) => void>(),
+            isStopped: false
+        };
+        monitorState.listeners.add(onValidationError);
+        activeMonitors.set(machineId, monitorState);
+
+        let logBuffer = "";
+        let braceCount = 0;
+        let inErrorBox = false;
+        let currentErrorGroup: string[] = [];
+
+        const startListener = () => {
+            if (monitorState.isStopped) return;
+
+            logger.info(`[LogChecker] 🛰️ Spawning fly logs for ${machineId}...`);
+            const flyLogs = spawn('fly', ['logs', '--json', '--app', appName, '--instance', machineId], {
+                env: { ...process.env, FLY_API_TOKEN: apiToken }
+            });
+            monitorState.process = flyLogs;
+
+            flyLogs.on('error', (err: any) => {
+                logger.error(`[LogChecker] ❌ Failed to spawn fly logs: ${err.message}`);
+                if (!monitorState.isStopped) setTimeout(startListener, 5000);
+            });
+
+            flyLogs.stderr.on('data', (data: any) => {
+                const msg = data.toString();
+                if (!msg.includes("Waiting for logs") && !msg.includes("found instance")) {
+                    logger.warn(`[LogChecker] ⚠️ fly logs stderr: ${msg.trim()}`);
+                }
+            });
+
+            flyLogs.stdout.on('data', (data: any) => {
+                const chunk = data.toString();
+                let inQuote = false;
+                for (let i = 0; i < chunk.length; i++) {
+                    const char = chunk[i];
+                    logBuffer += char;
+
+                    if (char === '"' && chunk[i - 1] !== '\\') inQuote = !inQuote;
+                    if (!inQuote) {
+                        if (char === '{') braceCount++;
+                        if (char === '}') braceCount--;
+                    }
+
+                    if (braceCount === 0 && logBuffer.trim().length > 0) {
+                        const entryString = logBuffer.trim();
+                        logBuffer = "";
+
+                        try {
+                            const logEntry = JSON.parse(entryString);
+                            let message = (logEntry.message || "").trim();
+
+                            if (message) logger.debug(`[LogMonitor] ${message}`);
+
+                            // Detect start of Shopify CLI error box (╭─ error) - Support more characters
+                            if (message.includes("╭─ error") || message.includes("┌─ error") || message.includes("─ error")) {
+                                inErrorBox = true;
+                                currentErrorGroup = [];
+                                continue;
+                            }
+
+                            if (inErrorBox) {
+                                // Detect end of error box (╰─, └─)
+                                if (message.includes("╰─") || message.includes("└─")) {
+                                    inErrorBox = false;
+                                    if (currentErrorGroup.length > 0) {
+                                        const fullMessage = currentErrorGroup.join("\n").trim();
+                                        logger.error(`[LogChecker] 🚨 REMOTE ERROR DETECTED ON ${machineId}:\n${fullMessage}`);
+                                        monitorState.listeners.forEach(listener => listener({
+                                            message: fullMessage,
+                                            timestamp: logEntry.timestamp || new Date().toISOString(),
+                                            instance: logEntry.instance || machineId
+                                        }));
+                                    }
+                                } else {
+                                    const cleanLine = message.replace(/[│┃╽╿]/g, "").trim();
+                                    if (cleanLine) currentErrorGroup.push(cleanLine);
+                                }
+                            } else {
+                                // Single-line failure detection
+                                const errorSignatures = ["Rejected", "Invalid schema", "Liquid syntax error", "Liquid error", "Failed to upload"];
+                                if (errorSignatures.some(sig => message.includes(sig)) && !message.includes("error reporting")) {
+                                    logger.error(`[LogChecker] 🚨 SINGLE-LINE ERROR DETECTED ON ${machineId}: ${message}`);
+                                    monitorState.listeners.forEach(listener => listener({
+                                        message,
+                                        timestamp: logEntry.timestamp || new Date().toISOString(),
+                                        instance: logEntry.instance || machineId
+                                    }));
+                                }
+                            }
+                        } catch (e) { /* partial JSON */ }
+                    }
+                }
+            });
+
+            flyLogs.on('close', (code: number) => {
+                if (!monitorState.isStopped) {
+                    logger.info(`[LogChecker] 🔄 fly logs closed (code ${code}). Reconnecting...`);
+                    setTimeout(startListener, 3000);
+                }
+            });
+        };
+
+        startListener();
+
+        return () => {
+            // Unsubscribe listener
+            monitorState.listeners.delete(onValidationError);
+            logger.info(`[LogChecker] Unsubscribed listener for ${machineId}. Active listeners: ${monitorState.listeners.size}`);
+
+            // Note: We DO NOT kill the process here anymore. 
+            // It stays running as long as the machine is alive and activeMonitors exists.
+            // It will be cleaned up in stopMachine / destroyMachine.
+        };
     }
 };

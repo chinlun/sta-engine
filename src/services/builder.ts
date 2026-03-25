@@ -1,7 +1,7 @@
 import AdmZip from 'adm-zip';
-import { ThemePlan } from '../schema';
+import { ThemePlan, BuildThemeToolParams } from '../schema';
 import path from 'path';
-import { lintLiquid } from '../lib/liquid-linter';
+import { logger } from '../lib/logger';
 
 /**
  * Normalizes a single modification object from LLM output.
@@ -59,12 +59,26 @@ interface ValidationResult {
 }
 
 /**
+ * Updates both the normalized mod and the raw mod content to keep them in sync.
+ */
+function updateModContent(mod: any, newContent: string) {
+    mod.content = newContent;
+    const contentKeys = ['contentSource', 'content', 'code', 'body', 'source', 'file_content', 'fileContent'];
+    if (mod.raw) {
+        for (const key of contentKeys) {
+            if (mod.raw[key] !== undefined) {
+                mod.raw[key] = newContent;
+                break;
+            }
+        }
+    }
+}
+
+/**
  * Validates and auto-repairs a theme plan before building.
  * Returns a ValidationResult with errors (block deploy), warnings (info only), and repairs (auto-fixed).
- * 
- * Mutates the modifications array in-place to apply repairs.
  */
-export function validateAndRepair(plan: ThemePlan): ValidationResult {
+export function validateAndRepair(plan: ThemePlan | BuildThemeToolParams): ValidationResult {
     const result: ValidationResult = { valid: true, errors: [], warnings: [], repairs: [] };
     const mods = plan.modifications || [];
 
@@ -75,10 +89,11 @@ export function validateAndRepair(plan: ThemePlan): ValidationResult {
         normalizedMods.push({ ...normalized, raw: rawMod });
     }
 
-    // Track which section types are being created/updated
+    // Track state across mods
     const sectionFiles = new Set<string>();
     let indexJsonMod: { filePath: string; action: string; content: string; raw: any } | null = null;
 
+    // --- MAIN VALIDATION & REPAIR LOOP ---
     for (const mod of normalizedMods) {
         if (!mod.filePath) continue;
 
@@ -86,8 +101,8 @@ export function validateAndRepair(plan: ThemePlan): ValidationResult {
         if (mod.filePath.startsWith('/')) {
             const fixedPath = mod.filePath.replace(/^\//, '');
             result.repairs.push(`Auto-stripped leading '/' from "${mod.filePath}" → "${fixedPath}"`);
-            // Update the raw mod with the fixed path
-            for (const key of ['filePath', 'file_path', 'file', 'path', 'fileName', 'file_name', 'filename']) {
+            const filePathKeys = ['filePath', 'file_path', 'file', 'path', 'fileName', 'file_name', 'filename'];
+            for (const key of filePathKeys) {
                 if (mod.raw[key] === mod.filePath) {
                     mod.raw[key] = fixedPath;
                     break;
@@ -96,12 +111,13 @@ export function validateAndRepair(plan: ThemePlan): ValidationResult {
             mod.filePath = fixedPath;
         }
 
-        // Auto-repair: Snippet files MUST have .liquid extension (Shopify rejects .svg, .html, etc.)
+        // Auto-repair: Snippet files MUST have .liquid extension
         if (mod.filePath.startsWith('snippets/') && !mod.filePath.endsWith('.liquid')) {
             const ext = path.extname(mod.filePath);
             const fixedPath = mod.filePath.replace(ext, '.liquid');
             result.repairs.push(`Auto-renamed "${mod.filePath}" → "${fixedPath}" (snippets must use .liquid extension)`);
-            for (const key of ['filePath', 'file_path', 'file', 'path', 'fileName', 'file_name', 'filename']) {
+            const filePathKeys = ['filePath', 'file_path', 'file', 'path', 'fileName', 'file_name', 'filename'];
+            for (const key of filePathKeys) {
                 if (mod.raw[key] === mod.filePath) {
                     mod.raw[key] = fixedPath;
                     break;
@@ -110,15 +126,15 @@ export function validateAndRepair(plan: ThemePlan): ValidationResult {
             mod.filePath = fixedPath;
         }
 
-        // Auto-repair: Enforce hyphenated filenames for sections (Shopify CLI preference)
+        // Auto-repair: Enforce hyphenated filenames for sections
         if (mod.filePath.startsWith('sections/') && mod.filePath.endsWith('.liquid')) {
             const fileName = path.basename(mod.filePath);
             if (fileName.includes('_')) {
                 const fixedFileName = fileName.replace(/_/g, '-');
-                const fixedPath = path.join(path.dirname(mod.filePath), fixedFileName);
+                const fixedPath = path.join(path.dirname(mod.filePath), fixedFileName).replace(/\\/g, '/');
                 result.repairs.push(`Auto-hyphenated section filename: "${mod.filePath}" → "${fixedPath}"`);
-
-                for (const key of ['filePath', 'file_path', 'file', 'path', 'fileName', 'file_name', 'filename']) {
+                const filePathKeys = ['filePath', 'file_path', 'file', 'path', 'fileName', 'file_name', 'filename'];
+                for (const key of filePathKeys) {
                     if (mod.raw[key] === mod.filePath) {
                         mod.raw[key] = fixedPath;
                         break;
@@ -127,165 +143,127 @@ export function validateAndRepair(plan: ThemePlan): ValidationResult {
                 mod.filePath = fixedPath;
             }
         }
-        // Track sections
+
+        // Track and Repair Section Schema & Syntax
         if (mod.filePath.startsWith('sections/') && mod.filePath.endsWith('.liquid')) {
             const sectionType = path.basename(mod.filePath, '.liquid');
             sectionFiles.add(sectionType);
 
-            // Check: JSON validity is not applicable for .liquid files
-            // Check: Schema presence
             if (mod.action !== 'delete' && mod.content) {
+                // Ensure schema existence
                 if (!mod.content.includes('{% schema %}') || !mod.content.includes('{% endschema %}')) {
-                    // Auto-repair: inject a default schema block
-                    const sectionName = sectionType
-                        .split('-')
-                        .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
-                        .join(' ');
+                    const sectionName = sectionType.split('-').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+                    const defaultSchema = `\n\n{% schema %}\n{\n  "name": "${sectionName}",\n  "class": "section",\n  "settings": [\n    { "type": "color_scheme", "id": "color_scheme", "label": "Color scheme", "default": "scheme-1" }\n  ],\n  "presets": [{ "name": "${sectionName}" }]\n}\n{% endschema %}`;
+                    updateModContent(mod, mod.content + defaultSchema);
+                    result.repairs.push(`Auto-injected schema into "${mod.filePath}"`);
+                    console.log(`[Validator] 🛠️ Injected schema: ${mod.filePath}`);
+                }
 
-                    const defaultSchema = `\n\n{% schema %}\n{\n  "name": "${sectionName}",\n  "class": "section",\n  "settings": [\n    { "type": "color_scheme", "id": "color_scheme", "label": "Color scheme", "default": "scheme-1" },\n    { "type": "range", "id": "padding_top", "min": 0, "max": 100, "step": 4, "unit": "px", "label": "Top padding", "default": 36 },\n    { "type": "range", "id": "padding_bottom", "min": 0, "max": 100, "step": 4, "unit": "px", "label": "Bottom padding", "default": 36 }\n  ],\n  "presets": [{ "name": "${sectionName}" }]\n}\n{% endschema %}`;
+                // AI Hallucination: product_picker -> product
+                if (mod.content.includes('product_picker')) {
+                    updateModContent(mod, mod.content.replace(/"type":\s*"product_picker"/g, '"type": "product"'));
+                    result.repairs.push(`Auto-fixed product_picker in "${mod.filePath}"`);
+                }
 
-                    // Update content in the raw mod
-                    for (const key of ['content', 'code', 'body', 'source', 'file_content', 'fileContent']) {
-                        if (mod.raw[key] && typeof mod.raw[key] === 'string') {
-                            mod.raw[key] += defaultSchema;
-                            break;
+                // AI Schema conflict: default vs presets
+                const schemaRegex = /\{%\s*schema\s*%\}([\s\S]*?)\{%\s*endschema\s*%\}/;
+                const match = mod.content.match(schemaRegex);
+                if (match) {
+                    try {
+                        const parsedSchema = JSON.parse(match[1]);
+                        if (parsedSchema.presets && parsedSchema.default !== undefined) {
+                            delete parsedSchema.default;
+                            updateModContent(mod, mod.content.replace(match[1], `\n${JSON.stringify(parsedSchema, null, 2)}\n`));
+                            result.repairs.push(`Auto-removed 'default' from ${mod.filePath} schema (presets present)`);
+                            console.log(`[Validator] 🛠️ Fixed default/presets conflict in ${mod.filePath}`);
                         }
-                    }
-                    mod.content += defaultSchema;
-
-                    result.repairs.push(`Auto-injected {% schema %} block into "${mod.filePath}"`);
+                    } catch (e) { }
                 }
 
-                // Auto-repair: Shopify Schema Sanity (Fix hallucinations)
-                const schemaRepairCount = repairShopifySchema(mod);
-                if (schemaRepairCount > 0) {
-                    result.repairs.push(`Auto-repaired ${schemaRepairCount} schema violations in "${mod.filePath}" (e.g., product_picker → product)`);
-                }
-
-                const lintResult = lintLiquid(mod.content, mod.filePath);
-                if (!lintResult.valid) {
-                    result.errors.push(...lintResult.errors.map(e => `${e} in "${mod.filePath}"`));
-                    result.valid = false;
-                }
-                if (lintResult.repairs.length > 0) {
-                    result.repairs.push(...lintResult.repairs.map(r => `${r} in "${mod.filePath}"`));
-                    updateModContent(mod, lintResult.repairedContent);
-                }
-
-                // Auto-repair: Liquid common syntax hallucinations
+                // AI Liquid syntax: modulo pipe in if-tag
                 const syntaxRepairCount = repairLiquidSyntax(mod);
                 if (syntaxRepairCount > 0) {
-                    result.repairs.push(`Auto-repaired ${syntaxRepairCount} Liquid syntax violations in "${mod.filePath}" (e.g., modulo filter in if-tag)`);
+                    result.repairs.push(`Auto-repaired ${syntaxRepairCount} syntax violations in "${mod.filePath}"`);
                 }
             }
         }
 
-        // Track index.json
+        // Conflict: index.json vs index.liquid
         if (mod.filePath === 'templates/index.json') {
             indexJsonMod = mod as any;
+            const liquidConflict = normalizedMods.find(m => m.filePath === 'templates/index.liquid');
+            if (liquidConflict) {
+                liquidConflict.action = 'delete';
+                result.repairs.push(`Auto-deleted "templates/index.liquid" to avoid index name collision`);
+                console.log(`[Validator] 🛠️ Resolved index conflict (deleting .liquid)`);
+            }
         }
 
-        // Check: JSON validity for .json files
-        if (mod.filePath.endsWith('.json') && mod.action !== 'delete' && mod.content) {
+        // settings_schema.json conflict (theme_info)
+        if (mod.filePath === 'config/settings_schema.json' && mod.action !== 'delete' && mod.content) {
             try {
-                const parsed = JSON.parse(mod.content);
-
-                if (mod.filePath === 'config/settings_schema.json' && Array.isArray(parsed)) {
+                const schema = JSON.parse(mod.content);
+                if (Array.isArray(schema)) {
                     let modificationMade = false;
-                    for (const section of parsed) {
-                        if (typeof section === 'object' && section !== null) {
-                            // Auto-repair: theme_info can have either theme_support_url OR theme_support_email, NOT BOTH
-                            const isThemeInfo = section.name === 'theme_info' || section.id === 'theme_info';
-                            if (isThemeInfo && section.theme_support_url && section.theme_support_email) {
+                    for (const section of schema) {
+                        const isThemeInfo = section.name === 'theme_info' || section.id === 'theme_info';
+                        if (isThemeInfo) {
+                            logger.info(`[Validator] 🔎 Found theme_info section. Checking for support conflict...`);
+                            // Case 1: Settings Array (Common for groups)
+                            if (section.settings && Array.isArray(section.settings)) {
+                                const hasEmailIndex = section.settings.findIndex((s: any) => s.id === 'theme_support_email');
+                                const hasUrlIndex = section.settings.findIndex((s: any) => s.id === 'theme_support_url');
+                                if (hasEmailIndex !== -1 && hasUrlIndex !== -1) {
+                                    section.settings.splice(hasEmailIndex, 1);
+                                    modificationMade = true;
+                                    result.repairs.push(`Auto-fixed settings_schema.json theme_info conflict (array)`);
+                                }
+                            }
+                            // Case 2: Flat Object (Official theme_info structure)
+                            if (section.theme_support_email && (section.theme_support_url || section.theme_documentation_url)) {
                                 delete section.theme_support_email;
                                 modificationMade = true;
-                                result.repairs.push(`Auto-stripped conflicting 'theme_support_email' from 'theme_info' in config/settings_schema.json`);
-                            }
-
-                            if (!section.settings) {
-                                section.settings = [];
-                                modificationMade = true;
-                            } else if (Array.isArray(section.settings)) {
-                                // Auto-repair: Invalid font_picker defaults
-                                for (const setting of section.settings) {
-                                    if (setting.type === 'font_picker' && setting.default) {
-                                        delete setting.default;
-                                        modificationMade = true;
-                                        result.repairs.push(`Auto-stripped invalid default value from font_picker "${setting.id}"`);
-                                    }
-                                }
+                                result.repairs.push(`Auto-fixed settings_schema.json theme_info conflict (flat)`);
                             }
                         }
                     }
                     if (modificationMade) {
-                        const updatedContent = JSON.stringify(parsed, null, 2);
-                        updateModContent(mod, updatedContent);
+                        updateModContent(mod, JSON.stringify(schema, null, 2));
                     }
                 }
-            } catch (e) {
-                result.errors.push(`Invalid JSON in "${mod.filePath}": ${(e as Error).message}`);
-                result.valid = false;
-            }
+            } catch (e) { }
         }
-    }
+    } // END MAIN LOOP
 
-    // Check: Sections created but not registered in index.json
+    // Post-loop: Sections created but not registered in index.json
     if (sectionFiles.size > 0 && indexJsonMod && indexJsonMod.content) {
         try {
             const cleanContent = indexJsonMod.content.replace(/\/\*[\s\S]*?\*\/|([^:]|^)\/\/.*$/gm, '$1');
             const indexJson = JSON.parse(cleanContent);
-            const registeredTypes = new Set(
-                Object.values(indexJson.sections || {}).map((s: any) => s.type)
-            );
+            const registeredTypes = new Set(Object.values(indexJson.sections || {}).map((s: any) => s.type));
             const orderArray: string[] = indexJson.order || [];
 
             for (const sectionType of sectionFiles) {
                 if (!registeredTypes.has(sectionType)) {
-                    // Auto-repair: add section to index.json
                     const sectionKey = sectionType.replace(/-/g, '_');
                     indexJson.sections = indexJson.sections || {};
-                    indexJson.sections[sectionKey] = {
-                        type: sectionType,
-                        settings: {}
-                    };
-                    if (!orderArray.includes(sectionKey)) {
-                        orderArray.push(sectionKey);
-                    }
-                    indexJson.order = orderArray;
-
-                    result.repairs.push(`Auto-registered section "${sectionType}" in templates/index.json`);
-                }
-            }
-
-            // Also check: sections in 'sections' but not in 'order'
-            for (const key of Object.keys(indexJson.sections || {})) {
-                if (!orderArray.includes(key)) {
-                    orderArray.push(key);
-                    result.repairs.push(`Auto-added "${key}" to index.json order array`);
+                    indexJson.sections[sectionKey] = { type: sectionType, settings: {} };
+                    if (!orderArray.includes(sectionKey)) orderArray.push(sectionKey);
+                    result.repairs.push(`Auto-registered section "${sectionType}" in index.json`);
                 }
             }
             indexJson.order = orderArray;
-
-            // Write back updated index.json
-            const updatedContent = JSON.stringify(indexJson, null, 2);
-            for (const key of ['content', 'code', 'body', 'source', 'file_content', 'fileContent']) {
-                if (indexJsonMod.raw[key] && typeof indexJsonMod.raw[key] === 'string') {
-                    indexJsonMod.raw[key] = updatedContent;
-                    break;
-                }
-            }
-        } catch {
-            // index.json already flagged as invalid JSON above
-        }
+            updateModContent(indexJsonMod, JSON.stringify(indexJson, null, 2));
+        } catch { }
     } else if (sectionFiles.size > 0 && !indexJsonMod) {
-        result.warnings.push(
-            `New sections created (${[...sectionFiles].join(', ')}) but no templates/index.json modification found. ` +
-            `These sections will not render on the homepage.`
-        );
+        result.warnings.push(`New sections created but templates/index.json is missing from plan.`);
+    }
+
+    if (result.repairs.length > 0) {
+        console.log(`[Validator] ✅ Applied ${result.repairs.length} auto-repairs.`);
     }
 
     enforceShopifyLimits(normalizedMods, result, plan);
-
     return result;
 }
 
@@ -298,7 +276,7 @@ const SHOPIFY_LIMITS = {
 /**
  * Enforces Shopify file size limits by auto-splitting or minifying large files.
  */
-function enforceShopifyLimits(normalizedMods: any[], result: ValidationResult, plan: ThemePlan) {
+function enforceShopifyLimits(normalizedMods: any[], result: ValidationResult, plan: ThemePlan | BuildThemeToolParams) {
     const newMods: any[] = [];
 
     for (const mod of normalizedMods) {
@@ -417,23 +395,6 @@ function enforceShopifyLimits(normalizedMods: any[], result: ValidationResult, p
     }
 }
 
-function updateModContent(mod: any, newContent: string) {
-    mod.content = newContent;
-    if (mod.raw) {
-        // Find existing key containing the content and update it
-        for (const key of ['contentSource', 'content', 'code', 'body', 'source', 'file_content', 'fileContent']) {
-            if (mod.raw[key] !== undefined) {
-                if (Array.isArray(mod.raw[key])) {
-                    mod.raw[key] = newContent.split('\n');
-                } else if (typeof mod.raw[key] === 'string') {
-                    mod.raw[key] = newContent;
-                }
-                break;
-            }
-        }
-    }
-}
-
 /**
  * Repairs common Shopify schema hallucinations from LLMs.
  * Returns the number of repairs made.
@@ -533,6 +494,17 @@ function repairShopifySchema(mod: any): number {
         if (modified) {
             schemaJson = JSON.stringify(parsed, null, 2);
             repairCount++;
+        }
+    } catch (e) { }
+
+    // Repair 6: "default" vs "presets" conflict (cannot define both on top level)
+    try {
+        const parsed = JSON.parse(schemaJson);
+        if (parsed.presets && parsed.presets.length > 0 && parsed.default !== undefined) {
+            delete parsed.default;
+            schemaJson = JSON.stringify(parsed, null, 2);
+            repairCount++;
+            console.log(`[Validator] 🛠️ Fixed schema conflict (default vs presets) in ${mod.filePath}`);
         }
     } catch (e) { }
 

@@ -22,6 +22,10 @@ import { logger } from './lib/logger';
 
 dotenv.config();
 
+console.log("========================================");
+console.log("🚀 STA-ENGINE SERVER STARTING...");
+console.log("========================================");
+
 const app = express();
 const port = 8080;
 
@@ -46,6 +50,7 @@ app.post('/api/build', async (req, res) => {
     const requestId = `req-${Date.now()}`;
     const startTime = Date.now();
 
+    console.log(`[BuildRequest] 📥 Received /api/build request: ${requestId}`);
     logger.info(`[${requestId}] 📨 New build request received`);
 
     // Set SSE headers
@@ -112,7 +117,7 @@ app.post('/api/build', async (req, res) => {
         };
 
         const stream = await themeWorkflow.stream(inputs, {
-            recursionLimit: 40,
+            recursionLimit: 100, // Increased for complex self-healing
             configurable: {
                 sendEvent: (e: any) => sendEvent(e)
             }
@@ -218,47 +223,79 @@ app.post('/api/build', async (req, res) => {
                 const jsonMods = orderedMods.filter(m => m.filePath!.endsWith('.json'));
 
                 const syncWithMonitoring = async (mods: any[]) => {
-                    const appName = process.env.FLY_APP_NAME;
-                    const controller = new AbortController();
-                    let syncError: ValidationError | null = null;
-                    const monitorPromise = (async () => {
-                        try {
-                            const response = await fetch(`https://${appName}.fly.dev/reload-events`, {
-                                headers: { "fly-force-instance-id": machineId },
-                                signal: controller.signal
-                            });
-                            if (!response.body) return;
-                            const reader = response.body.getReader();
-                            const decoder = new TextDecoder();
-                            while (true) {
-                                const { done, value } = await reader.read();
-                                if (done) break;
-                                const chunk = decoder.decode(value);
-                                if (chunk.includes('sync_error')) {
-                                    const eventLine = chunk.split('\n').find(l => l.includes('sync_error'));
-                                    if (eventLine) {
-                                        const event = JSON.parse(eventLine.replace('data: ', '').trim());
-                                        syncError = new ValidationError(event.filePath, event.reason);
-                                        controller.abort();
-                                        break;
+                    logger.info(`[Sync] 🚀 syncWithMonitoring entering with ${mods.length} files. Machine: ${machineId}`);
+                    const { executeCorrectionLoop } = require('./lib/correction-loop');
+                    let retryCounts = new Map<string, number>();
+
+                    return new Promise<void>((resolve, reject) => {
+                        let isResolved = false;
+
+                        const cleanup = () => {
+                            isResolved = true;
+                        };
+
+                        // Start Log Monitoring (Gate B+ / Remote Error Detection)
+                        const stopMonitoring = flyMachineService.monitorLogs(machineId, async (remoteError) => {
+                            if (isResolved) return;
+
+                            sendEvent({ type: 'progress', stage: 'REMOTE_ERROR_DETECTED', message: `🔍 Remote error: ${remoteError.message}` });
+
+                            // Find the file that caused the error (robust matching)
+                            const mod = mods.find(m =>
+                                remoteError.message.toLowerCase().includes(m.filePath.toLowerCase()) ||
+                                remoteError.message.toLowerCase().includes(path.basename(m.filePath).toLowerCase())
+                            );
+
+                            if (mod) {
+                                const currentRetries = retryCounts.get(mod.filePath) || 0;
+                                if (currentRetries < 3) {
+                                    retryCounts.set(mod.filePath, currentRetries + 1);
+
+                                    sendEvent({ type: 'progress', stage: 'AI_CORRECTING', message: `🛠️ Correcting ${mod.filePath} (Attempt ${currentRetries + 1})...` });
+
+                                    // Extract line number if possible from message
+                                    const lineMatch = remoteError.message.match(/line (\d+)/i) || remoteError.message.match(/:(\d+):/);
+                                    const lineNumber = lineMatch ? parseInt(lineMatch[1]) : undefined;
+
+                                    const { fixedContent, success } = await executeCorrectionLoop({
+                                        message: remoteError.message,
+                                        filePath: mod.filePath,
+                                        line: lineNumber
+                                    }, mod.content, currentRetries);
+
+                                    if (success) {
+                                        mod.content = fixedContent;
+                                        // Re-sync the fixed file
+                                        sendEvent({ type: 'progress', stage: 'FLY_PUSHING', message: `📤 Re-syncing fixed ${mod.filePath}...` });
+                                        await flyMachineService.syncFile(machineId, mod.filePath, mod.content);
                                     }
+                                } else {
+                                    stopMonitoring();
+                                    cleanup();
+                                    reject(new Error(`Max retries reached for ${mod.filePath}: ${remoteError.message}`));
                                 }
                             }
-                        } catch (e: any) {
-                            if (e.name !== 'AbortError') console.error("[Sync] Monitor error:", e);
-                        }
-                    })();
+                        });
 
-                    try {
-                        await flyMachineService.syncBulk(machineId, mods.map(m => ({ filePath: m.filePath!, content: m.content })));
-                        for (let i = 0; i < 10; i++) {
-                            if (syncError) throw syncError;
-                            await new Promise(resolve => setTimeout(resolve, 500));
-                        }
-                    } finally {
-                        controller.abort();
-                        await monitorPromise;
-                    }
+                        // Initial Sync
+                        sendEvent({ type: 'progress', stage: 'FLY_PUSHING', message: `📤 Pushing ${mods.length} files to preview...` });
+                        flyMachineService.syncBulk(machineId, mods.map(m => ({ filePath: m.filePath!, content: m.content })))
+                            .then(async () => {
+                                // Wait a grace period for remote errors to surface
+                                for (let i = 0; i < 10; i++) {
+                                    if (isResolved) return;
+                                    await new Promise(r => setTimeout(r, 1000));
+                                }
+                                stopMonitoring();
+                                cleanup();
+                                resolve();
+                            })
+                            .catch(err => {
+                                stopMonitoring();
+                                cleanup();
+                                reject(err);
+                            });
+                    });
                 };
 
                 if (nonJsonMods.length > 0) {
@@ -286,6 +323,7 @@ app.post('/api/build', async (req, res) => {
                 }
             });
 
+            sendEvent({ type: 'progress', stage: 'SUCCESS', message: 'Theme successfully built and synced!' });
             sendEvent({ type: 'done' });
             logger.info(`[${requestId}] ✅ LangGraph Build successful`);
         } else {
