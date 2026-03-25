@@ -165,17 +165,42 @@ export function validateAndRepair(plan: ThemePlan | BuildThemeToolParams): Valid
                     result.repairs.push(`Auto-fixed product_picker in "${mod.filePath}"`);
                 }
 
-                // AI Schema conflict: default vs presets
+                // AI Schema conflict: default vs presets + name length
                 const schemaRegex = /\{%\s*schema\s*%\}([\s\S]*?)\{%\s*endschema\s*%\}/;
                 const match = mod.content.match(schemaRegex);
                 if (match) {
                     try {
                         const parsedSchema = JSON.parse(match[1]);
+                        let schemaModified = false;
+
+                        // Fix: default vs presets conflict
                         if (parsedSchema.presets && parsedSchema.default !== undefined) {
                             delete parsedSchema.default;
-                            updateModContent(mod, mod.content.replace(match[1], `\n${JSON.stringify(parsedSchema, null, 2)}\n`));
+                            schemaModified = true;
                             result.repairs.push(`Auto-removed 'default' from ${mod.filePath} schema (presets present)`);
-                            console.log(`[Validator] 🛠️ Fixed default/presets conflict in ${mod.filePath}`);
+                        }
+
+                        // Fix: schema name too long (Shopify max 25 chars)
+                        if (parsedSchema.name && parsedSchema.name.length > 25) {
+                            const oldName = parsedSchema.name;
+                            parsedSchema.name = parsedSchema.name.substring(0, 25).trim();
+                            schemaModified = true;
+                            result.repairs.push(`Auto-truncated schema name in ${mod.filePath}: "${oldName}" → "${parsedSchema.name}"`);
+                            logger.info(`[Validator] 🛠️ Truncated schema name: "${oldName}" → "${parsedSchema.name}"`);
+                        }
+
+                        // Also truncate preset names to match
+                        if (parsedSchema.presets && Array.isArray(parsedSchema.presets)) {
+                            for (const preset of parsedSchema.presets) {
+                                if (preset.name && preset.name.length > 25) {
+                                    preset.name = preset.name.substring(0, 25).trim();
+                                    schemaModified = true;
+                                }
+                            }
+                        }
+
+                        if (schemaModified) {
+                            updateModContent(mod, mod.content.replace(match[1], `\n${JSON.stringify(parsedSchema, null, 2)}\n`));
                         }
                     } catch (e) { }
                 }
@@ -199,32 +224,61 @@ export function validateAndRepair(plan: ThemePlan | BuildThemeToolParams): Valid
             }
         }
 
-        // settings_schema.json conflict (theme_info)
+        // settings_schema.json conflict (theme_info) — GUARDRAIL: always URL, never email
         if (mod.filePath === 'config/settings_schema.json' && mod.action !== 'delete' && mod.content) {
             try {
                 const schema = JSON.parse(mod.content);
                 if (Array.isArray(schema)) {
                     let modificationMade = false;
                     for (const section of schema) {
-                        const isThemeInfo = section.name === 'theme_info' || section.id === 'theme_info';
-                        if (isThemeInfo) {
-                            logger.info(`[Validator] 🔎 Found theme_info section. Checking for support conflict...`);
-                            // Case 1: Settings Array (Common for groups)
-                            if (section.settings && Array.isArray(section.settings)) {
-                                const hasEmailIndex = section.settings.findIndex((s: any) => s.id === 'theme_support_email');
-                                const hasUrlIndex = section.settings.findIndex((s: any) => s.id === 'theme_support_url');
-                                if (hasEmailIndex !== -1 && hasUrlIndex !== -1) {
-                                    section.settings.splice(hasEmailIndex, 1);
-                                    modificationMade = true;
-                                    result.repairs.push(`Auto-fixed settings_schema.json theme_info conflict (array)`);
-                                }
-                            }
-                            // Case 2: Flat Object (Official theme_info structure)
-                            if (section.theme_support_email && (section.theme_support_url || section.theme_documentation_url)) {
-                                delete section.theme_support_email;
+                        const isThemeInfo = section.name === 'theme_info' || section.id === 'theme_info' || section.name === 'Theme info';
+                        if (!isThemeInfo) continue;
+
+                        // --- Flat Object keys (official Shopify theme_info structure) ---
+                        if (section.theme_support_email) {
+                            delete section.theme_support_email;
+                            modificationMade = true;
+                        }
+                        if (!section.theme_support_url) {
+                            section.theme_support_url = 'https://help.shopify.com';
+                            modificationMade = true;
+                        }
+
+                        // --- Settings Array (some themes use this) ---
+                        if (section.settings && Array.isArray(section.settings)) {
+                            const emailIdx = section.settings.findIndex((s: any) => s.id === 'theme_support_email');
+                            if (emailIdx !== -1) {
+                                section.settings.splice(emailIdx, 1);
                                 modificationMade = true;
-                                result.repairs.push(`Auto-fixed settings_schema.json theme_info conflict (flat)`);
                             }
+                            const hasUrl = section.settings.some((s: any) => s.id === 'theme_support_url');
+                            if (!hasUrl) {
+                                section.settings.push({
+                                    type: 'text',
+                                    id: 'theme_support_url',
+                                    label: 'Theme Support URL',
+                                    default: 'https://help.shopify.com'
+                                });
+                                modificationMade = true;
+                            }
+                        }
+
+                        // --- theme_name: max 25 chars ---
+                        if (section.theme_name && typeof section.theme_name === 'string' && section.theme_name.length > 25) {
+                            section.theme_name = section.theme_name.substring(0, 25).trim();
+                            modificationMade = true;
+                            logger.info(`[Validator] 🛠️ Guardrail: truncated theme_name to 25 chars`);
+                        }
+
+                        // --- theme_documentation_url: required ---
+                        if (!section.theme_documentation_url) {
+                            section.theme_documentation_url = 'https://help.shopify.com';
+                            modificationMade = true;
+                            logger.info(`[Validator] 🛠️ Guardrail: injected missing theme_documentation_url`);
+                        }
+
+                        if (modificationMade) {
+                            result.repairs.push(`Auto-fixed settings_schema.json theme_info guardrails`);
                         }
                     }
                     if (modificationMade) {

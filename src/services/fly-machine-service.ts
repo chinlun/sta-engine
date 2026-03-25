@@ -378,6 +378,7 @@ export const flyMachineService = {
 
         let logBuffer = "";
         let braceCount = 0;
+        let inQuote = false;
         let inErrorBox = false;
         let currentErrorGroup: string[] = [];
 
@@ -385,7 +386,7 @@ export const flyMachineService = {
             if (monitorState.isStopped) return;
 
             logger.info(`[LogChecker] 🛰️ Spawning fly logs for ${machineId}...`);
-            const flyLogs = spawn('fly', ['logs', '--json', '--app', appName, '--instance', machineId], {
+            const flyLogs = spawn('fly', ['logs', '--app', appName, '--instance', machineId], {
                 env: { ...process.env, FLY_API_TOKEN: apiToken }
             });
             monitorState.process = flyLogs;
@@ -403,71 +404,90 @@ export const flyMachineService = {
             });
 
             flyLogs.stdout.on('data', (data: any) => {
-                const chunk = data.toString();
-                let inQuote = false;
-                for (let i = 0; i < chunk.length; i++) {
-                    const char = chunk[i];
-                    logBuffer += char;
+                logBuffer += data.toString();
+                const lines = logBuffer.split('\n');
+                logBuffer = lines.pop() || ""; // Keep the last incomplete part
 
-                    if (char === '"' && chunk[i - 1] !== '\\') inQuote = !inQuote;
-                    if (!inQuote) {
-                        if (char === '{') braceCount++;
-                        if (char === '}') braceCount--;
-                    }
+                for (const rawLine of lines) {
+                    if (!rawLine.trim()) continue;
 
-                    if (braceCount === 0 && logBuffer.trim().length > 0) {
-                        const entryString = logBuffer.trim();
-                        logBuffer = "";
+                    try {
+                        let line = rawLine.trim();
+                        if (stripAnsi) line = stripAnsi(line);
 
-                        try {
-                            const logEntry = JSON.parse(entryString);
-                            let message = (logEntry.message || "").trim();
+                        // Fly log format: TIMESTAMP ID REGION [LEVEL] MESSAGE
+                        // Extract everything after the [LEVEL] block
+                        const flyMatch = line.match(/^.*\[\w+\]\s*(.*)$/);
+                        let message = flyMatch ? flyMatch[1].trim() : line;
 
-                            if (message) logger.debug(`[LogMonitor] ${message}`);
+                        if (!message) continue;
+                        logger.debug(`[LogMonitor] ${message}`);
 
-                            // Detect start of Shopify CLI error box (╭─ error) - Support more characters
-                            if (message.includes("╭─ error") || message.includes("┌─ error") || message.includes("─ error")) {
-                                inErrorBox = true;
-                                currentErrorGroup = [];
-                                continue;
-                            }
-
-                            if (inErrorBox) {
-                                // Detect end of error box (╰─, └─)
-                                if (message.includes("╰─") || message.includes("└─")) {
-                                    inErrorBox = false;
-                                    if (currentErrorGroup.length > 0) {
-                                        const fullMessage = currentErrorGroup.join("\n").trim();
-                                        logger.error(`[LogChecker] 🚨 REMOTE ERROR DETECTED ON ${machineId}:\n${fullMessage}`);
+                        // 1. Detect flattened JSON format from flatten-errors.js
+                        if (message.startsWith('{') && message.includes('"process":"shopify_cli"')) {
+                            try {
+                                const inner = JSON.parse(message);
+                                if (inner.process === 'shopify_cli') {
+                                    const isError = ['error', 'failure', 'fail', 'rejected'].includes(String(inner.type).toLowerCase());
+                                    if (isError) {
+                                        logger.error(`[LogChecker] 🚨 FLATTENED ERROR DETECTED ON ${machineId}: ${inner.message}`);
                                         monitorState.listeners.forEach(listener => listener({
-                                            message: fullMessage,
-                                            timestamp: logEntry.timestamp || new Date().toISOString(),
-                                            instance: logEntry.instance || machineId
+                                            message: inner.message,
+                                            timestamp: inner.timestamp || new Date().toISOString(),
+                                            instance: machineId
                                         }));
+                                    } else {
+                                        logger.info(`[LogMonitor] [ShopifyCLI] ${inner.message}`);
                                     }
-                                } else {
-                                    const cleanLine = message.replace(/[│┃╽╿]/g, "").trim();
-                                    if (cleanLine) currentErrorGroup.push(cleanLine);
+                                    continue;
                                 }
-                            } else {
-                                // Single-line failure detection
-                                const errorSignatures = ["Rejected", "Invalid schema", "Liquid syntax error", "Liquid error", "Failed to upload"];
-                                if (errorSignatures.some(sig => message.includes(sig)) && !message.includes("error reporting")) {
-                                    logger.error(`[LogChecker] 🚨 SINGLE-LINE ERROR DETECTED ON ${machineId}: ${message}`);
+                            } catch (e) { /* Fall through to patterns */ }
+                        }
+
+                        // 2. Detect start of Shopify CLI error box (╭─ error)
+                        if (message.includes("╭─ error") || message.includes("┌─ error") || message.includes("─ error")) {
+                            inErrorBox = true;
+                            currentErrorGroup = [];
+                            continue;
+                        }
+
+                        if (inErrorBox) {
+                            // Detect end of error box (╰─, └─)
+                            if (message.includes("╰─") || message.includes("└─")) {
+                                inErrorBox = false;
+                                if (currentErrorGroup.length > 0) {
+                                    const fullMessage = currentErrorGroup.join("\n").trim();
+                                    logger.error(`[LogChecker] 🚨 REMOTE ERROR DETECTED ON ${machineId}:\n${fullMessage}`);
                                     monitorState.listeners.forEach(listener => listener({
-                                        message,
-                                        timestamp: logEntry.timestamp || new Date().toISOString(),
-                                        instance: logEntry.instance || machineId
+                                        message: fullMessage,
+                                        timestamp: new Date().toISOString(),
+                                        instance: machineId
                                     }));
                                 }
+                            } else {
+                                const cleanLine = message.replace(/[│┃╽╿]/g, "").trim();
+                                if (cleanLine) currentErrorGroup.push(cleanLine);
                             }
-                        } catch (e) { /* partial JSON */ }
+                        } else {
+                            // 3. Single-line failure detection (Signatures in plain text)
+                            const errorSignatures = ["Rejected", "Invalid schema", "Liquid syntax error", "Liquid error", "Failed to upload", "Failed to delete"];
+                            if (errorSignatures.some(sig => message.includes(sig)) && !message.includes("error reporting")) {
+                                logger.error(`[LogChecker] 🚨 SINGLE-LINE ERROR DETECTED ON ${machineId}: ${message}`);
+                                monitorState.listeners.forEach(listener => listener({
+                                    message: message,
+                                    timestamp: new Date().toISOString(),
+                                    instance: machineId
+                                }));
+                            }
+                        }
+                    } catch (e: any) {
+                        logger.warn(`[LogMonitor] Line Parse Error: ${e.message} | Raw: ${rawLine.substring(0, 50)}...`);
                     }
                 }
             });
 
             flyLogs.on('close', (code: number) => {
-                if (!monitorState.isStopped) {
+                if (!monitorState?.isStopped) {
                     logger.info(`[LogChecker] 🔄 fly logs closed (code ${code}). Reconnecting...`);
                     setTimeout(startListener, 3000);
                 }
@@ -478,12 +498,10 @@ export const flyMachineService = {
 
         return () => {
             // Unsubscribe listener
-            monitorState.listeners.delete(onValidationError);
-            logger.info(`[LogChecker] Unsubscribed listener for ${machineId}. Active listeners: ${monitorState.listeners.size}`);
-
-            // Note: We DO NOT kill the process here anymore. 
-            // It stays running as long as the machine is alive and activeMonitors exists.
-            // It will be cleaned up in stopMachine / destroyMachine.
+            if (monitorState) {
+                monitorState.listeners.delete(onValidationError);
+                logger.info(`[LogChecker] Unsubscribed listener for ${machineId}. Active listeners: ${monitorState.listeners.size}`);
+            }
         };
     }
 };

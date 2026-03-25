@@ -1,5 +1,6 @@
 import { generateText } from 'ai';
-import { google } from '@ai-sdk/google';
+import { gemini3Flash } from './ai';
+import { logger } from './logger';
 
 export interface ErrorContext {
     message: string;
@@ -9,85 +10,89 @@ export interface ErrorContext {
 }
 
 /**
- * Extracts 5 lines of code surrounding the reported error line.
+ * Strips markdown code fences from LLM output.
+ * AI models often wrap code in ```liquid or ```json blocks.
  */
-export function extractErrorContextSnippet(content: string, line: number): string {
-    const lines = content.split('\n');
-    const start = Math.max(0, line - 5);
-    const end = Math.min(lines.length, line + 6);
-
-    return lines
-        .slice(start, end)
-        .map((l, i) => `${start + i + 1}: ${l}`)
-        .join('\n');
+function stripCodeFences(text: string): string {
+    // Match ```lang\n...\n``` or ```\n...\n```
+    const fenceRegex = /^```[a-z]*\n?([\s\S]*?)\n?```$/;
+    const match = text.trim().match(fenceRegex);
+    return match ? match[1] : text;
 }
 
 /**
- * High-priority correction prompt for malformed tool calls.
- */
-const MALFORMED_RECOVERY_PROMPT = `Your previous tool call was syntactically invalid (MALFORMED_FUNCTION_CALL). 
-Output ONLY the corrected tool call using the valid schema. Do not include any other text or explanations.`;
-
-/**
- * Expert Correction Loop for Shopify Theme generation.
- * Enforces max 3 retries and provides enriched context to the AI.
+ * Expert Correction Loop for Shopify Theme files.
+ * Sends the error + file content to Gemini Flash and returns the corrected file.
+ * The caller is responsible for retry logic and re-sync.
  */
 export async function executeCorrectionLoop(
     error: ErrorContext,
     fileContent: string,
-    attemptCount: number = 0
 ): Promise<{ fixedContent: string; success: boolean }> {
-    if (attemptCount >= 3) {
-        console.error(`[CorrectionLoop] ❌ Max retries (3) reached for ${error.filePath}`);
-        return { fixedContent: fileContent, success: false };
-    }
 
-    console.log(`[CorrectionLoop] 🛠️ Attempting correction for ${error.filePath} (Attempt ${attemptCount + 1})...`);
+    logger.info(`[CorrectionLoop] 🛠️ LLM correction for "${error.filePath}": ${error.message}`);
 
-    const snippet = error.line ? extractErrorContextSnippet(fileContent, error.line) : "Full file content: \n" + fileContent;
+    const isJson = error.filePath.endsWith('.json');
+    const isLiquid = error.filePath.endsWith('.liquid');
 
-    const prompt = `You are a Shopify Theme Expert. A file you generated contains an error.
-    
-    FILE: ${error.filePath}
-    ERROR: ${error.message}
-    
-    CONTEXT SNIPPET:
-    ${snippet}
-    
-    TASK: Fix the error and return the FULL corrected content for the entire file.
-    Output ONLY the corrected code. No explanations.`;
+    const prompt = `You are a Shopify Theme Expert. A theme file was rejected by Shopify CLI with the following error.
+
+FILE: ${error.filePath}
+ERROR: ${error.message}
+
+FULL FILE CONTENT:
+${fileContent}
+
+RULES:
+${isLiquid ? `- This is a Liquid template file. It MUST contain valid Liquid syntax.
+- Section files MUST have a {% schema %} block with valid JSON inside.
+- Schema "name" must be ≤25 characters.
+- Do NOT use "product_picker" type. Use "product" instead.
+- Schema must NOT have both "default" and "presets".
+- Do NOT use invalid Liquid filters or pipes in {% if %} tags.` : ''}
+${isJson ? `- This is a JSON config file. It MUST be valid JSON.
+- For settings_schema.json: theme_info must have EITHER "theme_support_email" OR "theme_support_url", NOT both.
+- For templates/*.json: All section types referenced must correspond to actual section files.
+- "order" array must list all section keys.` : ''}
+
+FIX the error and output ONLY the corrected file content. No explanations, no markdown fences, no commentary.`;
 
     try {
         const { text } = await generateText({
-            model: google('gemini-2.0-flash'), // Using a fast, reliable model for corrections
+            model: gemini3Flash,
             prompt,
         });
 
-        const fixedContent = text.trim();
+        const fixedContent = stripCodeFences(text.trim());
 
-        // Return for validation in the next step of the pipeline
+        // Basic sanity check: content should not be empty
+        if (!fixedContent || fixedContent.length < 10) {
+            logger.warn(`[CorrectionLoop] ⚠️ LLM returned empty/tiny content. Keeping original.`);
+            return { fixedContent: fileContent, success: false };
+        }
+
+        // For JSON files, validate that the output is valid JSON
+        if (isJson) {
+            try {
+                JSON.parse(fixedContent);
+            } catch (e) {
+                logger.warn(`[CorrectionLoop] ⚠️ LLM returned invalid JSON. Keeping original.`);
+                return { fixedContent: fileContent, success: false };
+            }
+        }
+
+        // For Liquid files, ensure schema block exists
+        if (isLiquid && error.filePath.startsWith('sections/')) {
+            if (!fixedContent.includes('{% schema %}') || !fixedContent.includes('{% endschema %}')) {
+                logger.warn(`[CorrectionLoop] ⚠️ LLM output missing schema block. Keeping original.`);
+                return { fixedContent: fileContent, success: false };
+            }
+        }
+
+        logger.info(`[CorrectionLoop] ✅ LLM correction successful for "${error.filePath}" (${fixedContent.length} bytes)`);
         return { fixedContent, success: true };
     } catch (err: any) {
-        console.error(`[CorrectionLoop] ❌ Correction failed: ${err.message}`);
+        logger.error(`[CorrectionLoop] ❌ LLM correction failed: ${err.message}`);
         return { fixedContent: fileContent, success: false };
-    }
-}
-
-/**
- * Handles recovery from malformed AI tool calls.
- */
-export async function recoverMalformedCall(): Promise<string> {
-    console.log(`[CorrectionLoop] 🩹 Recovering from MALFORMED_FUNCTION_CALL...`);
-
-    try {
-        const { text } = await generateText({
-            model: google('gemini-2.0-flash'),
-            prompt: MALFORMED_RECOVERY_PROMPT,
-        });
-
-        return text.trim();
-    } catch (err) {
-        console.error(`[CorrectionLoop] ❌ Malformed recovery failed.`);
-        throw err;
     }
 }

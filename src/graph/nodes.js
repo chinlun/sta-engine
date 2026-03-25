@@ -194,7 +194,30 @@ Layout Directive: ${targetComponent.layout_directive}`
         try {
             const { fullStream, object } = await streamObject({
                 model: gemini31Pro,
-                system: "You are an elite Shopify Developer (The Builder). You have NO access to the original user input. You only receive text-based Layout Directives and Design Tokens for a single component. Generate the required file(s) for this component. Use strict Shopify BEM CSS architecture. Follow the layout directives strictly. Output the complete Liquid code. If it's a section, include the {% schema %}.",
+                system: `# MISSION: GENERATE HIGH-END SHOPIFY SECTION (FLOWBITE SPEC)
+Goal: Prioritize "Out-of-the-box" beauty using standard Flowbite aesthetics.
+
+## 1. THE ARCHITECTURAL RULES
+You are a Senior Frontend Engineer. Build a stunning, professional eCommerce section.
+- STYLING: Use standard Flowbite and Tailwind CSS classes (e.g., bg-blue-600, text-gray-900, shadow-xl, rounded-xl). Use generous whitespace (p-8, gap-8) and rounded-xl or rounded-2xl corners.
+- TECH STACK: Shopify Liquid for structure + Vanilla JS Web Components (Light DOM) for interactivity.
+- FORBIDDEN: No React, No Vue, No jQuery, No Shadow DOM.
+- LAYOUT: Use a "Shadcn-plus" look: clean, high-contrast, professional.
+
+## 2. OUTPUT PROTOCOL
+1. Liquid Code: Provide the full .liquid section file.
+2. Vanilla JS: Include the companion Web Component class inside a <script> tag in the liquid file.
+3. Schema: Provide a standard Shopify {% schema %} for images, text, and basic toggles.
+
+## 3. DESIGN DIRECTIVE
+Look at Flowbite's Ecommerce collection as your quality bar. The result must look like a modern, high-conversion SaaS storefront.
+
+CRITICAL DESIGN RULES:
+- ALWAYS ensure text has high contrast against its background.
+- If using white/light text, the container MUST have a dark background color, dark gradient, or dark image overlay.
+- Avoid hardcoding translation keys. Default to hardcoded text (e.g., "Submit") to prevent 'Translation missing' errors.
+- DO NOT use default Tailwind font utilities (font-serif, font-sans) without mapping them. Instead, use inline style="font-family: var(--font-heading)" or define custom styles.
+- You have NO access to the original user input. You only receive text-based Layout Directives and Design Tokens.`,
                 messages: [{ role: 'user', content: messageContent }],
                 schema: z.object({
                     files: z.array(z.object({
@@ -359,16 +382,25 @@ async function assemblerNode(state, config) {
         try {
             const { fullStream, object } = await streamObject({
                 model: gemini31Pro,
-                system: `You are the final Assembly Agent. Your job is to stitch together the validated components into the final architectural files of the theme.
-You MUST ALWAYS generate and output these specific architecture files based on the pieces:
-1. templates/index.json (maps the sections generated to the homepage)
-   - CRITICAL RESTRICTION: In the "type" field of your sections in index.json, you MUST ONLY use one of the Exact Valid Section Types provided. DO NOT use 'hero-banner' or any other name unless it is in the Exact Valid Section Types list.
-2. layout/theme.liquid (the HTML wrapper, loading Google fonts defined in tokens)
-3. config/settings_schema.json
-   - CRITICAL: You MUST include the required Shopify attribute "theme_documentation_url": "https://help.shopify.com" in the array.
-4. locales/en.default.json
+                system: `You are the final Assembly Agent. Stitch together the validated components into the final architectural files.
 
-Review the Component Registry and output exactly those 4 files.`,
+You MUST generate exactly these 4 files:
+
+1. templates/index.json
+   - RESTRICTION: The "type" field MUST ONLY use one of the Exact Valid Section Types provided.
+   - DO NOT include 'header', 'footer', or 'announcement-bar' inside index.json. They belong in layout/theme.liquid.
+
+2. layout/theme.liquid (the HTML wrapper)
+   - Include {% section 'header' %} and {% section 'footer' %} here.
+   - Include the Tailwind CSS CDN: <script src="https://cdn.tailwindcss.com"></script>
+   - Load any Google Fonts defined in the design tokens.
+
+3. config/settings_schema.json
+   - MUST include "theme_documentation_url": "https://help.shopify.com" in the theme_info block.
+   - Keep settings simple: brand colors, logo, social links. Do NOT create per-pixel CSS settings.
+
+4. locales/en.default.json
+   - Include common translation keys used by sections. If in doubt, output a comprehensive default JSON.`,
                 messages: [{ role: 'user', content: messageContent }],
                 schema: z.object({
                     files: z.array(z.object({
@@ -495,7 +527,22 @@ async function agenticQcNode(state, config) {
         try {
             const { fullStream, object } = await streamObject({
                 model: gemini31Pro,
-                system: "You are a Pragmatic Senior Lead Designer evaluating the final assembled theme. Your goal is to ensure the theme matches the provided design tokens. Accessibility Blindspots: You MUST completely IGNORE WCAG guidelines and contrast ratios for borders, dividers, placeholders, and backgrounds. Do not flag low contrast. If valid conceptually, pass it.",
+                system: `You are a Visual QC Auditor for a Shopify theme built with Flowbite/Tailwind CSS.
+
+PASS the theme if ALL of the following are true:
+1. VISUAL QUALITY: The theme looks premium — generous spacing, rounded corners, professional typography, no cramped layouts.
+2. VANILLA JS ONLY: All interactivity uses Vanilla JS and Web Components. No React, Vue, jQuery, or $ detected.
+3. VALID SCHEMAS: All {% schema %} blocks contain valid JSON with a "presets" array.
+4. STRUCTURAL INTEGRITY: layout/theme.liquid includes the Tailwind CDN script, {% section 'header' %}, and {% section 'footer' %}.
+
+EXPLICITLY IGNORE (do NOT flag these):
+- Standard Tailwind color classes (bg-blue-600, text-gray-900, etc.) — these are EXPECTED.
+- Hardcoded pixel values in Tailwind utilities (p-8, gap-4, text-sm) — these are EXPECTED.
+- Hex codes in CSS or Tailwind config — these are ACCEPTABLE.
+- CSS variables not bridged to Liquid settings — this is ACCEPTABLE.
+- WCAG contrast ratios for decorative elements.
+
+REJECT ONLY for: Broken Liquid syntax, missing/invalid {% schema %}, framework code (React/jQuery), or visually ugly/broken layouts.`,
                 prompt: `Design Tokens: ${JSON.stringify(designTokens)}\n\nGenerated Code for Review:\n${JSON.stringify(generatedFiles)}`,
                 schema: z.object({
                     passed: z.boolean(),
