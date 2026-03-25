@@ -5,29 +5,38 @@ import * as dotenv from 'dotenv';
 
 dotenv.config();
 
-// Completely disable timeouts to allow massive multimodal generations
+// 10-minute safe timeout for massive AI responses (multimodal/Thinking)
+const AI_TIMEOUT_MS = 10 * 60 * 1000;
+
 const globalAgent = new Agent({
-    headersTimeout: 0,
-    bodyTimeout: 0,
+    headersTimeout: 5 * 60 * 1000, // 5 minutes to get headers
+    bodyTimeout: 0,               // Allow slow body streaming for long thoughts
     connectTimeout: 60 * 1000,
-    keepAliveTimeout: 10 * 60 * 1000,
+    keepAliveTimeout: 15 * 60 * 1000,
 });
 setGlobalDispatcher(globalAgent);
 
 /**
- * Custom Google provider that strips the aggressive 60s timeout 
+ * Custom Google provider that provides a generous 5-minute timeout 
  */
 export const customGoogle = createGoogleGenerativeAI({
     fetch: (url, options) => {
-        const customOptions = { ...options, dispatcher: globalAgent };
-        if (customOptions.signal) {
-            console.log(`[AI] 🛡️ Stripping SDK timeout signal`);
-            delete customOptions.signal;
-        }
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), AI_TIMEOUT_MS);
+
+        const customOptions: any = {
+            ...options,
+            dispatcher: globalAgent,
+            signal: controller.signal
+        };
+
         return (globalThis.fetch as any)(url, customOptions).then((res: any) => {
+            clearTimeout(timeoutId);
             return res;
         }).catch((err: any) => {
-            console.error(`[AI] ❌ Network Error for ${url}:`, err);
+            clearTimeout(timeoutId);
+            const isTimeout = err.name === 'AbortError';
+            console.error(`[AI] ${isTimeout ? '⏰ Timeout' : '❌ Network Error'} for ${url}:`, err);
             throw err;
         });
     }
@@ -68,10 +77,12 @@ function wrapResilientModel(modelIds: string[]) {
                         lastErr = err;
                         const isRetryable = err.statusCode === 503 || err.statusCode === 429 ||
                             err.status === 503 || err.status === 429 ||
+                            err.code === 'UND_ERR_HEADERS_TIMEOUT' ||
+                            err.name === 'AbortError' ||
                             (err.data?.error?.code === 503 || err.data?.error?.code === 429);
 
                         if (isRetryable && i < models.length - 1) {
-                            console.warn(`[AI] ⚠️ ${modelIds[i]} unavailable (${err.statusCode || err.status || '503'}). Falling back to ${modelIds[i + 1]}...`);
+                            console.warn(`[AI] ⚠️ ${modelIds[i]} retryable error (${err.code || err.name || err.status || '503'}). Falling back to ${modelIds[i + 1]}...`);
                             continue;
                         }
                         throw err;
@@ -89,10 +100,12 @@ function wrapResilientModel(modelIds: string[]) {
                         lastErr = err;
                         const isRetryable = err.statusCode === 503 || err.statusCode === 429 ||
                             err.status === 503 || err.status === 429 ||
+                            err.code === 'UND_ERR_HEADERS_TIMEOUT' ||
+                            err.name === 'AbortError' ||
                             (err.data?.error?.code === 503 || err.data?.error?.code === 429);
 
                         if (isRetryable && i < models.length - 1) {
-                            console.warn(`[AI] ⚠️ ${modelIds[i]} unavailable (${err.statusCode || err.status || '503'}). Falling back to ${modelIds[i + 1]}...`);
+                            console.warn(`[AI] ⚠️ ${modelIds[i]} retryable error (${err.code || err.name || err.status || '503'}). Falling back to ${modelIds[i + 1]}...`);
                             continue;
                         }
                         throw err;
@@ -104,9 +117,13 @@ function wrapResilientModel(modelIds: string[]) {
     });
 }
 
+// export const gemini31Pro = wrapResilientModel([
+//     'gemini-3.1-pro-preview',
+//     'gemini-2.5-pro',
+//     'gemini-2.5-flash'
+// ]);
 export const gemini31Pro = wrapResilientModel([
-    'gemini-3.1-pro-preview',
     'gemini-2.5-pro',
     'gemini-2.5-flash'
 ]);
-export const gemini3Flash = customGoogle('gemini-3-flash-preview');
+export const gemini3Flash = wrapResilientModel(['gemini-3-flash-preview', 'gemini-1.5-flash']);

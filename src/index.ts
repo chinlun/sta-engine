@@ -123,7 +123,20 @@ app.post('/api/build', async (req, res) => {
         for await (const chunk of stream) {
             const node = Object.keys(chunk)[0];
             const output = chunk[node];
+
+            const prevGeneratedFiles = finalState?.generatedFiles || [];
             finalState = { ...finalState, ...output };
+
+            // Replicate LangGraph's array appending reducer for generatedFiles
+            if (output.generatedFiles) {
+                const merged = [...prevGeneratedFiles];
+                for (const newFile of output.generatedFiles) {
+                    const idx = merged.findIndex((f: any) => f.path === newFile.path);
+                    if (idx >= 0) merged[idx] = newFile;
+                    else merged.push(newFile);
+                }
+                finalState.generatedFiles = merged;
+            }
 
             // Stream reasoning/thinking if present
             if (output.reasoning) {
@@ -157,6 +170,12 @@ app.post('/api/build', async (req, res) => {
                     sendEvent({ type: 'progress', stage: 'ts_qc', message: `⚠️ Syntax issues found (${output.tsErrors.length}). Retrying...` });
                 } else {
                     sendEvent({ type: 'progress', stage: 'ts_qc', message: `✅ Syntax check passed.` });
+                }
+            } else if (node === 'assemblyQc') {
+                if (output.assemblyErrors && output.assemblyErrors.length > 0) {
+                    sendEvent({ type: 'progress', stage: 'assembly_qc', message: `⚠️ Assembly issues found (${output.assemblyErrors.length}). Retrying...` });
+                } else {
+                    sendEvent({ type: 'progress', stage: 'assembly_qc', message: `✅ Assembly check passed.` });
                 }
             } else if (node === 'agenticQc') {
                 if (output.designErrors && output.designErrors.length > 0) {
@@ -192,6 +211,8 @@ app.post('/api/build', async (req, res) => {
                         if (!aIsJson && bIsJson) return -1;
                         return 0;
                     });
+
+                console.log("[Sync] DEBUG FINAL FILES TO SYNC:", orderedMods.map(m => m.filePath));
 
                 const nonJsonMods = orderedMods.filter(m => !m.filePath!.endsWith('.json'));
                 const jsonMods = orderedMods.filter(m => m.filePath!.endsWith('.json'));

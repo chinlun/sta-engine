@@ -9,27 +9,48 @@ const { logger } = require("../lib/logger");
  * --- NODE 1: Classifier ---
  */
 async function classifierNode(state, config) {
+    const startTime = Date.now();
     logger.info("[Graph] Node: classifierNode");
     const { userPrompt } = state;
     const sendEvent = config.configurable?.sendEvent;
 
-    const { partialObjectStream, object } = await streamObject({
-        model: gemini3Flash,
-        system: "You are an expert Shopify architect. Analyze the user's prompt to determine their store's SCALE and CATALOG TYPE.",
-        prompt: `Classify the following theme generation prompt: "${userPrompt}"`,
-        schema: z.object({
-            catalogSize: z.enum(["single_product", "boutique", "enterprise"]),
-            archetypeDescription: z.string()
-        }),
-    });
+    let attempt = 0;
+    const maxAttempts = 3;
+    let finalObject;
 
-    for await (const partial of partialObjectStream) {
-        if (sendEvent) sendEvent({ type: 'partial', node: 'classifier', object: partial });
+    while (attempt < maxAttempts) {
+        attempt++;
+        try {
+            const { partialObjectStream, object } = await streamObject({
+                model: gemini3Flash,
+                system: "You are an expert Shopify architect. Analyze the user's prompt to determine their store's SCALE and CATALOG TYPE.",
+                prompt: `Classify the following theme generation prompt: "${userPrompt}"`,
+                schema: z.object({
+                    catalogSize: z.enum(["single_product", "boutique", "enterprise"]),
+                    archetypeDescription: z.string()
+                }),
+                maxTokens: 4096, // Classifier is small
+            });
+
+            for await (const partial of partialObjectStream) {
+                if (sendEvent) sendEvent({ type: 'partial', node: 'classifier', object: partial });
+            }
+
+            finalObject = await object;
+            break;
+        } catch (error) {
+            if (error.name === 'AI_NoObjectGeneratedError' || error.name === 'AI_JSONParseError') {
+                logger.warn(`[Graph] Classifier silent truncation, Retrying (${attempt}/${maxAttempts})...`);
+                if (attempt >= maxAttempts) throw error;
+            } else {
+                throw error;
+            }
+        }
     }
-
-    const finalObject = await object;
     logger.debug({ node: 'classifier', rawOutput: finalObject }, 'LLM response');
 
+    const duration = Date.now() - startTime;
+    logger.info(`[Graph] ✅ Node: classifierNode complete (${duration}ms)`);
     return {
         catalogSize: finalObject.catalogSize,
         reasoning: { node: 'classifier', text: "Classified catalog scale." }
@@ -40,6 +61,7 @@ async function classifierNode(state, config) {
  * --- NODE 2: Planner ---
  */
 async function plannerNode(state, config) {
+    const startTime = Date.now();
     logger.info("[Graph] Node: plannerNode");
     const { userPrompt, catalogSize, referenceHtml, referenceImageBase64 } = state;
     const sendEvent = config.configurable?.sendEvent;
@@ -88,6 +110,7 @@ Your goal is to extract "Design Tokens" and a "Spatial Blueprint" (components ar
                     thoughtProcess: z.string().optional().describe("Optional: your reasoning summary.")
                 }),
                 maxRetries: 5,
+                maxTokens: 32768,
             });
 
             for await (const part of fullStream) {
@@ -113,6 +136,8 @@ Your goal is to extract "Design Tokens" and a "Spatial Blueprint" (components ar
     }
     logger.debug({ node: 'planner', rawOutput: finalObject }, 'LLM response');
 
+    const duration = Date.now() - startTime;
+    logger.info(`[Graph] ✅ Node: plannerNode complete (${duration}ms)`);
     return {
         designTokens: finalObject.design_tokens,
         components: finalObject.components,
@@ -124,6 +149,7 @@ Your goal is to extract "Design Tokens" and a "Spatial Blueprint" (components ar
  * --- NODE 3: Coder ---
  */
 async function coderNode(state, config) {
+    const startTime = Date.now();
     const {
         components,
         currentComponentIndex,
@@ -205,6 +231,8 @@ Layout Directive: ${targetComponent.layout_directive}`
 
     logger.debug({ node: 'coder', rawOutput: finalObject }, 'LLM response');
 
+    const duration = Date.now() - startTime;
+    logger.info(`[Graph] ✅ Node: coderNode complete (${duration}ms)`);
     return {
         currentComponentFiles: finalObject.files,
         tsErrors: [], // clear errors for next spin
@@ -216,6 +244,7 @@ Layout Directive: ${targetComponent.layout_directive}`
  * --- NODE 4: TS QC Node ---
  */
 async function tsQcNode(state) {
+    const startTime = Date.now();
     logger.info("[Graph] Node: tsQcNode");
     const { currentComponentFiles, components, currentComponentIndex } = state;
     const errors = [];
@@ -238,11 +267,14 @@ async function tsQcNode(state) {
         errors.push(`[Integrity Error] ${e.message || String(e)}`);
     }
 
+    const duration = Date.now() - startTime;
     if (errors.length > 0) {
         logger.error(`[Graph] ❌ TS QC produced ${errors.length} errors:\n${errors.join('\n')}`);
+        logger.info(`[Graph] ❌ Node: tsQcNode complete (${duration}ms)`);
         return { tsErrors: errors };
     } else {
         logger.info(`[Graph] ✅ TS QC passed for ${components[currentComponentIndex].name}.`);
+        logger.info(`[Graph] ✅ Node: tsQcNode complete (${duration}ms)`);
         // If passed, we append these files to the main generatedFiles array and increment the index
         return {
             tsErrors: [],
@@ -256,8 +288,9 @@ async function tsQcNode(state) {
  * --- NODE 5: Assembler Node ---
  */
 async function assemblerNode(state, config) {
+    const startTime = Date.now();
     logger.info("[Graph] Node: assemblerNode");
-    const { generatedFiles, designTokens, components } = state;
+    const { generatedFiles, designTokens, components, assemblyErrors } = state;
     const sendEvent = config.configurable?.sendEvent;
 
     // Dynamically calculate valid section types based ONLY on generated section files
@@ -265,12 +298,23 @@ async function assemblerNode(state, config) {
         .filter(f => f.path.startsWith('sections/'))
         .map(f => f.path.replace('sections/', '').replace('.liquid', ''));
 
-    const messageContent = [
+    const messageContent = [];
+
+    // 1. Critical Corrections First
+    if (assemblyErrors && assemblyErrors.length > 0) {
+        logger.info(`[Graph] Assembler node is self-healing from ${assemblyErrors.length} errors.`);
+        messageContent.push({
+            type: 'text',
+            text: `### CRITICAL: FIX THESE VALIDATION ERRORS FROM PREVIOUS ASSEMBLY ATTEMPT:\n${assemblyErrors.join("\n")}\n\nYou MUST correct these in the generated files.`
+        });
+    }
+
+    messageContent.push(
         { type: 'text', text: `Design Tokens: ${JSON.stringify(designTokens)}` },
         { type: 'text', text: `Component Registry: ${JSON.stringify(components)}` },
         { type: 'text', text: `Generated Component Files Preview:\n` + generatedFiles.map(f => f.path).join(', ') },
         { type: 'text', text: `EXACT VALID SECTION TYPES FOR INDEX.JSON: [${validSectionTypes.join(', ')}]` }
-    ];
+    );
 
     let attempt = 0;
     const maxAttempts = 3;
@@ -326,16 +370,71 @@ Review the Component Registry and output exactly those 4 files.`,
     }
     logger.debug({ node: 'assembler', rawOutput: finalObject }, 'LLM response');
 
+    const duration = Date.now() - startTime;
+    logger.info(`[Graph] ✅ Node: assemblerNode complete (${duration}ms)`);
     return {
         generatedFiles: finalObject.files, // The reducer appends these to the master list
-        reasoning: { node: 'assembler', text: "Stitched all components into theme architecture." }
+        assemblyErrors: [], // clear for next try
+        reasoning: { node: 'assembler', text: "Assembled total theme structure." }
     };
+}
+
+async function assemblyQcNode(state) {
+    const startTime = Date.now();
+    logger.info("[Graph] Node: assemblyQcNode");
+    const { generatedFiles } = state;
+    const errors = [];
+
+    const mods = (generatedFiles || []).map(f => ({
+        filePath: f.path,
+        action: 'update',
+        content: f.content
+    }));
+
+    try {
+        const planData = { modifications: mods };
+        const repairResult = validateAndRepair(planData);
+
+        if (repairResult.repairs.length > 0) {
+            logger.info(`[Graph] Assembly QC applied ${repairResult.repairs.length} auto-repairs to architecture files.`);
+            // Update the state's generatedFiles with the repaired content
+            const repairedFiles = (planData.modifications || []).map((m) => ({
+                path: m.filePath,
+                content: m.content
+            }));
+
+            // We return these to the state; the reducer handles merging/deduplication
+            const duration = Date.now() - startTime;
+            logger.info(`[Graph] ✅ Node: assemblyQcNode complete (with repairs) (${duration}ms)`);
+            return {
+                assemblyErrors: [],
+                generatedFiles: repairedFiles
+            };
+        }
+
+        // IntegrityManager.validate catches mismatched sections in index.json and schema errors
+        IntegrityManager.validate(mods);
+    } catch (e) {
+        errors.push(`[Integrity Error] ${e.message || String(e)}`);
+    }
+
+    const duration = Date.now() - startTime;
+    if (errors.length > 0) {
+        logger.error(`[Graph] ❌ Assembly QC produced ${errors.length} errors:\n${errors.join('\n')}`);
+        logger.info(`[Graph] ❌ Node: assemblyQcNode complete (${duration}ms)`);
+    } else {
+        logger.info(`[Graph] ✅ Assembly QC passed.`);
+        logger.info(`[Graph] ✅ Node: assemblyQcNode complete (${duration}ms)`);
+    }
+
+    return { assemblyErrors: errors };
 }
 
 /**
  * --- NODE 6: Agentic QC Node ---
  */
 async function agenticQcNode(state, config) {
+    const startTime = Date.now();
     logger.info("[Graph] Node: agenticQcNode");
     const { userPrompt, designTokens, generatedFiles } = state;
     const sendEvent = config.configurable?.sendEvent;
@@ -344,29 +443,47 @@ async function agenticQcNode(state, config) {
         return { designErrors: [] };
     }
 
-    const { fullStream, object } = await streamObject({
-        model: gemini31Pro,
-        system: "You are a Pragmatic Senior Lead Designer evaluating the final assembled theme. Your goal is to ensure the theme matches the provided design tokens. Accessibility Blindspots: You MUST completely IGNORE WCAG guidelines and contrast ratios for borders, dividers, placeholders, and backgrounds. Do not flag low contrast. If valid conceptually, pass it.",
-        prompt: `Design Tokens: ${JSON.stringify(designTokens)}\n\nGenerated Code for Review:\n${JSON.stringify(generatedFiles)}`,
-        schema: z.object({
-            passed: z.boolean(),
-            errors: z.array(z.string()),
-            thoughtProcess: z.string().optional()
-        }),
-        maxRetries: 5,
-    });
+    let attempt = 0;
+    const maxAttempts = 3;
+    let finalObject;
 
-    for await (const part of fullStream) {
-        if (sendEvent) {
-            if (part.type === 'reasoning') {
-                sendEvent({ type: 'thinking', node: 'agenticQc', text: part.textDelta });
-            } else if (part.type === 'object') {
-                sendEvent({ type: 'partial', node: 'agenticQc', object: part.object });
+    while (attempt < maxAttempts) {
+        attempt++;
+        try {
+            const { fullStream, object } = await streamObject({
+                model: gemini31Pro,
+                system: "You are a Pragmatic Senior Lead Designer evaluating the final assembled theme. Your goal is to ensure the theme matches the provided design tokens. Accessibility Blindspots: You MUST completely IGNORE WCAG guidelines and contrast ratios for borders, dividers, placeholders, and backgrounds. Do not flag low contrast. If valid conceptually, pass it.",
+                prompt: `Design Tokens: ${JSON.stringify(designTokens)}\n\nGenerated Code for Review:\n${JSON.stringify(generatedFiles)}`,
+                schema: z.object({
+                    passed: z.boolean(),
+                    errors: z.array(z.string()),
+                    thoughtProcess: z.string().optional()
+                }),
+                maxRetries: 5,
+                maxTokens: 32768,
+            });
+
+            for await (const part of fullStream) {
+                if (sendEvent) {
+                    if (part.type === 'reasoning') {
+                        sendEvent({ type: 'thinking', node: 'agenticQc', text: part.textDelta });
+                    } else if (part.type === 'object') {
+                        sendEvent({ type: 'partial', node: 'agenticQc', object: part.object });
+                    }
+                }
+            }
+
+            finalObject = await object;
+            break; // Success!
+        } catch (error) {
+            if (error.name === 'AI_NoObjectGeneratedError' || error.name === 'AI_JSONParseError') {
+                logger.warn(`[Graph] Agentic QC silent truncation (finishReason: other), Retrying (${attempt}/${maxAttempts})...`);
+                if (attempt >= maxAttempts) throw error;
+            } else {
+                throw error;
             }
         }
     }
-
-    const finalObject = await object;
     logger.debug({ node: 'agenticQc', rawOutput: finalObject }, 'LLM response');
 
     if (!finalObject.passed && finalObject.errors.length > 0) {
@@ -375,6 +492,8 @@ async function agenticQcNode(state, config) {
         logger.info(`[Graph] ✅ Agentic QC passed.`);
     }
 
+    const duration = Date.now() - startTime;
+    logger.info(`[Graph] ✅ Node: agenticQcNode complete (${duration}ms)`);
     return {
         designErrors: finalObject.passed ? [] : finalObject.errors,
         reasoning: { node: 'agenticQc', text: finalObject.thoughtProcess || "Design review complete." }
@@ -387,5 +506,6 @@ module.exports = {
     coderNode,
     tsQcNode,
     assemblerNode,
+    assemblyQcNode,
     agenticQcNode
 };

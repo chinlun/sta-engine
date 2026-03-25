@@ -21,10 +21,22 @@ const ThemeGenerationState = Annotation.Root({
         default: () => [],
     }),
     generatedFiles: Annotation({
-        reducer: (x, y) => [...(x || []), ...y],
+        reducer: (x, y) => {
+            const merged = [...(x || [])];
+            for (const newFile of (y || [])) {
+                const idx = merged.findIndex(f => f.path === newFile.path);
+                if (idx >= 0) merged[idx] = newFile;
+                else merged.push(newFile);
+            }
+            return merged;
+        },
         default: () => [],
     }),
     tsErrors: Annotation({
+        reducer: (x, y) => y,
+        default: () => [],
+    }),
+    assemblyErrors: Annotation({
         reducer: (x, y) => y,
         default: () => [],
     }),

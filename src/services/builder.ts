@@ -1,6 +1,7 @@
 import AdmZip from 'adm-zip';
 import { ThemePlan } from '../schema';
 import path from 'path';
+import { lintLiquid } from '../lib/liquid-linter';
 
 /**
  * Normalizes a single modification object from LLM output.
@@ -161,23 +162,20 @@ export function validateAndRepair(plan: ThemePlan): ValidationResult {
                     result.repairs.push(`Auto-repaired ${schemaRepairCount} schema violations in "${mod.filePath}" (e.g., product_picker → product)`);
                 }
 
-                // Check: Liquid tag balance
-                const liquidTagErrors = checkLiquidTagBalance(mod.content);
-                if (liquidTagErrors.length > 0) {
-                    // Auto-repair: append missing closing tags
-                    let repaired = mod.content;
-                    for (const missingTag of liquidTagErrors) {
-                        repaired += `\n{% ${missingTag} %}`;
-                        result.repairs.push(`Auto-appended missing {% ${missingTag} %} to "${mod.filePath}"`);
-                    }
-                    // Update content in the raw mod
-                    for (const key of ['content', 'code', 'body', 'source', 'file_content', 'fileContent']) {
-                        if (mod.raw[key] && typeof mod.raw[key] === 'string') {
-                            mod.raw[key] = repaired;
-                            break;
-                        }
-                    }
-                    mod.content = repaired;
+                const lintResult = lintLiquid(mod.content, mod.filePath);
+                if (!lintResult.valid) {
+                    result.errors.push(...lintResult.errors.map(e => `${e} in "${mod.filePath}"`));
+                    result.valid = false;
+                }
+                if (lintResult.repairs.length > 0) {
+                    result.repairs.push(...lintResult.repairs.map(r => `${r} in "${mod.filePath}"`));
+                    updateModContent(mod, lintResult.repairedContent);
+                }
+
+                // Auto-repair: Liquid common syntax hallucinations
+                const syntaxRepairCount = repairLiquidSyntax(mod);
+                if (syntaxRepairCount > 0) {
+                    result.repairs.push(`Auto-repaired ${syntaxRepairCount} Liquid syntax violations in "${mod.filePath}" (e.g., modulo filter in if-tag)`);
                 }
             }
         }
@@ -192,19 +190,36 @@ export function validateAndRepair(plan: ThemePlan): ValidationResult {
             try {
                 const parsed = JSON.parse(mod.content);
 
-                // Auto-repair: config/settings_schema.json must have 'settings' array in each section
                 if (mod.filePath === 'config/settings_schema.json' && Array.isArray(parsed)) {
                     let modificationMade = false;
                     for (const section of parsed) {
-                        if (typeof section === 'object' && section !== null && !section.settings) {
-                            section.settings = [];
-                            modificationMade = true;
+                        if (typeof section === 'object' && section !== null) {
+                            // Auto-repair: theme_info can have either theme_support_url OR theme_support_email, NOT BOTH
+                            const isThemeInfo = section.name === 'theme_info' || section.id === 'theme_info';
+                            if (isThemeInfo && section.theme_support_url && section.theme_support_email) {
+                                delete section.theme_support_email;
+                                modificationMade = true;
+                                result.repairs.push(`Auto-stripped conflicting 'theme_support_email' from 'theme_info' in config/settings_schema.json`);
+                            }
+
+                            if (!section.settings) {
+                                section.settings = [];
+                                modificationMade = true;
+                            } else if (Array.isArray(section.settings)) {
+                                // Auto-repair: Invalid font_picker defaults
+                                for (const setting of section.settings) {
+                                    if (setting.type === 'font_picker' && setting.default) {
+                                        delete setting.default;
+                                        modificationMade = true;
+                                        result.repairs.push(`Auto-stripped invalid default value from font_picker "${setting.id}"`);
+                                    }
+                                }
+                            }
                         }
                     }
                     if (modificationMade) {
                         const updatedContent = JSON.stringify(parsed, null, 2);
                         updateModContent(mod, updatedContent);
-                        result.repairs.push(`Auto-added missing "settings" arrays to config/settings_schema.json`);
                     }
                 }
             } catch (e) {
@@ -420,43 +435,6 @@ function updateModContent(mod: any, newContent: string) {
 }
 
 /**
- * Checks Liquid tag balance and returns a list of missing closing tags.
- */
-function checkLiquidTagBalance(content: string): string[] {
-    const missingTags: string[] = [];
-    const tagPairs: Record<string, string> = {
-        'if': 'endif',
-        'unless': 'endunless',
-        'for': 'endfor',
-        'case': 'endcase',
-        'form': 'endform',
-        'capture': 'endcapture',
-        'comment': 'endcomment',
-        'raw': 'endraw',
-        'tablerow': 'endtablerow',
-    };
-
-    // Don't count tags inside {% schema %} blocks
-    const contentWithoutSchema = content.replace(/\{%-?\s*schema\s*-?%\}[\s\S]*?\{%-?\s*endschema\s*-?%\}/g, '');
-
-    for (const [openTag, closeTag] of Object.entries(tagPairs)) {
-        const openRegex = new RegExp(`\\{%-?\\s*${openTag}\\b`, 'g');
-        const closeRegex = new RegExp(`\\{%-?\\s*${closeTag}\\s*-?%\\}`, 'g');
-
-        const openCount = (contentWithoutSchema.match(openRegex) || []).length;
-        const closeCount = (contentWithoutSchema.match(closeRegex) || []).length;
-
-        if (openCount > closeCount) {
-            for (let i = 0; i < openCount - closeCount; i++) {
-                missingTags.push(closeTag);
-            }
-        }
-    }
-
-    return missingTags;
-}
-
-/**
  * Repairs common Shopify schema hallucinations from LLMs.
  * Returns the number of repairs made.
  */
@@ -563,6 +541,32 @@ function repairShopifySchema(mod: any): number {
         updateModContent(mod, newContent);
     }
 
+    return repairCount;
+}
+
+/**
+ * Repairs common Liquid syntax hallucinations from LLMs.
+ */
+function repairLiquidSyntax(mod: any): number {
+    let repairCount = 0;
+    let content = mod.content;
+
+    // Repair 1: modulo filter used directly in if/unless tags (Shopify does not support pipes in if-tags)
+    // Pattern: {% if forloop.index | modulo: 2 == 0 %}
+    // Fix: {% assign mod_val = forloop.index | modulo: 2 %}{% if mod_val == 0 %}
+    const moduloIfRegex = /\{%-?\s*(if|unless)\s+([\s\S]+?)\s*\|\s*modulo:\s*(\d+)\s*(==|!=|>|<|>=|<=)\s*(\d+)\s*-?%\}/g;
+
+    if (moduloIfRegex.test(content)) {
+        content = content.replace(moduloIfRegex, (match: string, tag: string, variable: string, divisor: string, operator: string, value: string) => {
+            repairCount++;
+            const tempVar = `mod_${Math.floor(Math.random() * 1000)}`;
+            return `{% assign ${tempVar} = ${variable} | modulo: ${divisor} %}{% ${tag} ${tempVar} ${operator} ${value} %}`;
+        });
+    }
+
+    if (repairCount > 0) {
+        updateModContent(mod, content);
+    }
     return repairCount;
 }
 
