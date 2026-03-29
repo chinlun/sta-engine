@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>The Minimalist | Your Cart</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;family=Noto+Serif:ital,wght@0,400;0,700;1,400&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "surface-container-highest": "#dde4e5",
+                        "tertiary-dim": "#3c5666",
+                        "tertiary": "#486272",
+                        "tertiary-container": "#d0ecff",
+                        "surface-dim": "#d4dbdd",
+                        "primary-dim": "#535252",
+                        "background": "#f9f9f9",
+                        "outline-variant": "#adb3b4",
+                        "secondary": "#5c6060",
+                        "secondary-dim": "#505454",
+                        "primary-container": "#e5e2e1",
+                        "on-primary": "#faf7f6",
+                        "primary-fixed": "#e5e2e1",
+                        "inverse-on-surface": "#9c9d9d",
+                        "secondary-fixed": "#e1e3e3",
+                        "on-primary-container": "#525151",
+                        "surface-container-low": "#f2f4f4",
+                        "secondary-container": "#e1e3e3",
+                        "tertiary-fixed-dim": "#c2def0",
+                        "surface-bright": "#f9f9f9",
+                        "surface-tint": "#5f5e5e",
+                        "on-surface-variant": "#5a6061",
+                        "on-secondary-fixed": "#3c4040",
+                        "on-tertiary-fixed": "#2c4655",
+                        "on-error": "#fff7f6",
+                        "inverse-primary": "#ffffff",
+                        "surface-container": "#ebeeef",
+                        "on-surface": "#2d3435",
+                        "tertiary-fixed": "#d0ecff",
+                        "surface-variant": "#dde4e5",
+                        "surface-container-lowest": "#ffffff",
+                        "error-dim": "#4e0309",
+                        "primary": "#5f5e5e",
+                        "on-secondary": "#f7f9fa",
+                        "on-secondary-container": "#4f5253",
+                        "inverse-surface": "#0c0f0f",
+                        "on-primary-fixed-variant": "#5c5b5b",
+                        "on-background": "#2d3435",
+                        "surface": "#f9f9f9",
+                        "surface-container-high": "#e4e9ea",
+                        "outline": "#757c7d",
+                        "on-tertiary-fixed-variant": "#486272",
+                        "on-tertiary-container": "#3e5868",
+                        "error": "#9f403d",
+                        "on-tertiary": "#f4faff",
+                        "on-primary-fixed": "#403f3f",
+                        "secondary-fixed-dim": "#d2d5d5",
+                        "on-secondary-fixed-variant": "#595c5d",
+                        "on-error-container": "#752121",
+                        "primary-fixed-dim": "#d6d4d3",
+                        "error-container": "#fe8983"
+                    },
+                    fontFamily: {
+                        "headline": ["Noto Serif"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        body { font-family: 'Inter', sans-serif; }
+        h1, h2, h3, .font-serif { font-family: 'Noto Serif', serif; }
+    </style>
+</head>
+<body class="bg-background text-on-surface selection:bg-primary-container selection:text-on-primary-container">
+<!-- TopNavBar -->
+<nav class="bg-[#F9F9F9]/80 dark:bg-[#1A1A1A]/80 backdrop-blur-xl fixed top-0 w-full z-50 rounded-none">
+<div class="flex justify-between items-center w-full px-8 py-6 max-w-[1440px] mx-auto">
+<div class="text-2xl font-serif tracking-tighter text-[#2D3435] dark:text-[#FAF7F6]">
+                The Minimalist
+            </div>
+<div class="hidden md:flex space-x-12 items-center">
+<a class="text-[#5F5E5E] dark:text-[#ADB3B4] hover:text-[#2D3435] dark:hover:text-white transition-colors duration-300 font-body text-sm tracking-widest uppercase" href="#">Shop</a>
+<a class="text-[#5F5E5E] dark:text-[#ADB3B4] hover:text-[#2D3435] dark:hover:text-white transition-colors duration-300 font-body text-sm tracking-widest uppercase" href="#">Collections</a>
+<a class="text-[#5F5E5E] dark:text-[#ADB3B4] hover:text-[#2D3435] dark:hover:text-white transition-colors duration-300 font-body text-sm tracking-widest uppercase" href="#">Editorial</a>
+<a class="text-[#5F5E5E] dark:text-[#ADB3B4] hover:text-[#2D3435] dark:hover:text-white transition-colors duration-300 font-body text-sm tracking-widest uppercase" href="#">About</a>
+</div>
+<div class="flex items-center space-x-6">
+<button class="hover:opacity-70 transition-opacity duration-300 text-[#5F5E5E] dark:text-[#FAF7F6]">
+<span class="material-symbols-outlined" data-icon="person">person</span>
+</button>
+<button class="hover:opacity-70 transition-opacity duration-300 text-[#5F5E5E] dark:text-[#FAF7F6]">
+<span class="material-symbols-outlined" data-icon="search">search</span>
+</button>
+<button class="hover:opacity-70 transition-opacity duration-300 text-[#2D3435] dark:text-white font-bold border-b border-[#5F5E5E] pb-1">
+<span class="material-symbols-outlined" data-icon="shopping_bag">shopping_bag</span>
+</button>
+</div>
+</div>
+</nav>
+<!-- Main Content Canvas -->
+<main class="pt-32 pb-20 px-8 md:px-[120px] max-w-[1440px] mx-auto min-h-screen">
+<!-- Page Header -->
+<header class="mb-16">
+<h1 class="text-5xl md:text-6xl font-serif text-on-surface tracking-tight mb-4">Your Cart</h1>
+<a class="inline-flex items-center gap-2 text-primary font-label text-sm uppercase tracking-widest hover:opacity-70 transition-opacity" href="#">
+<span class="material-symbols-outlined text-sm" data-icon="arrow_back">arrow_back</span>
+                Continue Shopping
+            </a>
+</header>
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
+<!-- Cart Items Table (Asymmetric Bento-ish Grid) -->
+<div class="lg:col-span-8 space-y-12">
+<div class="w-full">
+<!-- Table Header -->
+<div class="hidden md:grid grid-cols-6 pb-6 border-b border-outline-variant/15 font-label text-[10px] uppercase tracking-[0.2em] text-outline">
+<div class="col-span-3">Product Description</div>
+<div class="text-center">Quantity</div>
+<div class="text-right col-span-2">Total</div>
+</div>
+<!-- Item 1 -->
+<div class="grid grid-cols-1 md:grid-cols-6 py-10 border-b border-outline-variant/15 items-center gap-6">
+<div class="col-span-3 flex gap-8">
+<div class="w-32 h-40 bg-surface-container-low overflow-hidden flex-shrink-0">
+<img class="w-full h-full object-cover" data-alt="Minimalist matte white ceramic vase on a beige stone surface with soft morning light shadows" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDMhf-EfhgNepQCiuTJI11tQpZpVnGdhTu6ldy4s2W8gQ1t2_JB4tlax2tGgQwsElTfmvU9FTZt3CgKFoctdC4yytI0cQ3Mn-Cp2vJUjxFp5sXW66XpC4D0YPufFyL0fX-awoxmHdh_NOvm8vlZGV6DuTySDe92Q-Pz4FRijJa7gCUmBk8mAqpEp9g5PEhYkrWlnP-Kt_X7K_dszwlS5iUHIBN7SvhVTrnj1VB8DJk78N3aOMnL0zX0xJf6uw5O7f4YnvmJkSw1HmA"/>
+</div>
+<div class="flex flex-col justify-center">
+<span class="font-label text-[10px] uppercase tracking-widest text-outline mb-1">Ceramics</span>
+<h3 class="font-serif text-xl text-on-surface mb-2">Tidal Form No. 04</h3>
+<p class="text-sm text-primary leading-relaxed opacity-80">Hand-thrown stoneware with a matte silk glaze. Limited edition curator's pick.</p>
+<button class="mt-4 text-left font-label text-[10px] uppercase tracking-widest text-error opacity-70 hover:opacity-100 transition-opacity">Remove</button>
+</div>
+</div>
+<div class="flex justify-center">
+<div class="flex items-center border border-outline-variant/20 px-4 py-2">
+<button class="hover:opacity-50"><span class="material-symbols-outlined text-sm" data-icon="remove">remove</span></button>
+<span class="mx-6 font-body text-sm">1</span>
+<button class="hover:opacity-50"><span class="material-symbols-outlined text-sm" data-icon="add">add</span></button>
+</div>
+</div>
+<div class="text-right col-span-2 font-body text-lg text-on-surface">
+                            $240.00
+                        </div>
+</div>
+<!-- Item 2 -->
+<div class="grid grid-cols-1 md:grid-cols-6 py-10 border-b border-outline-variant/15 items-center gap-6">
+<div class="col-span-3 flex gap-8">
+<div class="w-32 h-40 bg-surface-container-low overflow-hidden flex-shrink-0">
+<img class="w-full h-full object-cover" data-alt="Stack of folded high-quality organic linen bed sheets in oatmeal and charcoal colors" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAjrb1Vcv5BIfj7YkMq25mQVmSeW7ZMTfjyrgk8gscNBVxYJD2Vie59f4QiAUt-mEnZhrl9-AGv0S2aoLWDKSD2ABbfC-zu4QlgZ2ey4ddBJpESZHty1KKq0XqaG4koZLAf2fYxLvbxjrf0JaT4xy10aXHvhKAAVsqwkN0pJ2MFa79CteDAE190Es0l_tUqyd1K7v-bSenRGhbOSNgbY46ddoZh8LDnfaxrQ0QTJIXt5P1Kxy4pYbYbTTMEDtsTgVie0N3HbQfAZzw"/>
+</div>
+<div class="flex flex-col justify-center">
+<span class="font-label text-[10px] uppercase tracking-widest text-outline mb-1">Textiles</span>
+<h3 class="font-serif text-xl text-on-surface mb-2">Linen Throws (Set of 2)</h3>
+<p class="text-sm text-primary leading-relaxed opacity-80">100% Belgian flax linen, stone-washed for exceptional softness.</p>
+<button class="mt-4 text-left font-label text-[10px] uppercase tracking-widest text-error opacity-70 hover:opacity-100 transition-opacity">Remove</button>
+</div>
+</div>
+<div class="flex justify-center">
+<div class="flex items-center border border-outline-variant/20 px-4 py-2">
+<button class="hover:opacity-50"><span class="material-symbols-outlined text-sm" data-icon="remove">remove</span></button>
+<span class="mx-6 font-body text-sm">2</span>
+<button class="hover:opacity-50"><span class="material-symbols-outlined text-sm" data-icon="add">add</span></button>
+</div>
+</div>
+<div class="text-right col-span-2 font-body text-lg text-on-surface">
+                            $380.00
+                        </div>
+</div>
+</div>
+<!-- Editorial Cross-sell Bento Piece -->
+<div class="bg-surface-container-low p-12 grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+<div>
+<h2 class="font-serif text-3xl text-on-surface mb-6 leading-tight">Complete your sanctuary.</h2>
+<p class="text-primary leading-relaxed mb-8">Selected items from our Editorial Collection that complement your current choices perfectly.</p>
+<button class="px-8 py-4 bg-primary text-on-primary font-label text-xs uppercase tracking-[0.2em] hover:bg-primary-dim transition-colors duration-300">Explore Editorial</button>
+</div>
+<div class="aspect-[4/5] bg-surface-container-lowest p-4">
+<img class="w-full h-full object-cover" data-alt="Minimalist interior design with a single black chair and a large abstract canvas on a white wall" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCTqaneGdy9HLZoOZTSR7pDUox3mHP9e_gwM9YVQUN0Zsc3bplfojeGsLk_VTGrTo6Tq6xJ-mEBuCnlPghlaY_VK_l_ois0Ybzx8sGavZ4xWjFwK0dtl-DtFZ9ejrhY80KqEFn-wKFwz2DijMLyX3nYo8L3xpALn44CaceWyIDNqRwNgUUK1JqT2ZfcsnDMokdemHpfRhGDhQ8uzTX4yYU6hRNHi3r5B_USt0WU92VYaE0owAgYSXbqq9DKUJDfv-Dn8A7_RCsayT8"/>
+</div>
+</div>
+</div>
+<!-- Right Sidebar: Order Summary -->
+<aside class="lg:col-span-4 sticky top-32 space-y-8">
+<div class="bg-surface-container-lowest p-10 shadow-2xl shadow-on-surface/5 border border-outline-variant/5">
+<h2 class="font-serif text-2xl text-on-surface mb-8">Summary</h2>
+<div class="space-y-6">
+<div class="flex justify-between items-center">
+<span class="font-label text-[10px] uppercase tracking-widest text-outline">Subtotal</span>
+<span class="font-body text-lg text-on-surface">$620.00</span>
+</div>
+<div class="flex justify-between items-center">
+<span class="font-label text-[10px] uppercase tracking-widest text-outline">Shipping</span>
+<span class="font-body text-sm text-primary">Calculated at next step</span>
+</div>
+<div class="flex justify-between items-center">
+<span class="font-label text-[10px] uppercase tracking-widest text-outline">Tax</span>
+<span class="font-body text-sm text-primary">$0.00</span>
+</div>
+<div class="pt-6 border-t border-outline-variant/15 flex justify-between items-center">
+<span class="font-serif text-xl text-on-surface">Total</span>
+<span class="font-serif text-2xl text-on-surface">$620.00</span>
+</div>
+</div>
+<div class="mt-10 space-y-4">
+<button class="w-full py-5 bg-primary text-on-primary font-label text-xs uppercase tracking-[0.2em] hover:bg-primary-dim transition-all duration-300 flex items-center justify-center gap-3">
+                            Checkout
+                            <span class="material-symbols-outlined text-sm" data-icon="arrow_forward">arrow_forward</span>
+</button>
+<p class="text-[10px] text-center text-outline uppercase tracking-widest leading-loose">
+                            Free shipping on orders over $1,000<br/>
+                            Secure encrypted payments
+                        </p>
+</div>
+</div>
+<!-- Shipping Estimate Mini-tool -->
+<div class="bg-surface-container-low p-8">
+<h4 class="font-serif text-lg text-on-surface mb-4">Shipping Estimate</h4>
+<div class="space-y-4">
+<div>
+<label class="block font-label text-[10px] uppercase tracking-widest text-outline mb-2">Country</label>
+<select class="w-full bg-transparent border-0 border-b border-outline-variant/30 font-body text-sm focus:ring-0 focus:border-primary px-0">
+<option>United States</option>
+<option>United Kingdom</option>
+<option>European Union</option>
+<option>Japan</option>
+</select>
+</div>
+<button class="text-primary font-label text-[10px] uppercase tracking-widest border-b border-primary/20 pb-1 hover:border-primary transition-all">Calculate</button>
+</div>
+</div>
+</aside>
+</div>
+</main>
+<!-- SideNavBar (Cart Shell Simulation for consistency) -->
+<div class="fixed right-0 top-0 h-full z-[60] flex flex-col p-10 bg-white dark:bg-[#1A1A1A] w-[400px] shadow-2xl opacity-5 shadow-[#2D3435] translate-x-full pointer-events-none">
+<div class="mb-10">
+<h2 class="text-xl font-serif text-[#2D3435] dark:text-white mb-2">Cart</h2>
+<p class="text-[#5F5E5E] dark:text-[#FAF7F6] text-sm italic font-serif">Curated Selection</p>
+</div>
+<div class="flex-grow space-y-8">
+<div class="flex items-center gap-4 text-[#2D3435] dark:text-white font-semibold">
+<span class="material-symbols-outlined" data-icon="shopping_cart">shopping_cart</span>
+<span>Your Cart</span>
+</div>
+<div class="flex items-center gap-4 text-[#5F5E5E] dark:text-[#ADB3B4]">
+<span class="material-symbols-outlined" data-icon="payments">payments</span>
+<span>Subtotal</span>
+</div>
+<div class="flex items-center gap-4 text-[#5F5E5E] dark:text-[#ADB3B4]">
+<span class="material-symbols-outlined" data-icon="local_shipping">local_shipping</span>
+<span>Shipping</span>
+</div>
+<div class="flex items-center gap-4 text-[#5F5E5E] dark:text-[#ADB3B4]">
+<span class="material-symbols-outlined" data-icon="arrow_forward">arrow_forward</span>
+<span>Checkout</span>
+</div>
+</div>
+<button class="w-full py-4 bg-[#5F5E5E] text-white font-label text-xs uppercase tracking-widest">Checkout</button>
+</div>
+<!-- Footer -->
+<footer class="w-full rounded-none border-t-[1px] border-[#ADB3B4]/15 bg-[#F2F4F4] dark:bg-[#121212]">
+<div class="w-full px-8 py-20 mt-20 grid grid-cols-1 md:grid-cols-4 gap-12 max-w-[1440px] mx-auto">
+<div class="md:col-span-1">
+<div class="text-lg font-serif text-[#2D3435] dark:text-[#FAF7F6] mb-6">The Minimalist</div>
+<p class="text-[#5F5E5E] dark:text-[#ADB3B4] font-body text-sm leading-relaxed mb-8">A curation of essentials for the intentional home. Quality over quantity, always.</p>
+</div>
+<div>
+<h5 class="font-label text-[10px] uppercase tracking-[0.2em] text-[#2D3435] dark:text-white mb-8">Shop</h5>
+<ul class="space-y-4 font-label text-[10px] uppercase tracking-widest text-[#5F5E5E] dark:text-[#ADB3B4]">
+<li><a class="hover:text-[#2D3435] dark:hover:text-white transition-colors duration-300" href="#">Newsletter</a></li>
+<li><a class="hover:text-[#2D3435] dark:hover:text-white transition-colors duration-300" href="#">Shipping</a></li>
+<li><a class="hover:text-[#2D3435] dark:hover:text-white transition-colors duration-300" href="#">Contact</a></li>
+</ul>
+</div>
+<div>
+<h5 class="font-label text-[10px] uppercase tracking-[0.2em] text-[#2D3435] dark:text-white mb-8">Legal</h5>
+<ul class="space-y-4 font-label text-[10px] uppercase tracking-widest text-[#5F5E5E] dark:text-[#ADB3B4]">
+<li><a class="hover:text-[#2D3435] dark:hover:text-white transition-colors duration-300" href="#">Privacy Policy</a></li>
+<li><a class="hover:text-[#2D3435] dark:hover:text-white transition-colors duration-300" href="#">Terms</a></li>
+</ul>
+</div>
+<div>
+<h5 class="font-label text-[10px] uppercase tracking-[0.2em] text-[#2D3435] dark:text-white mb-8">Follow</h5>
+<p class="font-body text-xs text-[#5F5E5E] dark:text-[#ADB3B4] leading-loose mb-4">Subscribe for early access to limited edition drops and editorial insights.</p>
+<div class="flex border-b border-[#ADB3B4]/30 pb-2">
+<input class="bg-transparent border-none text-xs w-full focus:ring-0 px-0" placeholder="Email Address" type="email"/>
+<button class="material-symbols-outlined text-sm" data-icon="arrow_forward">arrow_forward</button>
+</div>
+</div>
+</div>
+<div class="max-w-[1440px] mx-auto px-8 pb-10 text-center md:text-left">
+<p class="font-label text-[9px] uppercase tracking-[0.3em] text-[#5F5E5E] dark:text-[#ADB3B4]">© 2024 The Minimalist. All Rights Reserved.</p>
+</div>
+</footer>
+</body></html>

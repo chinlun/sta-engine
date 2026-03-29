@@ -2,7 +2,10 @@ const { StateGraph, START, END } = require("@langchain/langgraph");
 const { ThemeGenerationState } = require("./state");
 const {
     classifierNode,
+    designerNode,
     plannerNode,
+    contentWriterNode,
+    structuralNode,
     coderNode,
     tsQcNode,
     assemblerNode,
@@ -16,15 +19,21 @@ const { logger } = require("../lib/logger");
  */
 const workflow = new StateGraph(ThemeGenerationState)
     .addNode("classifier", classifierNode)
+    .addNode("designer", designerNode)
     .addNode("planner", plannerNode)
+    .addNode("contentWriter", contentWriterNode)
+    .addNode("structural", structuralNode)
     .addNode("coder", coderNode)
     .addNode("tsQc", tsQcNode)
     .addNode("assembler", assemblerNode)
     .addNode("assemblyQc", assemblyQcNode)
 
     .addEdge(START, "classifier")
-    .addEdge("classifier", "planner")
-    .addEdge("planner", "coder")
+    .addEdge("classifier", "designer")
+    .addEdge("designer", "planner")
+    .addEdge("planner", "contentWriter")
+    .addEdge("contentWriter", "structural")
+    .addEdge("structural", "coder")
     .addEdge("coder", "tsQc");
 
 workflow.addConditionalEdges(

@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif:wght@400;700&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "surface-container-highest": "#dde4e5",
+              "tertiary-dim": "#3c5666",
+              "tertiary": "#486272",
+              "tertiary-container": "#d0ecff",
+              "surface-dim": "#d4dbdd",
+              "primary-dim": "#535252",
+              "background": "#f9f9f9",
+              "outline-variant": "#adb3b4",
+              "secondary": "#5c6060",
+              "secondary-dim": "#505454",
+              "primary-container": "#e5e2e1",
+              "on-primary": "#faf7f6",
+              "primary-fixed": "#e5e2e1",
+              "inverse-on-surface": "#9c9d9d",
+              "secondary-fixed": "#e1e3e3",
+              "on-primary-container": "#525151",
+              "surface-container-low": "#f2f4f4",
+              "secondary-container": "#e1e3e3",
+              "tertiary-fixed-dim": "#c2def0",
+              "surface-bright": "#f9f9f9",
+              "surface-tint": "#5f5e5e",
+              "on-surface-variant": "#5a6061",
+              "on-secondary-fixed": "#3c4040",
+              "on-tertiary-fixed": "#2c4655",
+              "on-error": "#fff7f6",
+              "inverse-primary": "#ffffff",
+              "surface-container": "#ebeeef",
+              "on-surface": "#2d3435",
+              "tertiary-fixed": "#d0ecff",
+              "surface-variant": "#dde4e5",
+              "surface-container-lowest": "#ffffff",
+              "error-dim": "#4e0309",
+              "primary": "#5f5e5e",
+              "on-secondary": "#f7f9fa",
+              "on-secondary-container": "#4f5253",
+              "inverse-surface": "#0c0f0f",
+              "on-primary-fixed-variant": "#5c5b5b",
+              "on-background": "#2d3435",
+              "surface": "#f9f9f9",
+              "surface-container-high": "#e4e9ea",
+              "outline": "#757c7d",
+              "on-tertiary-fixed-variant": "#486272",
+              "on-tertiary-container": "#3e5868",
+              "error": "#9f403d",
+              "on-tertiary": "#f4faff",
+              "on-primary-fixed": "#403f3f",
+              "secondary-fixed-dim": "#d2d5d5",
+              "on-secondary-fixed-variant": "#595c5d",
+              "on-error-container": "#752121",
+              "error-container": "#fe8983"
+            },
+            fontFamily: {
+              "headline": ["Noto Serif"],
+              "body": ["Inter"],
+              "label": ["Inter"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+        }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background font-body antialiased">
+<!-- Top Navigation -->
+<nav class="fixed top-0 w-full z-50 bg-[#F9F9F9]/80 backdrop-blur-xl transition-all duration-300">
+<div class="flex justify-between items-center w-full px-5 py-4">
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-on-surface cursor-pointer" style="font-size: 24px;">menu</span>
+</div>
+<span class="text-xl font-headline tracking-tighter text-on-surface font-bold">The Minimalist</span>
+<div class="flex items-center gap-4 text-primary">
+<span class="material-symbols-outlined cursor-pointer" data-icon="search">search</span>
+<div class="relative">
+<span class="material-symbols-outlined cursor-pointer" data-icon="shopping_bag">shopping_bag</span>
+<span class="absolute -top-1 -right-1 flex h-3 w-3 items-center justify-center rounded-full bg-primary text-[8px] text-white">2</span>
+</div>
+</div>
+</div>
+</nav>
+<!-- Main Content Canvas -->
+<main class="pt-16 pb-20">
+<!-- Image Carousel (Swipe-able) -->
+<section class="relative w-full aspect-[4/5] overflow-hidden">
+<div class="flex overflow-x-auto snap-x snap-mandatory no-scrollbar w-full h-full">
+<div class="snap-center shrink-0 w-full h-full">
+<img alt="Product Hero" class="w-full h-full object-cover" data-alt="Close-up of a high-quality charcoal grey wool coat on a minimalist wooden hanger against a soft cream background with editorial lighting." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDtXV7HbVlhJSYppbiZcoOsJnI51VyeGV9UikoW3P4D-1wunbJFi0zSN4NdWh9FKt_SPEmEOp2y-xGE2b7ui5mSIePNMz-Y0lCB699cIULYY4pMfKuWBW6CChKGvLAhVdHzcWmBavzzaP_dqLRV-bnikv7hhyQo62esCGRPoN8NIYJ3ZriEjKRf1MgkwsyWE_X0HX6sIkNe7F8OLTv_tngbh15Fa1NeuAJn2VumrEqW0QVprZxPo65BkeJ2oF3fDCBPBELnfC0l1yc"/>
+</div>
+<div class="snap-center shrink-0 w-full h-full">
+<img alt="Product Detail" class="w-full h-full object-cover" data-alt="Macro detail shot of fine herringbone wool fabric texture in shades of grey and black, soft morning light hitting the fibers." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDAGAFMtiIdrhiwkQwXEDYH6QmHN0as0ChVJQ3-9RTkONispwzivkATNbKb0dUmNdPnP25qVxBP69VvBccCJZfLGa7CBNPrW2OdxcOWSBQKjqWYuwK8I-4ZoBN0uCt4XX0J-pBUl1xd9J612323TdNjKqg2qii1hTfdcxPoiGs1xqMtsI9jWbtpNJjjKoZ20Q63vsjh690i0HmSI2xcNE1xPgt97f5TqZv1g0Dl4UnGxoALb7AvF3T-STflHy0nQlqVvpxyCyfrlpY"/>
+</div>
+<div class="snap-center shrink-0 w-full h-full">
+<img alt="Product Lifestyle" class="w-full h-full object-cover" data-alt="Elegant man wearing a tailored charcoal overcoat walking through a modern architectural space with clean lines and grey concrete textures." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBVQmIocvxZZbT_HHQo40zgi92L2DLlIIOI5CAsEc6GVk9LeYQ5WFkIJQEXBd6gBKnzD1LGhg67OtAACewN9HZS9TDh8K06CH56tXmpXdzegev2dh5KL6OpBzb2b7AjdYKKIdVTSW9vOhdKA3DKEwb8mdilSClte16s3XgRRpuVlDSb9jbmDoKwRuwW6Zhv2lWNqfXBHGi5V99_iix_BVn3PJ6TpLG_IJ1IWOQ1-uIiOx7Y2nk8_Gg-UEjwiotbms27Xj2zK0w0oVQ"/>
+</div>
+</div>
+<!-- Carousel Indicators -->
+<div class="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2">
+<div class="w-1.5 h-1.5 rounded-full bg-on-surface"></div>
+<div class="w-1.5 h-1.5 rounded-full bg-on-surface/20"></div>
+<div class="w-1.5 h-1.5 rounded-full bg-on-surface/20"></div>
+</div>
+</section>
+<!-- Product Buy Box -->
+<section class="px-5 py-8 space-y-6">
+<div class="space-y-2">
+<span class="text-xs font-label tracking-widest text-outline uppercase">Essential Collection</span>
+<h1 class="text-3xl font-headline text-on-surface leading-tight">The Sculpted Overcoat</h1>
+<p class="text-xl font-body text-primary">$495.00</p>
+</div>
+<!-- Variants Selection -->
+<div class="space-y-4">
+<div class="space-y-2">
+<label class="text-xs font-label tracking-widest text-outline uppercase">Color: Charcoal</label>
+<div class="flex gap-3">
+<button class="w-10 h-10 rounded-none bg-[#2D3435] border-2 border-on-surface p-0.5 ring-offset-2 ring-1 ring-on-surface/10"></button>
+<button class="w-10 h-10 rounded-none bg-[#5F5E5E] border border-outline-variant/20"></button>
+<button class="w-10 h-10 rounded-none bg-[#ADB3B4] border border-outline-variant/20"></button>
+</div>
+</div>
+<div class="space-y-2">
+<div class="flex justify-between items-center">
+<label class="text-xs font-label tracking-widest text-outline uppercase">Size</label>
+<button class="text-[10px] font-label tracking-widest text-primary underline underline-offset-4">SIZE GUIDE</button>
+</div>
+<div class="grid grid-cols-4 gap-2">
+<button class="h-12 border border-outline-variant/30 text-sm font-label flex items-center justify-center hover:bg-surface-container-low transition-colors">XS</button>
+<button class="h-12 border-2 border-on-surface text-sm font-label flex items-center justify-center bg-surface-container-lowest">S</button>
+<button class="h-12 border border-outline-variant/30 text-sm font-label flex items-center justify-center hover:bg-surface-container-low transition-colors">M</button>
+<button class="h-12 border border-outline-variant/30 text-sm font-label flex items-center justify-center hover:bg-surface-container-low transition-colors">L</button>
+</div>
+</div>
+</div>
+<!-- Primary Action -->
+<div class="space-y-3 pt-4">
+<button class="w-full h-14 bg-primary text-on-primary font-label text-sm tracking-widest uppercase transition-all active:scale-95 duration-300">Add to Bag</button>
+<button class="w-full h-14 border border-outline-variant/30 text-on-surface font-label text-sm tracking-widest uppercase flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-sm" style="font-variation-settings: 'FILL' 0;">favorite</span>
+                    Save to Wishlist
+                </button>
+</div>
+</section>
+<!-- Accordion Section -->
+<section class="border-t border-outline-variant/15">
+<!-- Item 1 -->
+<div class="border-b border-outline-variant/15 px-5">
+<button class="w-full py-6 flex justify-between items-center group">
+<span class="font-label text-sm tracking-widest uppercase text-on-surface">Description</span>
+<span class="material-symbols-outlined text-outline group-hover:text-on-surface transition-colors">expand_more</span>
+</button>
+<div class="pb-8 text-secondary leading-relaxed text-sm max-w-prose">
+                    Crafted from 100% virgin wool sourced from historic Italian mills, the Sculpted Overcoat features a sharp shoulder line and a slightly tapered waist. Its heavy-weight construction ensures warmth without bulk, defining the intersection of utility and elegance.
+                </div>
+</div>
+<!-- Item 2 -->
+<div class="border-b border-outline-variant/15 px-5">
+<button class="w-full py-6 flex justify-between items-center group">
+<span class="font-label text-sm tracking-widest uppercase text-on-surface">Shipping &amp; Delivery</span>
+<span class="material-symbols-outlined text-outline group-hover:text-on-surface transition-colors">expand_more</span>
+</button>
+</div>
+<!-- Item 3 -->
+<div class="border-b border-outline-variant/15 px-5">
+<button class="w-full py-6 flex justify-between items-center group">
+<span class="font-label text-sm tracking-widest uppercase text-on-surface">Sustainability</span>
+<span class="material-symbols-outlined text-outline group-hover:text-on-surface transition-colors">expand_more</span>
+</button>
+</div>
+</section>
+<!-- Recommendations Grid -->
+<section class="px-5 py-12 space-y-8 bg-surface-container-low">
+<h2 class="text-2xl font-headline text-on-surface text-center">Complete the Silhouette</h2>
+<div class="grid grid-cols-2 gap-x-4 gap-y-8">
+<!-- Product 1 -->
+<div class="space-y-3">
+<div class="aspect-[3/4] bg-surface-container-lowest p-2 overflow-hidden">
+<img alt="Trousers" class="w-full h-full object-cover" data-alt="Minimalist high-waisted tailored wool trousers in light grey, hanging neatly in a bright studio environment." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBYIrffKpDowKFpTzBwP17ERA1SF2TWvJB8CYRYsUv3mxEw9sbs-mYhT_A4MH2ZVkZdVBoHQ97K314jGKH5NuRVa5Om2CyHqwqW86vyaxMj97wj6emtZWcLY_chp1_qLFRXUCbfMpcbCbl9FRwDniygCRjjINVRHlJXelkmBvHNoxx6MfRv8KIb9DV4LuFYJYuwO0dRklgmngDa7_wjwcWjYPdlw30BreHyZsoxd8D9hdhMDkxKgCTZIUiRzuh5rhw6embt82SCQcQ"/>
+</div>
+<div class="space-y-1">
+<p class="text-xs font-label text-on-surface uppercase tracking-wider">Wool Trousers</p>
+<p class="text-xs font-body text-secondary">$225.00</p>
+</div>
+</div>
+<!-- Product 2 -->
+<div class="space-y-3">
+<div class="aspect-[3/4] bg-surface-container-lowest p-2 overflow-hidden">
+<img alt="Sweater" class="w-full h-full object-cover" data-alt="Fine knit cashmere turtleneck sweater in ivory, neatly folded on a grey stone surface with soft shadows." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCZig3d7vScsPdsTT3MbQsNP8_PwDDzEGbpJfSpzVV0e4c7LGs2rMNdOW3g0z-uLAWtbt_8fEp43Pu2iUT6N7C0sSnbE4GCy73OhEMUvyOrUSriaMt0drXHLzbAOy8rncEyvxiKYSS-yKg9Gdwxab-_EfQr7p6hvl49v1fOw5e-_u5sqxl6bkuYzcJKXLiAOUpCaeWVWbdSNIeQltjrRWbSyogT17AsBqRj_dCC0x3d6dGSWus2yCby1elTcN7C6RraidwND1yxhxY"/>
+</div>
+<div class="space-y-1">
+<p class="text-xs font-label text-on-surface uppercase tracking-wider">Cashmere Knit</p>
+<p class="text-xs font-body text-secondary">$185.00</p>
+</div>
+</div>
+<!-- Product 3 -->
+<div class="space-y-3">
+<div class="aspect-[3/4] bg-surface-container-lowest p-2 overflow-hidden">
+<img alt="Scarf" class="w-full h-full object-cover" data-alt="Luxurious oversized black scarf draped over a chair, showing deep texture and soft drape, moody atmospheric lighting." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCgFOSO_z8GupY95D2leO1RVo6Doswo1PeVKM4xMcCbeEnc_FtNxKrpIaR5Ot_5XGqsdXukuU_xt9ds8PhpgrhxIJ29V4Dhw0yF2lGUCdyy4waOX9aYRCzCZUoiz_zk4pXjT4TR7s24CR25oCp64VxabsuH_LQV58eYSzZEA7lt6eW3bdkS166JZ7ZbLFmdeRR_vlJQMemOaMjtjENHT_64d8tJi_VvnN8nGxlnngxE0gZmH3BkETZ5hvVY_iQzlqcnAPeHFrhKnBo"/>
+</div>
+<div class="space-y-1">
+<p class="text-xs font-label text-on-surface uppercase tracking-wider">Oversized Scarf</p>
+<p class="text-xs font-body text-secondary">$95.00</p>
+</div>
+</div>
+<!-- Product 4 -->
+<div class="space-y-3">
+<div class="aspect-[3/4] bg-surface-container-lowest p-2 overflow-hidden">
+<img alt="Sneakers" class="w-full h-full object-cover" data-alt="Clean white minimalist leather sneakers on a neutral background with sharp geometric shadows." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCxY1by4ULF1BZe-XD76nYl_QHvkihjXP9aYh8_p9HizpoZUbh8VL3yMTAVWlSOeJSmygcyuHb28NPdJJWqQtnpc887TnwQcdi72UlaVuHAf5ZF6iVITeDmQ1bvHSxlUYccz6pk95EJqaP5AigjDCjV23toapMr72naURABedESBlf3wZW2gfR28tGCUQYuiEACvKVTHe33afHt2yrp4e9P7m8fZngUP4XHe4e1TLWHhzR7HNwR2faTMSjinEylH-3iOPyPsxeWcVQ"/>
+</div>
+<div class="space-y-1">
+<p class="text-xs font-label text-on-surface uppercase tracking-wider">Canvas Low-Top</p>
+<p class="text-xs font-body text-secondary">$145.00</p>
+</div>
+</div>
+</div>
+<button class="w-full py-4 border border-primary text-primary font-label text-xs tracking-widest uppercase hover:bg-primary hover:text-on-primary transition-all duration-300">View Collection</button>
+</section>
+</main>
+<!-- Bottom Navigation Shell (Mobile only) -->
+<div class="fixed bottom-0 w-full bg-[#F9F9F9]/95 backdrop-blur-lg border-t border-outline-variant/10 z-50 md:hidden">
+<div class="flex justify-around items-center h-16 px-4">
+<button class="flex flex-col items-center gap-1 text-on-surface">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">home</span>
+<span class="text-[9px] font-label uppercase tracking-tighter">Shop</span>
+</button>
+<button class="flex flex-col items-center gap-1 text-outline">
+<span class="material-symbols-outlined">auto_awesome_motion</span>
+<span class="text-[9px] font-label uppercase tracking-tighter">Editorial</span>
+</button>
+<button class="flex flex-col items-center gap-1 text-outline">
+<span class="material-symbols-outlined">person</span>
+<span class="text-[9px] font-label uppercase tracking-tighter">Account</span>
+</button>
+<button class="flex flex-col items-center gap-1 text-outline">
+<span class="material-symbols-outlined">shopping_cart</span>
+<span class="text-[9px] font-label uppercase tracking-tighter">Cart</span>
+</button>
+</div>
+</div>
+<!-- Footer -->
+<footer class="bg-surface-container-low px-5 pt-16 pb-32 space-y-12">
+<div class="space-y-4">
+<span class="text-lg font-headline text-on-surface block">The Minimalist</span>
+<p class="text-sm text-secondary leading-relaxed">Dedicated to the art of subtraction. We believe in quality over quantity, and pieces that last a lifetime.</p>
+</div>
+<div class="grid grid-cols-2 gap-8">
+<div class="space-y-4">
+<h4 class="text-[10px] font-label tracking-widest uppercase text-on-surface">Explore</h4>
+<ul class="space-y-3 text-xs text-secondary tracking-wide">
+<li><a href="#">Collections</a></li>
+<li><a href="#">New Arrivals</a></li>
+<li><a href="#">Editorial</a></li>
+<li><a href="#">Archive</a></li>
+</ul>
+</div>
+<div class="space-y-4">
+<h4 class="text-[10px] font-label tracking-widest uppercase text-on-surface">Help</h4>
+<ul class="space-y-3 text-xs text-secondary tracking-wide">
+<li><a href="#">Shipping</a></li>
+<li><a href="#">Returns</a></li>
+<li><a href="#">Contact</a></li>
+<li><a href="#">Privacy</a></li>
+</ul>
+</div>
+</div>
+<div class="pt-8 border-t border-outline-variant/15 text-center">
+<p class="text-[10px] font-label tracking-widest text-outline uppercase">© 2024 The Minimalist. All Rights Reserved.</p>
+</div>
+</footer>
+</body></html>

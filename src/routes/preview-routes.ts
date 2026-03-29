@@ -240,6 +240,23 @@ router.post("/sync-bulk", async (req, res) => {
                     }
                 }
 
+                // --- Guardrail: Section extension collision (.json vs .liquid) ---
+                if (!handled && reason.includes("already exists with liquid extension")) {
+                    const match = reason.match(/Filename\s+(\w+)\s+already exists with liquid extension/i);
+                    const baseName = match ? match[1] : null;
+                    if (baseName) {
+                        const jsonFile = `sections/${baseName}.json`;
+                        // Action: Remove from local sync map and delete on machine
+                        syncedFiles.delete(jsonFile);
+                        try {
+                            await flyMachineService.execCommand(machineId, ['rm', '-f', `theme/${jsonFile}`]);
+                        } catch (e) { }
+
+                        logger.info(`[PreviewRoutes] ✅ [Guardrail] Resolved section collision: deleted "${jsonFile}" in favor of existing .liquid`);
+                        handled = true;
+                    }
+                }
+
                 // --- Regex Handler: Section type does not refer to existing section file ---
                 if (!handled && reason.includes("does not refer to an existing section")) {
                     const content = syncedFiles.get(failedFile);

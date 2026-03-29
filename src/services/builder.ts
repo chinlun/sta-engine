@@ -224,6 +224,33 @@ export function validateAndRepair(plan: ThemePlan | BuildThemeToolParams): Valid
             }
         }
 
+        // Conflict: sections/*.json vs sections/*.liquid (Shopify blocks both)
+        if (mod.filePath.startsWith('sections/') && mod.filePath.endsWith('.json')) {
+            const baseName = path.basename(mod.filePath, '.json');
+            const liquidPath = `sections/${baseName}.liquid`.replace(/\\/g, '/');
+            const liquidConflict = normalizedMods.find(m => m.filePath === liquidPath);
+
+            if (liquidConflict) {
+                mod.action = 'delete';
+                result.repairs.push(`Auto-deleted "${mod.filePath}" to avoid collision with "${liquidPath}"`);
+                logger.info(`[Validator] 🛠️ Resolved section collision: deleted .json in favor of .liquid`);
+            } else {
+                // Force rename to .liquid (modern sections MUST use .liquid to have schemas)
+                const fixedPath = liquidPath;
+                result.repairs.push(`Auto-renamed section "${mod.filePath}" → "${fixedPath}"`);
+                const filePathKeys = ['filePath', 'file_path', 'file', 'path', 'fileName', 'file_name', 'filename'];
+                for (const key of filePathKeys) {
+                    if (mod.raw[key] === mod.filePath) {
+                        mod.raw[key] = fixedPath;
+                        break;
+                    }
+                }
+                mod.filePath = fixedPath;
+
+                // If it was raw JSON, the later schema injection will handle it if it's missing tags
+            }
+        }
+
         // settings_schema.json conflict (theme_info) — GUARDRAIL: always URL, never email
         if (mod.filePath === 'config/settings_schema.json' && mod.action !== 'delete' && mod.content) {
             try {

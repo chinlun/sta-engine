@@ -50,6 +50,11 @@ const ThemeGenerationState = Annotation.Root({
     }),
     referenceImageBase64: Annotation(),
     referenceHtml: Annotation(),
+    layoutShell: Annotation(), // Step 5: Global layout shell content
+    sectionContent: Annotation({ // Step 3: Sophisticated copy for sections
+        reducer: (x, y) => ({ ...(x || {}), ...y }),
+        default: () => ({}),
+    }),
 });
 
 module.exports = { ThemeGenerationState };

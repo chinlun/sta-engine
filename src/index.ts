@@ -69,16 +69,17 @@ app.post('/api/build', async (req, res) => {
 
         // --- Auto-Discovery for Tri-Modal context if missing from request ---
         if (!referenceHtml || !referenceImageBase64) {
-            const curatedPath = path.join(process.cwd(), 'docs/design-system/single-page-app/stitch_digital_atelier_curated_collection/digital_atelier_curated_collection');
+            // Update discovery path to point to the active editorial design system
+            const curatedPath = path.join(process.cwd(), 'docs/design-system/the-minimalist/home_desktop_1440px');
             const localHtmlPath = path.join(curatedPath, 'code.html');
             const localImagePath = path.join(curatedPath, 'screen.png');
 
             if (!referenceHtml && fs.existsSync(localHtmlPath)) {
-                logger.info(`[Build] 📂 Auto-loading local HTML from: ${localHtmlPath}`);
+                logger.info(`[Build] 📂 Auto-loading active HTML reference: ${localHtmlPath}`);
                 referenceHtml = fs.readFileSync(localHtmlPath, 'utf8');
             }
             if (!referenceImageBase64 && fs.existsSync(localImagePath)) {
-                logger.info(`[Build] 📂 Auto-loading local Image from: ${localImagePath}`);
+                logger.info(`[Build] 📂 Auto-loading active Image reference: ${localImagePath}`);
                 referenceImageBase64 = fs.readFileSync(localImagePath).toString('base64');
             }
         }
@@ -154,8 +155,14 @@ app.post('/api/build', async (req, res) => {
 
             if (node === 'classifier') {
                 sendEvent({ type: 'progress', stage: 'classifier', message: `Archetype: ${output.catalogSize}...` });
+            } else if (node === 'designer') {
+                sendEvent({ type: 'progress', stage: 'designer', message: `Selected palette: ${output.designTokens?.colors?.primary}...` });
             } else if (node === 'planner') {
                 sendEvent({ type: 'progress', stage: 'planner', message: `Architected ${output.components?.length} components...` });
+            } else if (node === 'contentWriter') {
+                sendEvent({ type: 'progress', stage: 'content', message: `Generated sophisticated copy for sections...` });
+            } else if (node === 'structural') {
+                sendEvent({ type: 'progress', stage: 'structural', message: `Created global CSS and layout shell...` });
             } else if (node === 'coder') {
                 sendEvent({ type: 'progress', stage: 'coder', message: `Building component files...` });
                 if (output.currentComponentFiles) {

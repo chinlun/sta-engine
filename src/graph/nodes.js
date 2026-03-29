@@ -4,6 +4,21 @@ const { gemini31Pro, gemini3Flash } = require("../lib/ai");
 const { validateAndRepair } = require("../services/builder");
 const { IntegrityManager } = require("../services/integrity-manager");
 const { logger } = require("../lib/logger");
+const fs = require('fs');
+const path = require('path');
+
+// --- DESIGN SYSTEM SOURCE OF TRUTH ---
+let designSystemContent = "";
+let componentSpecContent = "";
+try {
+    const designPath = path.join(__dirname, "../../docs/design-system/DESIGN.md");
+    designSystemContent = fs.readFileSync(designPath, "utf8");
+
+    const componentPath = path.join(__dirname, "../../docs/design-system/the-minimalist/component.md");
+    componentSpecContent = fs.readFileSync(componentPath, "utf8");
+} catch (e) {
+    logger.warn(`Design specification not found: ${e.message}`);
+}
 
 /**
  * --- NODE 1: Classifier ---
@@ -58,25 +73,119 @@ async function classifierNode(state, config) {
 }
 
 /**
- * --- NODE 2: Planner ---
+ * --- NODE 1.5: Designer Agent ---
+ * Selects a palette and design tokens based on user input. (Step 1)
  */
-async function plannerNode(state, config) {
+async function designerNode(state, config) {
     const startTime = Date.now();
-    logger.info("[Graph] Node: plannerNode");
-    const { userPrompt, catalogSize, referenceHtml, referenceImageBase64 } = state;
+    logger.info("[Graph] Node: designerNode");
+    const { userPrompt, referenceImageBase64 } = state;
     const sendEvent = config.configurable?.sendEvent;
 
     const messageContent = [
-        { type: 'text', text: `User Prompt: ${userPrompt}\nCatalog Archetype: ${catalogSize}` }
+        { type: 'text', text: `User Prompt: ${userPrompt}` }
     ];
-
-    if (referenceHtml) {
-        messageContent.push({ type: 'text', text: "Reference HTML Structure:\n" + referenceHtml });
-    }
 
     if (referenceImageBase64) {
         messageContent.push({ type: 'image', image: referenceImageBase64 });
     }
+
+    const { fullStream, object } = await streamObject({
+        model: gemini31Pro,
+        system: `You are the Lead Designer Agent. Your goal is to select a curated, high-end color palette and design tokens.
+        
+AESTHETIC RULES:
+1. "Sophisticated" & Premium: Avoid basic colors. Use HSL-tailored, harmonious palettes.
+2. Editorial Design: Prioritize typography and white space. No rounded corners (0px).
+3. Authority: The design should feel authoritative and state-of-the-art.`,
+        messages: [{ role: 'user', content: messageContent }],
+        schema: z.object({
+            design_tokens: z.object({
+                colors: z.object({
+                    primary: z.string().describe("Main brand color (e.g. deep charcoal #1a1a1a)"),
+                    secondary: z.string().describe("Accent color (e.g. muted gold #c5a059)"),
+                    background: z.string().describe("Main page background (e.g. off-white #f8f8f8)"),
+                    surface: z.string().describe("Surface color for cards/sections"),
+                    text: z.string().describe("Main body text color")
+                }),
+                typography: z.object({
+                    heading_font: z.string().describe("Google Font name for headings (e.g. Noto Serif)"),
+                    body_font: z.string().describe("Google Font name for body text (e.g. Inter)"),
+                    scale: z.enum(["minimal", "standard", "bold"])
+                }),
+                spacing: z.string().describe("Base spacing unit (e.g. 4px, 8px)"),
+                elevation: z.string().describe("Shadow style (e.g. subtle, glassmorphism)")
+            }),
+            reasoning: z.string()
+        }),
+        maxTokens: 4096,
+    });
+
+    for await (const part of fullStream) {
+        if (sendEvent && part.type === 'object') sendEvent({ type: 'partial', node: 'designer', object: part.object });
+    }
+
+    const finalObject = await object;
+    const duration = Date.now() - startTime;
+    logger.info(`[Graph] ✅ Node: designerNode complete (${duration}ms)`);
+    return {
+        designTokens: finalObject.design_tokens,
+        reasoning: { node: 'designer', text: finalObject.reasoning }
+    };
+}
+
+/**
+ * --- NODE 2: Planner (Component Breakdown) ---
+ * Breaks down the home page into components. (Step 2)
+ */
+async function plannerNode(state, config) {
+    const startTime = Date.now();
+    logger.info("[Graph] Node: plannerNode");
+    const { userPrompt, designTokens, catalogSize } = state;
+    const sendEvent = config.configurable?.sendEvent;
+
+    const { fullStream, object } = await streamObject({
+        model: gemini31Pro,
+        system: `You are the Lead Shopify Architect. Based on the selected design tokens, break down the home page into a list of components.
+        
+BLUEPRINT RULES:
+1. Editorial Hierarchy: Start with a strong visual hook (Hero), followed by product discovery, then brand story.
+2. Component Strategy: Define each component's purpose and unique structural layout directive.
+3. No HTML/CSS: Describe layouts in English (e.g. "A split layout with image on left and text on right").`,
+        prompt: `User Prompt: ${userPrompt}\nCatalog Size: ${catalogSize}\nDesign Tokens: ${JSON.stringify(designTokens)}`,
+        schema: z.object({
+            components: z.array(z.object({
+                name: z.string().describe("file_name, e.g. hero-banner.liquid"),
+                type: z.enum(["header", "footer", "section", "main-template", "snippet"]),
+                layout_directive: z.string().describe("Direction for the coder agent.")
+            })),
+            reasoning: z.string()
+        }),
+        maxTokens: 8192,
+    });
+
+    for await (const part of fullStream) {
+        if (sendEvent && part.type === 'object') sendEvent({ type: 'partial', node: 'planner', object: part.object });
+    }
+
+    const finalObject = await object;
+    const duration = Date.now() - startTime;
+    logger.info(`[Graph] ✅ Node: plannerNode complete (${duration}ms)`);
+    return {
+        components: finalObject.components,
+        reasoning: { node: 'planner', text: finalObject.reasoning }
+    };
+}
+
+/**
+ * --- NODE 2.5: Content Writer ---
+ * Generates sophisticated copy for planned components. (Step 3)
+ */
+async function contentWriterNode(state, config) {
+    const startTime = Date.now();
+    logger.info("[Graph] Node: contentWriterNode");
+    const { userPrompt, components, designTokens } = state;
+    const sendEvent = config.configurable?.sendEvent;
 
     let attempt = 0;
     const maxAttempts = 3;
@@ -87,61 +196,99 @@ async function plannerNode(state, config) {
         try {
             const { fullStream, object } = await streamObject({
                 model: gemini31Pro,
-                system: `You are the Lead Shopify Architect. You must translate the user's intent and any provided visual references (Image/HTML) into a STRICT JSON Spatial Blueprint.
-DE-ANCHORING RULES:
-1. Abstract, Don't Copy: Translate visual elements into descriptive English (e.g. "A 3-column masonry grid"). Do NOT use HTML/CSS snippets like div.grid-cols-3.
-2. Identify Intent: Focus on the purpose of a section.
-3. Mandatory Innovation: For every component, describe a layout structurally different from the exact input while maintaining the design vibe.
-
-Your goal is to extract "Design Tokens" and a "Spatial Blueprint" (components array). You are the ONLY agent that sees the original HTML/image. You must define each component strictly in text. You MUST include a header, footer, main-template (e.g. index.liquid content mapped to sections), and various sections.`,
-                messages: [{ role: 'user', content: messageContent }],
+                system: `You are a High-End Editorial Copywriter.
+                
+TONE OF VOICE: "Sophisticated"
+- Authoritative yet graceful.
+- Concise, poetic, and evocative.
+- Avoid marketing clichés (no "best in class", "one stop shop").
+- Focus on craftsmanship, heritage, and the sensory experience.`,
+                prompt: `User Prompt: ${userPrompt}\nPlanned Components: ${JSON.stringify(components)}\nDesign Vibe: ${designTokens.typography.heading_font}`,
                 schema: z.object({
-                    design_tokens: z.object({
-                        colors: z.object({ primary: z.string(), secondary: z.string(), background: z.string(), text: z.string() }),
-                        typography: z.object({ heading_style: z.string(), body_style: z.string(), scale: z.string() }),
-                        spacing_logic: z.string(),
-                        border_radius: z.string()
-                    }),
-                    components: z.array(z.object({
-                        name: z.string().describe("file_name, e.g. header.liquid, featured-product.liquid"),
-                        type: z.enum(["header", "footer", "section", "main-template", "snippet"]),
-                        layout_directive: z.string().describe("STRICT TEXT-ONLY DESCRIPTION: Describe the grid, alignment, and interactive behavior. DO NOT use HTML snippets. Force a unique structural layout.")
-                    })),
-                    thoughtProcess: z.string().optional().describe("Optional: your reasoning summary.")
+                    sectionContent: z.array(z.object({
+                        componentName: z.string().describe("Exact file name from the components list, e.g. hero-banner.liquid"),
+                        heading: z.string(),
+                        subheading: z.string().optional(),
+                        body: z.string().optional(),
+                        cta_label: z.string().optional(),
+                        marketing_hooks: z.array(z.string()).optional()
+                    })).describe("List of content for each planned component."),
+                    reasoning: z.string()
                 }),
-                maxRetries: 5,
-                maxTokens: 32768,
+                maxTokens: 16384,
             });
 
             for await (const part of fullStream) {
-                if (sendEvent) {
-                    if (part.type === 'reasoning') {
-                        sendEvent({ type: 'thinking', node: 'planner', text: part.textDelta });
-                    } else if (part.type === 'object') {
-                        sendEvent({ type: 'partial', node: 'planner', object: part.object });
-                    }
-                }
+                if (sendEvent && part.type === 'object') sendEvent({ type: 'partial', node: 'contentWriter', object: part.object });
             }
 
             finalObject = await object;
-            break;
+            break; // Success!
         } catch (error) {
             if (error.name === 'AI_NoObjectGeneratedError' || error.name === 'AI_JSONParseError') {
-                logger.warn(`[Graph] Planner silent truncation (finishReason: other), Retrying (${attempt}/${maxAttempts})...`);
+                logger.warn(`[Graph] Content Writer silent truncation or JSON error, Retrying (${attempt}/${maxAttempts})...`);
                 if (attempt >= maxAttempts) throw error;
             } else {
                 throw error;
             }
         }
     }
-    logger.debug({ node: 'planner', rawOutput: finalObject }, 'LLM response');
+
+    // Convert array back to record for the state if needed, but we can also just use the array
+    // To maintain compatibility with existing coderNode which expects sectionContent[targetComponent.name]
+    const contentRecord = {};
+    for (const item of finalObject.sectionContent) {
+        contentRecord[item.componentName] = item;
+    }
 
     const duration = Date.now() - startTime;
-    logger.info(`[Graph] ✅ Node: plannerNode complete (${duration}ms)`);
+    logger.info(`[Graph] ✅ Node: contentWriterNode complete (${duration}ms)`);
     return {
-        designTokens: finalObject.design_tokens,
-        components: finalObject.components,
-        reasoning: { node: 'planner', text: "Generated JSON Spatial Blueprint." }
+        sectionContent: contentRecord,
+        reasoning: { node: 'contentWriter', text: finalObject.reasoning }
+    };
+}
+
+/**
+ * --- NODE 2.7: Structural Agent ---
+ * Generates Global CSS and Layout Shell. (Steps 4 & 5)
+ */
+async function structuralNode(state, config) {
+    const startTime = Date.now();
+    logger.info("[Graph] Node: structuralNode");
+    const { designTokens, components } = state;
+    const sendEvent = config.configurable?.sendEvent;
+
+    const { fullStream, object } = await streamObject({
+        model: gemini31Pro,
+        system: `You are the Lead Frontend Engineer. Generate the Global CSS and the Global Layout Shell (theme.liquid) for the Shopify theme.
+        
+RULES:
+1. Global CSS: Define Tailwind @layer base styles using the project's design tokens.
+2. Layout Shell: theme.liquid must include header, footer, and the content_for_layout placeholder.
+3. No Pixels: Use relative units and fluid typography rules from the designTokens.`,
+        prompt: `Design Tokens: ${JSON.stringify(designTokens)}\nPlan: ${JSON.stringify(components)}`,
+        schema: z.object({
+            files: z.array(z.object({
+                path: z.string().describe("Expected: layout/theme.liquid and assets/base.css"),
+                content: z.string()
+            })),
+            reasoning: z.string()
+        }),
+        maxTokens: 16384,
+    });
+
+    for await (const part of fullStream) {
+        if (sendEvent && part.type === 'object') sendEvent({ type: 'partial', node: 'structural', object: part.object });
+    }
+
+    const finalObject = await object;
+    const duration = Date.now() - startTime;
+    logger.info(`[Graph] ✅ Node: structuralNode complete (${duration}ms)`);
+    return {
+        layoutShell: finalObject.files.find(f => f.path.includes('theme.liquid'))?.content,
+        generatedFiles: finalObject.files,
+        reasoning: { node: 'structural', text: finalObject.reasoning }
     };
 }
 
@@ -154,6 +301,8 @@ async function coderNode(state, config) {
         components,
         currentComponentIndex,
         designTokens,
+        sectionContent,
+        layoutShell,
         tsErrors
     } = state;
     const sendEvent = config.configurable?.sendEvent;
@@ -177,12 +326,14 @@ async function coderNode(state, config) {
     messageContent.push({
         type: 'text',
         text: `You are building a single component for a Shopify theme.
-Design Tokens (Use for all styling): ${JSON.stringify(designTokens)}
+Design Tokens: ${JSON.stringify(designTokens)}
+Global Layout Shell Context: ${layoutShell ? "Provided" : "Not Provided"}
 
 Component to Build:
 Name: ${targetComponent.name}
 Type: ${targetComponent.type}
-Layout Directive: ${targetComponent.layout_directive}`
+Layout Directive: ${targetComponent.layout_directive}
+Sophisticated Content: ${JSON.stringify(sectionContent[targetComponent.name] || {})} `
     });
 
     let attempt = 0;
@@ -194,30 +345,26 @@ Layout Directive: ${targetComponent.layout_directive}`
         try {
             const { fullStream, object } = await streamObject({
                 model: gemini31Pro,
-                system: `# MISSION: GENERATE HIGH-END SHOPIFY SECTION (FLOWBITE SPEC)
-Goal: Prioritize "Out-of-the-box" beauty using standard Flowbite aesthetics.
+                system: `# MISSION: GENERATE HIGH-END SHOPIFY SECTION (EDITORIAL SPEC)
+Goal: Prioritize architectural, editorial beauty.
 
-## 1. THE ARCHITECTURAL RULES
-You are a Senior Frontend Engineer. Build a stunning, professional eCommerce section.
-- STYLING: Use standard Flowbite and Tailwind CSS classes (e.g., bg-blue-600, text-gray-900, shadow-xl, rounded-xl). Use generous whitespace (p-8, gap-8) and rounded-xl or rounded-2xl corners.
-- TECH STACK: Shopify Liquid for structure + Vanilla JS Web Components (Light DOM) for interactivity.
-- FORBIDDEN: No React, No Vue, No jQuery, No Shadow DOM.
-- LAYOUT: Use a "Shadcn-plus" look: clean, high-contrast, professional.
+## 1. DESIGN SYSTEM SOURCE OF TRUTH (Aesthetic)
+${designSystemContent}
 
-## 2. OUTPUT PROTOCOL
+## 2. COMPONENT SYSTEM SOURCE OF TRUTH (Structure)
+${componentSpecContent}
+
+## 3. THE ARCHITECTURAL RULES
+You are a Senior Frontend Engineer. Build a stunning, bespoke editorial eCommerce section.
+- STYLING: Follow the "Colors & Surface Logic" and "Elevation & Depth" rules in DESIGN.md perfectly.
+- CONTENT: Use the provided "Sophisticated" content exactly. Do NOT hallucinate generic copy.
+- TECH STACK: Shopify Liquid + Vanilla JS Web Components (Light DOM) for interactivity.
+- LAYOUT: Use the "Intentional Asymmetry" and "No-Line" rules from the design system.
+
+## 4. OUTPUT PROTOCOL
 1. Liquid Code: Provide the full .liquid section file.
-2. Vanilla JS: Include the companion Web Component class inside a <script> tag in the liquid file.
-3. Schema: Provide a standard Shopify {% schema %} for images, text, and basic toggles.
-
-## 3. DESIGN DIRECTIVE
-Look at Flowbite's Ecommerce collection as your quality bar. The result must look like a modern, high-conversion SaaS storefront.
-
-CRITICAL DESIGN RULES:
-- ALWAYS ensure text has high contrast against its background.
-- If using white/light text, the container MUST have a dark background color, dark gradient, or dark image overlay.
-- Avoid hardcoding translation keys. Default to hardcoded text (e.g., "Submit") to prevent 'Translation missing' errors.
-- DO NOT use default Tailwind font utilities (font-serif, font-sans) without mapping them. Instead, use inline style="font-family: var(--font-heading)" or define custom styles.
-- You have NO access to the original user input. You only receive text-based Layout Directives and Design Tokens.`,
+2. Vanilla JS: Include the companion Web Component class inside a <script> tag.
+3. Schema: Provide a standard Shopify {% schema %} for content blocks.`,
                 messages: [{ role: 'user', content: messageContent }],
                 schema: z.object({
                     files: z.array(z.object({
@@ -353,87 +500,46 @@ async function assemblerNode(state, config) {
     // Dynamically calculate valid section types based ONLY on generated section files
     const validSectionTypes = generatedFiles
         .filter(f => f.path.startsWith('sections/'))
-        .map(f => f.path.replace('sections/', '').replace('.liquid', ''));
+        .map(f => f.path.replace('sections/', '').replace('.liquid', ''))
+        .filter(type => !['header', 'footer', 'announcement-bar'].includes(type));
 
-    const messageContent = [];
-
-    // 1. Critical Corrections First
-    if (assemblyErrors && assemblyErrors.length > 0) {
-        logger.info(`[Graph] Assembler node is self-healing from ${assemblyErrors.length} errors.`);
-        messageContent.push({
-            type: 'text',
-            text: `### CRITICAL: FIX THESE VALIDATION ERRORS FROM PREVIOUS ASSEMBLY ATTEMPT:\n${assemblyErrors.join("\n")}\n\nYou MUST correct these in the generated files.`
-        });
-    }
-
-    messageContent.push(
+    const messageContent = [
         { type: 'text', text: `Design Tokens: ${JSON.stringify(designTokens)}` },
         { type: 'text', text: `Component Registry: ${JSON.stringify(components)}` },
-        { type: 'text', text: `Generated Component Files Preview:\n` + generatedFiles.map(f => f.path).join(', ') },
-        { type: 'text', text: `EXACT VALID SECTION TYPES FOR INDEX.JSON: [${validSectionTypes.join(', ')}]` }
-    );
+        { type: 'text', text: `Generated Files: ${generatedFiles.map(f => f.path).join(', ')}` },
+        { type: 'text', text: `VALID SECTION TYPES: [${validSectionTypes.join(', ')}]` }
+    ];
 
-    let attempt = 0;
-    const maxAttempts = 3;
-    let finalObject;
+    const { fullStream, object } = await streamObject({
+        model: gemini31Pro,
+        system: `You are the final Assembly Agent. Create the templates/index.json file.
+        
+RULES:
+1. templates/index.json MUST include all generated sections in order.
+2. Ensure types match the provided VALID SECTION TYPES.
+3. Output exactly one file: templates/index.json.`,
+        messages: [{ role: 'user', content: messageContent }],
+        schema: z.object({
+            files: z.array(z.object({
+                path: z.string(),
+                content: z.string()
+            })),
+            reasoning: z.string().optional()
+        }),
+        maxTokens: 8192,
+    });
 
-    while (attempt < maxAttempts) {
-        attempt++;
-        try {
-            const { fullStream, object } = await streamObject({
-                model: gemini31Pro,
-                system: `You are the final Assembly Agent. Stitch together the validated components into the final architectural files.
-
-You MUST generate exactly these 4 files:
-
-1. templates/index.json
-   - RESTRICTION: The "type" field MUST ONLY use one of the Exact Valid Section Types provided.
-   - DO NOT include 'header', 'footer', or 'announcement-bar' inside index.json. They belong in layout/theme.liquid.
-
-2. layout/theme.liquid (the HTML wrapper)
-   - Include {% section 'header' %} and {% section 'footer' %} here.
-   - Include the Tailwind CSS CDN: <script src="https://cdn.tailwindcss.com"></script>
-   - Load any Google Fonts defined in the design tokens.
-
-3. config/settings_schema.json
-   - MUST include "theme_documentation_url": "https://help.shopify.com" in the theme_info block.
-   - Keep settings simple: brand colors, logo, social links. Do NOT create per-pixel CSS settings.
-
-4. locales/en.default.json
-   - Include common translation keys used by sections. If in doubt, output a comprehensive default JSON.`,
-                messages: [{ role: 'user', content: messageContent }],
-                schema: z.object({
-                    files: z.array(z.object({
-                        path: z.string(),
-                        content: z.string()
-                    })),
-                    thoughtProcess: z.string().optional()
-                }),
-                maxRetries: 5,
-                maxTokens: 32768,
-            });
-
-            for await (const part of fullStream) {
-                if (sendEvent) {
-                    if (part.type === 'reasoning') {
-                        sendEvent({ type: 'thinking', node: 'assembler', text: part.textDelta });
-                    } else if (part.type === 'object') {
-                        sendEvent({ type: 'partial', node: 'assembler', object: part.object });
-                    }
-                }
-            }
-
-            finalObject = await object;
-            break;
-        } catch (error) {
-            if (error.name === 'AI_NoObjectGeneratedError' || error.name === 'AI_JSONParseError') {
-                logger.warn(`[Graph] Assembler silent truncation (finishReason: other), Retrying (${attempt}/${maxAttempts})...`);
-                if (attempt >= maxAttempts) throw error;
-            } else {
-                throw error;
+    for await (const part of fullStream) {
+        if (sendEvent) {
+            if (part.type === 'reasoning') {
+                sendEvent({ type: 'thinking', node: 'assembler', text: part.textDelta });
+            } else if (part.type === 'object') {
+                sendEvent({ type: 'partial', node: 'assembler', object: part.object });
             }
         }
     }
+
+    finalObject = await object;
     logger.debug({ node: 'assembler', rawOutput: finalObject }, 'LLM response');
 
     const duration = Date.now() - startTime;
@@ -527,22 +633,22 @@ async function agenticQcNode(state, config) {
         try {
             const { fullStream, object } = await streamObject({
                 model: gemini31Pro,
-                system: `You are a Visual QC Auditor for a Shopify theme built with Flowbite/Tailwind CSS.
+                system: `You are a Visual QC Auditor for a High-End Editorial Shopify theme.
+
+## 1. DESIGN SYSTEM SOURCE OF TRUTH (Aesthetic)
+${designSystemContent}
+
+## 2. COMPONENT SYSTEM SOURCE OF TRUTH (Structure)
+${componentSpecContent}
 
 PASS the theme if ALL of the following are true:
-1. VISUAL QUALITY: The theme looks premium — generous spacing, rounded corners, professional typography, no cramped layouts.
-2. VANILLA JS ONLY: All interactivity uses Vanilla JS and Web Components. No React, Vue, jQuery, or $ detected.
-3. VALID SCHEMAS: All {% schema %} blocks contain valid JSON with a "presets" array.
-4. STRUCTURAL INTEGRITY: layout/theme.liquid includes the Tailwind CDN script, {% section 'header' %}, and {% section 'footer' %}.
+1. DESIGN SYSTEM COMPLIANCE: The code follows the rules in DESIGN.md (No rounded corners, no 1px dividers, tonal layering, correct typography).
+2. COMPONENT SPEC COMPLIANCE: The structure follows COMPONENT.md (Nesting, spacing, responsive behavior for specific sections).
+3. VISUAL QUALITY: The theme looks premium — authoritative, asymmetrical, professional.
+4. VANILLA JS ONLY: All interactivity uses Vanilla JS and Web Components.
+5. VALID SCHEMAS: All {% schema %} blocks contain valid JSON.
 
-EXPLICITLY IGNORE (do NOT flag these):
-- Standard Tailwind color classes (bg-blue-600, text-gray-900, etc.) — these are EXPECTED.
-- Hardcoded pixel values in Tailwind utilities (p-8, gap-4, text-sm) — these are EXPECTED.
-- Hex codes in CSS or Tailwind config — these are ACCEPTABLE.
-- CSS variables not bridged to Liquid settings — this is ACCEPTABLE.
-- WCAG contrast ratios for decorative elements.
-
-REJECT ONLY for: Broken Liquid syntax, missing/invalid {% schema %}, framework code (React/jQuery), or visually ugly/broken layouts.`,
+REJECT ONLY for: Non-compliance with DESIGN.md/COMPONENT.md, broken Liquid, missing schemas, or framework code.`,
                 prompt: `Design Tokens: ${JSON.stringify(designTokens)}\n\nGenerated Code for Review:\n${JSON.stringify(generatedFiles)}`,
                 schema: z.object({
                     passed: z.boolean(),
@@ -592,7 +698,10 @@ REJECT ONLY for: Broken Liquid syntax, missing/invalid {% schema %}, framework c
 
 module.exports = {
     classifierNode,
+    designerNode,
     plannerNode,
+    contentWriterNode,
+    structuralNode,
     coderNode,
     tsQcNode,
     assemblerNode,
