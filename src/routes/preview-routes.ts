@@ -289,14 +289,16 @@ router.post("/sync-bulk", async (req, res) => {
 
             // Re-sync corrected files
             if (filesToResync.length > 0) {
-                logger.info(`[PreviewRoutes] 📤 Re-syncing ${filesToResync.length} corrected files...`);
+                logger.info(`[PreviewRoutes] 📤 Sequential re-sync of ${filesToResync.length} corrected files...`);
                 try {
-                    await flyMachineService.syncBulk(machineId, filesToResync);
+                    for (const file of filesToResync) {
+                        await flyMachineService.syncFile(machineId, file.filePath, file.content);
+                    }
                     // Wait 5 seconds to catch CLI feedback
                     await new Promise(r => setTimeout(r, 5000));
                     logger.info(`[PreviewRoutes] ✅ Correction round complete.`);
                 } catch (e: any) {
-                    logger.error(`[PreviewRoutes] ❌ Correction re-sync failed: ${e.message}`);
+                    logger.error(`[PreviewRoutes] ❌ Correction sequential sync failed: ${e.message}`);
                 }
             } else {
                 logger.info(`[PreviewRoutes] ℹ️ No correctable files found in this round.`);
@@ -336,9 +338,12 @@ router.post("/sync-bulk", async (req, res) => {
             }
         });
 
-        // 5. Sync files
-        await flyMachineService.syncBulk(machineId, normalizedFiles as any);
-        logger.info(`[PreviewRoutes] ✅ Initial sync commands sent. Waiting for remote confirmation...`);
+        // 5. Sync files sequentially to ensure structural integrity
+        logger.info(`[PreviewRoutes] 📤 Sequential sync of ${normalizedFiles.length} files...`);
+        for (const f of normalizedFiles) {
+            await flyMachineService.syncFile(machineId, f.filePath!, f.content);
+        }
+        logger.info(`[PreviewRoutes] ✅ Initial sequential sync complete. Waiting for remote confirmation...`);
 
         const syncFinishedPromise = new Promise((resolve) => {
             resolveSyncFinished = resolve;

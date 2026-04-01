@@ -284,10 +284,20 @@ app.post('/api/build', async (req, res) => {
                             }
                         });
 
-                        // Initial Sync
-                        sendEvent({ type: 'progress', stage: 'FLY_PUSHING', message: `📤 Pushing ${mods.length} files to preview...` });
-                        flyMachineService.syncBulk(machineId, mods.map(m => ({ filePath: m.filePath!, content: m.content })))
-                            .then(async () => {
+                        // Initial Sync - SECURE SEQUENTIAL PUSH (Prevents malformed headers)
+                        sendEvent({ type: 'progress', stage: 'FLY_PUSHING', message: `📤 Syncing ${mods.length} files to preview...` });
+
+                        (async () => {
+                            try {
+                                for (let i = 0; i < mods.length; i++) {
+                                    if (isResolved) break;
+                                    const mod = mods[i];
+                                    sendEvent({ type: 'progress', stage: 'FLY_PUSHING', message: `📤 [${i + 1}/${mods.length}] ${mod.filePath}...` });
+                                    await flyMachineService.syncFile(machineId, mod.filePath, mod.content);
+                                }
+
+                                if (isResolved) return;
+
                                 // Wait a grace period for remote errors to surface
                                 for (let i = 0; i < 10; i++) {
                                     if (isResolved) return;
@@ -296,12 +306,12 @@ app.post('/api/build', async (req, res) => {
                                 stopMonitoring();
                                 cleanup();
                                 resolve();
-                            })
-                            .catch(err => {
+                            } catch (err) {
                                 stopMonitoring();
                                 cleanup();
                                 reject(err);
-                            });
+                            }
+                        })();
                     });
                 };
 
