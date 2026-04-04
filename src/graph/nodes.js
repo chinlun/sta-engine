@@ -254,43 +254,91 @@ TONE OF VOICE: "Sophisticated"
 /**
  * --- NODE 2.7: Structural Agent ---
  * Generates Global CSS and Layout Shell. (Steps 4 & 5)
+ * Refactored: Deterministic Template approach for Shopify Store Compliance.
  */
 async function structuralNode(state, config) {
     const startTime = Date.now();
-    logger.info("[Graph] Node: structuralNode");
-    const { designTokens, components } = state;
-    const sendEvent = config.configurable?.sendEvent;
+    logger.info("[Graph] Node: structuralNode (Deterministic)");
+    const { designTokens } = state;
 
-    const { fullStream, object } = await streamObject({
-        model: gemini31Pro,
-        system: `You are the Lead Frontend Engineer. Generate the Global CSS and the Global Layout Shell (theme.liquid) for the Shopify theme.
-        
-RULES:
-1. Global CSS: Define Tailwind @layer base styles using the project's design tokens.
-2. Layout Shell: theme.liquid must include header, footer, and the content_for_layout placeholder.
-3. No Pixels: Use relative units and fluid typography rules from the designTokens.`,
-        prompt: `Design Tokens: ${JSON.stringify(designTokens)}\nPlan: ${JSON.stringify(components)}`,
-        schema: z.object({
-            files: z.array(z.object({
-                path: z.string().describe("Expected: layout/theme.liquid and assets/base.css"),
-                content: z.string()
-            })),
-            reasoning: z.string()
-        }),
-        maxTokens: 16384,
-    });
+    // 1. Generate base.css with design tokens
+    const baseCss = `
+:root {
+  --color-primary: ${designTokens.primary_color || '#000000'};
+  --color-secondary: ${designTokens.secondary_color || '#999999'};
+  --color-background: ${designTokens.background_color || '#ffffff'};
+  --color-surface: ${designTokens.surface_color || '#f4f4f4'};
+  --color-text: ${designTokens.text_color || '#111111'};
+  --font-heading: 'Playfair Display', serif;
+  --font-body: 'Inter', sans-serif;
+  --spacing-base: 0.5rem;
+  --elevation-subtle: 0 4px 12px rgba(0,0,0,0.05);
+}
 
-    for await (const part of fullStream) {
-        if (sendEvent && part.type === 'object') sendEvent({ type: 'partial', node: 'structural', object: part.object });
-    }
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  background-color: var(--color-background);
+  color: var(--color-text);
+  line-height: 1.6;
+}
 
-    const finalObject = await object;
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  margin-top: 0;
+  color: var(--color-primary);
+}
+
+main {
+  min-height: 50vh;
+}
+    `.trim();
+
+    // 2. Generate theme.liquid (Fixed Store-Compliant Template)
+    const themeLiquid = `
+<!doctype html>
+<html class="no-js" lang="{{ request.locale.iso_code }}">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
+  
+  <title>{{ page_title }}</title>
+
+  {% if page_description %}
+    <meta name="description" content="{{ page_description | escape }}">
+  {% endif %}
+
+  {{ content_for_header }}
+
+  {{ 'base.css' | asset_url | stylesheet_tag }}
+</head>
+<body class="gradient">
+  {% section 'header' %}
+
+  <main id="MainContent" class="content-for-layout focus-none" role="main" tabindex="-1">
+    {{ content_for_layout }}
+  </main>
+
+  {% section 'footer' %}
+</body>
+</html>
+    `.trim();
+
+    const files = [
+        { path: 'layout/theme.liquid', content: themeLiquid },
+        { path: 'assets/base.css', content: baseCss }
+    ];
+
     const duration = Date.now() - startTime;
     logger.info(`[Graph] ✅ Node: structuralNode complete (${duration}ms)`);
     return {
-        layoutShell: finalObject.files.find(f => f.path.includes('theme.liquid'))?.content,
-        generatedFiles: finalObject.files,
-        reasoning: { node: 'structural', text: finalObject.reasoning }
+        layoutShell: themeLiquid,
+        generatedFiles: files,
+        reasoning: { node: 'structural', text: "Generated deterministic store-compliant layout and CSS variables." }
     };
 }
 
@@ -345,8 +393,8 @@ async function coderNode(state, config) {
         try {
             const { fullStream, object } = await streamObject({
                 model: gemini31Pro,
-                system: `# MISSION: GENERATE HIGH-END SHOPIFY SECTION (EDITORIAL SPEC)
-Goal: Prioritize architectural, editorial beauty.
+                system: `# MISSION: GENERATE HIGH-END SHOPIFY SECTION (VANILLA CSS SPEC)
+Goal: Prioritize architectural, editorial beauty using STANDARD CSS (No Tailwind).
 
 ## 1. DESIGN SYSTEM SOURCE OF TRUTH (Aesthetic)
 ${designSystemContent}
@@ -356,15 +404,16 @@ ${componentSpecContent}
 
 ## 3. THE ARCHITECTURAL RULES
 You are a Senior Frontend Engineer. Build a stunning, bespoke editorial eCommerce section.
-- STYLING: Follow the "Colors & Surface Logic" and "Elevation & Depth" rules in DESIGN.md perfectly.
+- STYLING: EXCLUSIVELY use Vanilla CSS inside a <style> tag within the section. Use the CSS variables provided in :root (--color-primary, --font-heading, etc.).
+- NO TAILWIND: Do NOT use Tailwind utility classes (py-10, flex, etc.) in the HTML. Use standard CSS classes.
 - CONTENT: Use the provided "Sophisticated" content exactly. Do NOT hallucinate generic copy.
 - TECH STACK: Shopify Liquid + Vanilla JS Web Components (Light DOM) for interactivity.
 - LAYOUT: Use the "Intentional Asymmetry" and "No-Line" rules from the design system.
 
 ## 4. OUTPUT PROTOCOL
-1. Liquid Code: Provide the full .liquid section file.
-2. Vanilla JS: Include the companion Web Component class inside a <script> tag.
-3. Schema: Provide a standard Shopify {% schema %} for content blocks.`,
+1. Liquid Code: Provide the full .liquid section file with internal <style> and <script> tags.
+2. Schema: Provide a standard Shopify {% schema %} at the BOTTOM of the file.`
+                ,
                 messages: [{ role: 'user', content: messageContent }],
                 schema: z.object({
                     files: z.array(z.object({
@@ -499,16 +548,20 @@ async function assemblerNode(state, config) {
     // Filter out global components (header, footer, announcement-bar) because they are in theme.liquid
     const pageSections = components.filter(c => {
         const name = c.name.toLowerCase();
-        const type = c.type.toLowerCase();
+        const type = (c.type || '').toLowerCase();
 
-        // Block by type
-        if (['header', 'footer', 'announcement-bar', 'main-template', 'snippet'].includes(type)) return false;
+        // 1. Strict name-based blocklist (most reliable for Shopify)
+        const blocklist = ['header', 'footer', 'announcement', 'popup', 'newsletter-popup'];
+        if (blocklist.some(blocked => name.includes(blocked))) return false;
 
-        // Block by explicit global flag
+        // 2. Strict type-based blocklist
+        if (blocklist.some(blocked => type.includes(blocked))) return false;
+
+        // 3. Skip snippets or layout shells that might have leaked in
+        if (name.includes('theme.liquid') || type === 'layout' || type === 'snippet') return false;
+
+        // 4. Explicit global flag check
         if (c.isGlobal === true) return false;
-
-        // Block by exact filename (most authoritative for Shopify sections)
-        if (name === 'header.liquid' || name === 'footer.liquid' || name === 'announcement-bar.liquid') return false;
 
         return true;
     });
