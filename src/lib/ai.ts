@@ -51,6 +51,39 @@ function wrapResilientModel(modelIds: string[]) {
 
     const models = modelIds.map(id => customGoogle(id));
 
+    const isRetryableError = (err: any) => {
+        // Detailed logging for AI_APICallError to help diagnose recurring failures
+        if (err.name === 'AI_APICallError') {
+            console.error(`[AI] 🚨 AI_APICallError Details: status=${err.status}, data=`, JSON.stringify(err.data || {}));
+        }
+
+        return err.statusCode === 503 || err.statusCode === 429 ||
+            err.status === 503 || err.status === 429 ||
+            err.code === 'UND_ERR_HEADERS_TIMEOUT' ||
+            err.cause?.code === 'UND_ERR_HEADERS_TIMEOUT' ||
+            err.name === 'AbortError' ||
+            (err.data?.error?.code === 503 || err.data?.error?.code === 429);
+    };
+
+    const withRetry = async (fn: () => Promise<any>, modelName: string, maxRetries = 2) => {
+        let lastError: any;
+        for (let attempt = 0; attempt <= maxRetries; attempt++) {
+            try {
+                return await fn();
+            } catch (err: any) {
+                lastError = err;
+                if (isRetryableError(err) && attempt < maxRetries) {
+                    const delay = Math.pow(2, attempt) * 1000;
+                    console.warn(`[AI] ⚠️ ${modelName} attempt ${attempt + 1} failed. Retrying in ${delay}ms...`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    continue;
+                }
+                throw err;
+            }
+        }
+        throw lastError;
+    };
+
     return wrapLanguageModel({
         model: models[0],
         middleware: {
@@ -59,10 +92,13 @@ function wrapResilientModel(modelIds: string[]) {
                 let lastErr: any;
                 for (let i = 0; i < models.length; i++) {
                     try {
-                        const result = i === 0 ? await doGenerate() : await models[i].doGenerate(params);
+                        const result = await withRetry(
+                            async () => i === 0 ? await doGenerate() : await models[i].doGenerate(params),
+                            modelIds[i]
+                        );
 
                         // Detect "silent failures": model returns OK but with empty content
-                        const hasContent = result.content.some(part =>
+                        const hasContent = result.content.some((part: any) =>
                             part.type === 'text' ||
                             part.type === 'tool-call' ||
                             part.type === 'reasoning'
@@ -75,14 +111,8 @@ function wrapResilientModel(modelIds: string[]) {
                         return result;
                     } catch (err: any) {
                         lastErr = err;
-                        const isRetryable = err.statusCode === 503 || err.statusCode === 429 ||
-                            err.status === 503 || err.status === 429 ||
-                            err.code === 'UND_ERR_HEADERS_TIMEOUT' ||
-                            err.name === 'AbortError' ||
-                            (err.data?.error?.code === 503 || err.data?.error?.code === 429);
-
-                        if (isRetryable && i < models.length - 1) {
-                            console.warn(`[AI] ⚠️ ${modelIds[i]} retryable error (${err.code || err.name || err.status || '503'}). Falling back to ${modelIds[i + 1]}...`);
+                        if (isRetryableError(err) && i < models.length - 1) {
+                            console.warn(`[AI] ⚠️ ${modelIds[i]} exhausted retries. Falling back to ${modelIds[i + 1]}...`);
                             continue;
                         }
                         throw err;
@@ -94,18 +124,14 @@ function wrapResilientModel(modelIds: string[]) {
                 let lastErr: any;
                 for (let i = 0; i < models.length; i++) {
                     try {
-                        if (i === 0) return await doStream();
-                        return await models[i].doStream(params);
+                        return await withRetry(
+                            async () => i === 0 ? await doStream() : await models[i].doStream(params),
+                            modelIds[i]
+                        );
                     } catch (err: any) {
                         lastErr = err;
-                        const isRetryable = err.statusCode === 503 || err.statusCode === 429 ||
-                            err.status === 503 || err.status === 429 ||
-                            err.code === 'UND_ERR_HEADERS_TIMEOUT' ||
-                            err.name === 'AbortError' ||
-                            (err.data?.error?.code === 503 || err.data?.error?.code === 429);
-
-                        if (isRetryable && i < models.length - 1) {
-                            console.warn(`[AI] ⚠️ ${modelIds[i]} retryable error (${err.code || err.name || err.status || '503'}). Falling back to ${modelIds[i + 1]}...`);
+                        if (isRetryableError(err) && i < models.length - 1) {
+                            console.warn(`[AI] ⚠️ ${modelIds[i]} exhausted retries. Falling back to ${modelIds[i + 1]}...`);
                             continue;
                         }
                         throw err;

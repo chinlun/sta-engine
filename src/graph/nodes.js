@@ -11,7 +11,7 @@ const path = require('path');
 let designSystemContent = "";
 let componentSpecContent = "";
 try {
-    const designPath = path.join(__dirname, "../../docs/design-system/DESIGN.md");
+    const designPath = path.join(__dirname, "../../docs/design-system/the-minimalist/DESIGN.md");
     designSystemContent = fs.readFileSync(designPath, "utf8");
 
     const componentPath = path.join(__dirname, "../../docs/design-system/the-minimalist/component.md");
@@ -150,15 +150,17 @@ async function plannerNode(state, config) {
         
 BLUEPRINT RULES:
 1. Editorial Hierarchy: Start with a strong visual hook (Hero), followed by product discovery, then brand story.
-2. Component Strategy: Define each component's purpose and unique structural layout directive.
-3. No HTML/CSS: Describe layouts in English (e.g. "A split layout with image on left and text on right").`,
+2. Global Layout Elements: Always include exactly one "header.liquid" and one "footer.liquid". EXPLICITLY set their type to "header" and "footer" and mark them as isGlobal: true.
+3. Page Template Sections: All other components should be tagged as type "section" and will be part of the Home Page Template (index.json).
+4. No HTML/CSS: Describe layouts in English (e.g. "A split layout with image on left and text on right").`,
         prompt: `User Prompt: ${userPrompt}\nCatalog Size: ${catalogSize}\nDesign Tokens: ${JSON.stringify(designTokens)}`,
         schema: z.object({
             components: z.array(z.object({
-                name: z.string().describe("file_name, e.g. hero-banner.liquid"),
+                name: z.string().describe("file_name, e.g. hero-banner.liquid, header.liquid, footer.liquid"),
                 type: z.enum(["header", "footer", "section", "main-template", "snippet"]),
+                isGlobal: z.boolean().optional().describe("MUST be true for elements like header/footer that live in the layout shell."),
                 layout_directive: z.string().describe("Direction for the coder agent.")
-            })),
+            })).describe("List of all components for the theme. Global elements must be tagged correctly."),
             reasoning: z.string()
         }),
         maxTokens: 8192,
@@ -307,6 +309,12 @@ async function coderNode(state, config) {
     } = state;
     const sendEvent = config.configurable?.sendEvent;
 
+    // Helper to truncate large strings but keep head/tail for context
+    const truncate = (str, maxChars = 2000) => {
+        if (!str || str.length <= maxChars) return str;
+        return `${str.substring(0, maxChars / 2)}\n... [TRUNCATED] ...\n${str.substring(str.length - maxChars / 2)}`;
+    };
+
     const targetComponent = components[currentComponentIndex];
     console.log(`[Graph] Node: coderNode (Component: ${targetComponent.name} | ${currentComponentIndex + 1}/${components.length})`);
 
@@ -325,15 +333,7 @@ async function coderNode(state, config) {
     // 2. Core Instructions (Blind to Input)
     messageContent.push({
         type: 'text',
-        text: `You are building a single component for a Shopify theme.
-Design Tokens: ${JSON.stringify(designTokens)}
-Global Layout Shell Context: ${layoutShell ? "Provided" : "Not Provided"}
-
-Component to Build:
-Name: ${targetComponent.name}
-Type: ${targetComponent.type}
-Layout Directive: ${targetComponent.layout_directive}
-Sophisticated Content: ${JSON.stringify(sectionContent[targetComponent.name] || {})} `
+        text: `You are building a single component for a Shopify theme.\nDesign Tokens: ${JSON.stringify(designTokens)}\nGlobal Layout Shell Context (Truncated): ${layoutShell ? truncate(layoutShell, 3000) : "Not Provided"}\n\nComponent to Build:\nName: ${targetComponent.name}\nType: ${targetComponent.type}\nLayout Directive: ${targetComponent.layout_directive}\nSophisticated Content: ${JSON.stringify(sectionContent[targetComponent.name] || {})} `
     });
 
     let attempt = 0;
@@ -494,60 +494,50 @@ async function tsQcNode(state, config) {
 async function assemblerNode(state, config) {
     const startTime = Date.now();
     logger.info("[Graph] Node: assemblerNode");
-    const { generatedFiles, designTokens, components, assemblyErrors } = state;
-    const sendEvent = config.configurable?.sendEvent;
+    const { components } = state;
 
-    // Dynamically calculate valid section types based ONLY on generated section files
-    const validSectionTypes = generatedFiles
-        .filter(f => f.path.startsWith('sections/'))
-        .map(f => f.path.replace('sections/', '').replace('.liquid', ''))
-        .filter(type => !['header', 'footer', 'announcement-bar'].includes(type));
+    // Filter out global components (header, footer, announcement-bar) because they are in theme.liquid
+    const pageSections = components.filter(c => {
+        const name = c.name.toLowerCase();
+        const type = c.type.toLowerCase();
 
-    const messageContent = [
-        { type: 'text', text: `Design Tokens: ${JSON.stringify(designTokens)}` },
-        { type: 'text', text: `Component Registry: ${JSON.stringify(components)}` },
-        { type: 'text', text: `Generated Files: ${generatedFiles.map(f => f.path).join(', ')}` },
-        { type: 'text', text: `VALID SECTION TYPES: [${validSectionTypes.join(', ')}]` }
-    ];
+        // Block by type
+        if (['header', 'footer', 'announcement-bar', 'main-template', 'snippet'].includes(type)) return false;
 
-    const { fullStream, object } = await streamObject({
-        model: gemini31Pro,
-        system: `You are the final Assembly Agent. Create the templates/index.json file.
-        
-RULES:
-1. templates/index.json MUST include all generated sections in order.
-2. Ensure types match the provided VALID SECTION TYPES.
-3. Output exactly one file: templates/index.json.`,
-        messages: [{ role: 'user', content: messageContent }],
-        schema: z.object({
-            files: z.array(z.object({
-                path: z.string(),
-                content: z.string()
-            })),
-            reasoning: z.string().optional()
-        }),
-        maxTokens: 8192,
+        // Block by explicit global flag
+        if (c.isGlobal === true) return false;
+
+        // Block by exact filename (most authoritative for Shopify sections)
+        if (name === 'header.liquid' || name === 'footer.liquid' || name === 'announcement-bar.liquid') return false;
+
+        return true;
     });
 
-    for await (const part of fullStream) {
-        if (sendEvent) {
-            if (part.type === 'reasoning') {
-                sendEvent({ type: 'thinking', node: 'assembler', text: part.textDelta });
-            } else if (part.type === 'object') {
-                sendEvent({ type: 'partial', node: 'assembler', object: part.object });
-            }
-        }
-    }
+    const indexJson = {
+        sections: {},
+        order: []
+    };
 
-    finalObject = await object;
-    logger.debug({ node: 'assembler', rawOutput: finalObject }, 'LLM response');
+    for (const comp of pageSections) {
+        const sectionId = comp.name.replace('.liquid', '');
+        indexJson.sections[sectionId] = {
+            type: sectionId
+        };
+        indexJson.order.push(sectionId);
+    }
 
     const duration = Date.now() - startTime;
     logger.info(`[Graph] ✅ Node: assemblerNode complete (${duration}ms)`);
+
+    const indexJsonFile = {
+        path: 'templates/index.json',
+        content: JSON.stringify(indexJson, null, 2)
+    };
+
     return {
-        generatedFiles: finalObject.files, // The reducer appends these to the master list
-        assemblyErrors: [], // clear for next try
-        reasoning: { node: 'assembler', text: "Assembled total theme structure." }
+        generatedFiles: [indexJsonFile],
+        assemblyErrors: [],
+        reasoning: { node: 'assembler', text: `Assembled ${pageSections.length} sections into index.json, excluding global elements.` }
     };
 }
 
