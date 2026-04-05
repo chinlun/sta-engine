@@ -325,6 +325,10 @@ export function validateAndRepair(plan: ThemePlan | BuildThemeToolParams): Valid
             const orderArray: string[] = indexJson.order || [];
 
             for (const sectionType of sectionFiles) {
+                // EXCLUSION: Do not auto-register global sections (header, footer, etc.) in the page template
+                const blocklist = ['header', 'footer', 'announcement', 'popup', 'newsletter-popup'];
+                if (blocklist.some(blocked => sectionType.includes(blocked))) continue;
+
                 if (!registeredTypes.has(sectionType)) {
                     const sectionKey = sectionType.replace(/-/g, '_');
                     indexJson.sections = indexJson.sections || {};
