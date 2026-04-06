@@ -1,5 +1,5 @@
 const { z } = require("zod");
-const { generateObject, streamObject } = require("ai");
+const { generateObject, streamObject, streamText } = require("ai");
 const { gemini31Pro, gemini3Flash } = require("../lib/ai");
 const { validateAndRepair } = require("../services/builder");
 const { IntegrityManager } = require("../services/integrity-manager");
@@ -27,6 +27,43 @@ try {
     blueprintsManifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
 } catch (e) {
     logger.warn(`Blueprints manifest not found: ${e.message}`);
+}
+
+/**
+ * --- UTILITIES: Shared Generation Helpers ---
+ */
+function getStructuralSkeleton(html) {
+    if (!html) return "";
+    return html
+        .replace(/<style[\s\S]*?<\/style>/gi, "") // Remove styles
+        .replace(/<script[\s\S]*?<\/script>/gi, "") // Remove scripts
+        .replace(/<!--[\s\S]*?-->/g, "") // Remove comments
+        .replace(/>\s+</g, "><") // Remove whitespace between tags
+        .replace(/<([a-z0-9]+)([^>]*?)>/gi, (match, tag, attrs) => {
+            const id = (attrs.match(/id=["']([^"']+)["']/) || [])[1];
+            const cls = (attrs.match(/class=["']([^"']+)["']/) || [])[1];
+            let minimal = `<${tag}`;
+            if (id) minimal += ` id="${id}"`;
+            if (cls) minimal += ` class="${cls}"`;
+            return minimal + ">";
+        })
+        .replace(/>[^<]+</g, "><") // Remove text content
+        .trim();
+}
+
+function extractJsonFromText(text) {
+    if (!text) return null;
+    const codeBlockRegex = /```(?:json)?\s*([\s\S]*?)\s*```/g;
+    let match;
+    while ((match = codeBlockRegex.exec(text)) !== null) {
+        try { return JSON.parse(match[1].trim()); } catch (e) { }
+    }
+    const firstBrace = text.indexOf('{');
+    const lastBrace = text.lastIndexOf('}');
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+        try { return JSON.parse(text.substring(firstBrace, lastBrace + 1)); } catch (e) { }
+    }
+    return null;
 }
 
 /**
@@ -99,42 +136,77 @@ async function designerNode(state, config) {
         messageContent.push({ type: 'image', image: referenceImageBase64 });
     }
 
-    const { fullStream, object } = await streamObject({
+    const { fullStream, text } = await streamText({
         model: gemini3Flash,
         system: `You are the Lead Designer Agent. Your goal is to select a curated, high-end color palette and design tokens.
         
 AESTHETIC RULES:
 1. "Sophisticated" & Premium: Avoid basic colors. Use HSL-tailored, harmonious palettes.
 2. Editorial Design: Prioritize typography and white space. No rounded corners (0px).
-3. Authority: The design should feel authoritative and state-of-the-art.`,
+
+OUTPUT FORMAT:
+Return a JSON object inside a \`\`\`json code block.
+Schema:
+{
+  "design_tokens": {
+    "colors": {
+      "primary": "string",
+      "secondary": "string",
+      "background": "string",
+      "surface": "string",
+      "text": "string"
+    },
+    "typography": {
+      "heading_font": "string",
+      "body_font": "string",
+      "scale": "minimal" | "standard" | "bold"
+    },
+    "spacing": "string",
+    "elevation": "string"
+  },
+  "reasoning": "string"
+}`,
         messages: [{ role: 'user', content: messageContent }],
-        schema: z.object({
-            design_tokens: z.object({
-                colors: z.object({
-                    primary: z.string().describe("Main brand color (e.g. deep charcoal #1a1a1a)"),
-                    secondary: z.string().describe("Accent color (e.g. muted gold #c5a059)"),
-                    background: z.string().describe("Main page background (e.g. off-white #f8f8f8)"),
-                    surface: z.string().describe("Surface color for cards/sections"),
-                    text: z.string().describe("Main body text color")
-                }),
-                typography: z.object({
-                    heading_font: z.string().describe("Google Font name for headings (e.g. Noto Serif)"),
-                    body_font: z.string().describe("Google Font name for body text (e.g. Inter)"),
-                    scale: z.enum(["minimal", "standard", "bold"])
-                }),
-                spacing: z.string().describe("Base spacing unit (e.g. 4px, 8px)"),
-                elevation: z.string().describe("Shadow style (e.g. subtle, glassmorphism)")
-            }),
-            reasoning: z.string()
-        }),
         maxTokens: 4096,
     });
 
+    let hasStartedStream = false;
+    let streamBuffer = "";
+    let partCount = 0;
+
     for await (const part of fullStream) {
-        if (sendEvent && part.type === 'object') sendEvent({ type: 'partial', node: 'designer', object: part.object });
+        partCount++;
+        // Exhaustive key capture for 3.1 Pro robustness
+        const delta = part.textDelta || part.reasoning || part.thought || part.text || "";
+
+        if (!hasStartedStream && delta) {
+            logger.info(`[AI] designerNode stream started (Recvd ${partCount} parts)...`);
+            hasStartedStream = true;
+        }
+
+        // Alive signal every 20 parts if silent
+        if (partCount % 20 === 0) logger.info(`[AI] designerNode: Recvd ${partCount} parts (Alive)...`);
+
+        if (delta) {
+            streamBuffer += delta;
+            if (sendEvent && part.type === 'text-delta') sendEvent({ type: 'thinking', node: 'designer', text: delta });
+
+            // Buffer flushes periodically or on newline (NO TRIMMING)
+            if (streamBuffer.length > 50 || streamBuffer.includes('\n')) {
+                logger.info(`[AI] ${streamBuffer}`);
+                streamBuffer = "";
+            }
+        }
+    }
+    if (streamBuffer) logger.info(`[AI] ${streamBuffer}`);
+
+    const finalText = await text;
+    const finalObject = extractJsonFromText(finalText);
+
+    if (!finalObject || !finalObject.design_tokens) {
+        throw new Error("Failed to extract valid JSON from designer stream");
     }
 
-    const finalObject = await object;
     const duration = Date.now() - startTime;
     logger.info(`[Graph] ✅ Node: designerNode complete (${duration}ms)`);
     return {
@@ -155,41 +227,74 @@ async function plannerNode(state, config) {
 
     const manifestSummary = blueprintsManifest.map(bp => `- ID: ${bp.blueprint_id} | Vibe: ${bp.vibe} | Description: ${bp.visual_description} | Best For: ${bp.best_for.join(", ")}`).join('\n');
 
-    const { fullStream, object } = await streamObject({
-        model: gemini31Pro,
+    const { fullStream, text } = await streamText({
+        model: gemini3Flash,
         system: `You are the Lead Shopify Architect. Based on the selected design tokens, break down the home page into a list of components.
         
-BLUEPRINT RULES:
+BLUEPRINTS:
+${manifestSummary}
+
+RULES:
 1. Editorial Hierarchy: Start with a strong visual hook (Hero), followed by product discovery, then brand story.
 2. Global Layout Elements: Always include exactly one "header.liquid" and one "footer.liquid". EXPLICITLY set their type to "header" and "footer" and mark them as isGlobal: true.
 3. Page Template Sections: All other components should be tagged as type "section" and will be part of the Home Page Template (index.json).
-4. No HTML/CSS: Describe layouts in English (e.g. "A split layout with image on left and text on right").
-5. If the layout includes a hero section, select the most appropriate Hero Blueprint ID from the available list based on the user's prompt. Provide the \`blueprint_id\`.
+4. No HTML/CSS: Describe layouts in English.
+5. Hero Blueprint: Select the most appropriate Hero Blueprint ID from the manifest.
 
-Available Hero Blueprints:
-${manifestSummary}
-`,
+OUTPUT FORMAT:
+Return a JSON object inside a \`\`\`json code block.
+Schema:
+{
+  "components": [
+    {
+      "name": "string",
+      "type": "header" | "footer" | "section",
+      "isGlobal": boolean,
+      "layout_directive": "string"
+    }
+  ],
+  "blueprint_id": "string",
+  "reasoning": "string"
+}`,
         prompt: `User Prompt: ${userPrompt}\nCatalog Size: ${catalogSize}\nDesign Tokens: ${JSON.stringify(designTokens)}`,
-        schema: z.object({
-            components: z.array(z.object({
-                name: z.string().describe("file_name, e.g. hero-banner.liquid, header.liquid, footer.liquid"),
-                type: z.enum(["header", "footer", "section", "main-template", "snippet"]),
-                isGlobal: z.boolean().optional().describe("MUST be true for elements like header/footer that live in the layout shell."),
-                layout_directive: z.string().describe("Direction for the coder agent.")
-            })).describe("List of all components for the theme. Global elements must be tagged correctly."),
-            blueprint_id: z.string().optional().describe("The ID of the hero blueprint from the manifest.json to use, if applicable."),
-            reasoning: z.string()
-        }),
         maxTokens: 8192,
     });
 
+    let hasStartedStream = false;
+    let streamBuffer = "";
+    let partCount = 0;
+
     for await (const part of fullStream) {
-        if (sendEvent && part.type === 'object') sendEvent({ type: 'partial', node: 'planner', object: part.object });
+        partCount++;
+        const delta = part.textDelta || part.reasoning || part.thought || part.text || "";
+
+        if (!hasStartedStream && delta) {
+            logger.info(`[AI] plannerNode stream started (Recvd ${partCount} parts)...`);
+            hasStartedStream = true;
+        }
+
+        if (partCount % 20 === 0) logger.info(`[AI] plannerNode: Recvd ${partCount} parts (Alive)...`);
+
+        if (delta) {
+            streamBuffer += delta;
+            if (sendEvent && part.type === 'text-delta') sendEvent({ type: 'thinking', node: 'planner', text: delta });
+
+            if (streamBuffer.length > 60 || streamBuffer.includes('\n')) {
+                logger.info(`[AI] ${streamBuffer}`);
+                streamBuffer = "";
+            }
+        }
+    }
+    if (streamBuffer) logger.info(`[AI] ${streamBuffer}`);
+
+    const finalText = await text;
+    const finalObject = extractJsonFromText(finalText);
+
+    if (!finalObject || !finalObject.components) {
+        throw new Error("Failed to extract valid JSON from planner stream");
     }
 
-    const finalObject = await object;
     const duration = Date.now() - startTime;
-
     if (finalObject.blueprint_id) {
         logger.info(`[Graph] Selected Hero Blueprint: ${finalObject.blueprint_id}`);
     }
@@ -201,6 +306,8 @@ ${manifestSummary}
         reasoning: { node: 'planner', text: finalObject.reasoning }
     };
 }
+
+// (Utilities moved to top)
 
 /**
  * --- NODE 2.5: Content Writer ---
@@ -219,39 +326,72 @@ async function contentWriterNode(state, config) {
     while (attempt < maxAttempts) {
         attempt++;
         try {
-            const { fullStream, object } = await streamObject({
-                model: gemini31Pro,
+            const { fullStream, text } = await streamText({
+                model: gemini3Flash,
                 system: `You are a High-End Editorial Copywriter.
                 
 TONE OF VOICE: "Sophisticated"
 - Authoritative yet graceful.
 - Concise, poetic, and evocative.
-- Avoid marketing clichés (no "best in class", "one stop shop").
-- Focus on craftsmanship, heritage, and the sensory experience.`,
+- Avoid marketing clichés.
+
+OUTPUT FORMAT:
+Return a JSON object inside a \`\`\`json code block.
+Schema:
+{
+  "sectionContent": [
+    {
+      "componentName": "string",
+      "heading": "string",
+      "subheading": "string",
+      "body": "string",
+      "cta_label": "string",
+      "marketing_hooks": ["string"]
+    }
+  ],
+  "reasoning": "string"
+}`,
                 prompt: `User Prompt: ${userPrompt}\nPlanned Components: ${JSON.stringify(components)}\nDesign Vibe: ${designTokens.typography.heading_font}`,
-                schema: z.object({
-                    sectionContent: z.array(z.object({
-                        componentName: z.string().describe("Exact file name from the components list, e.g. hero-banner.liquid"),
-                        heading: z.string(),
-                        subheading: z.string().optional(),
-                        body: z.string().optional(),
-                        cta_label: z.string().optional(),
-                        marketing_hooks: z.array(z.string()).optional()
-                    })).describe("List of content for each planned component."),
-                    reasoning: z.string()
-                }),
                 maxTokens: 16384,
             });
 
-            for await (const part of fullStream) {
-                if (sendEvent && part.type === 'object') sendEvent({ type: 'partial', node: 'contentWriter', object: part.object });
-            }
+            let hasStartedStream = false;
+            let streamBuffer = "";
+            let partCount = 0;
 
-            finalObject = await object;
+            for await (const part of fullStream) {
+                partCount++;
+                const delta = part.textDelta || part.reasoning || part.thought || part.text || "";
+
+                if (!hasStartedStream && delta) {
+                    logger.info(`[AI] contentWriterNode stream started (Recvd ${partCount} parts)...`);
+                    hasStartedStream = true;
+                }
+
+                if (partCount % 20 === 0) logger.info(`[AI] contentWriterNode: Recvd ${partCount} parts (Alive)...`);
+
+                if (delta) {
+                    streamBuffer += delta;
+                    if (sendEvent && part.type === 'text-delta') sendEvent({ type: 'thinking', node: 'contentWriter', text: delta });
+
+                    if (streamBuffer.length > 50 || streamBuffer.includes('\n')) {
+                        logger.info(`[AI] ${streamBuffer}`);
+                        streamBuffer = "";
+                    }
+                }
+            }
+            if (streamBuffer) logger.info(`[AI] ${streamBuffer}`);
+
+            const finalText = await text;
+            finalObject = extractJsonFromText(finalText);
+
+            if (!finalObject || !finalObject.sectionContent) {
+                throw new Error("Failed to extract valid JSON from content writer stream");
+            }
             break; // Success!
         } catch (error) {
-            if (error.name === 'AI_NoObjectGeneratedError' || error.name === 'AI_JSONParseError') {
-                logger.warn(`[Graph] Content Writer silent truncation or JSON error, Retrying (${attempt}/${maxAttempts})...`);
+            if (error.name === 'AI_NoObjectGeneratedError' || error.name === 'AI_JSONParseError' || error.message.includes('extract valid JSON')) {
+                logger.warn(`[Graph] Content Writer error, Retrying (${attempt}/${maxAttempts})...`);
                 if (attempt >= maxAttempts) throw error;
             } else {
                 throw error;
@@ -430,11 +570,11 @@ CRITICAL REQUIREMENTS:
 - Use \`{% schema %}\` to make every text and image field editable in Shopify.
 - CRITICAL: Scope all your CSS using \`#shopify-section-{{ section.id }}\`.
 
-DESKTOP HTML REFERENCE:
-${desktopHtml}
+DESKTOP STRUCTURE REFERENCE:
+${getStructuralSkeleton(desktopHtml)}
 
-MOBILE HTML REFERENCE:
-${mobileHtml}`
+MOBILE STRUCTURE REFERENCE:
+${getStructuralSkeleton(mobileHtml)}`
                 });
                 logger.info(`[Graph] Injected Hero Blueprint (${selectedBlueprintId}) into code generation context.`);
             } catch (err) {
@@ -453,7 +593,7 @@ ${mobileHtml}`
     while (attempt < maxAttempts) {
         attempt++;
         try {
-            const { fullStream, object } = await streamObject({
+            const { fullStream, text } = await streamText({
                 model: gemini31Pro,
                 system: `# MISSION: GENERATE HIGH-END SHOPIFY SECTION (VANILLA CSS SPEC)
 Goal: Prioritize architectural, editorial beauty using STANDARD CSS (No Tailwind).
@@ -472,46 +612,61 @@ You are a Senior Frontend Engineer. Build a stunning, bespoke editorial eCommerc
 - TECH STACK: Shopify Liquid + Vanilla JS Web Components (Light DOM) for interactivity.
 - LAYOUT: Use the "Intentional Asymmetry" and "No-Line" rules from the design system.
 
-## 4. OUTPUT PROTOCOL
-1. Liquid Code: Provide the full .liquid section file with internal <style> and <script> tags.
-2. Schema: Provide a standard Shopify {% schema %} at the BOTTOM of the file.`
+## 4. OUTPUT FORMAT
+Return a JSON object inside a \`\`\`json code block.
+Schema:
+{
+  "files": [
+    {
+      "path": "sections/filename.liquid",
+      "content": "string"
+    }
+  ],
+  "thoughtProcess": "string"
+}`
                 ,
                 messages: [{ role: 'user', content: messageContent }],
-                schema: z.object({
-                    files: z.array(z.object({
-                        path: z.string().describe("e.g. sections/header.liquid, snippets/card.liquid"),
-                        content: z.string()
-                    })),
-                    thoughtProcess: z.string().optional()
-                }),
-                maxRetries: 5,
                 maxTokens: 32768,
             });
 
+            let hasStartedStream = false;
+            let streamBuffer = "";
+            let partCount = 0;
+
             for await (const part of fullStream) {
-                if (sendEvent) {
-                    if (part.type === 'reasoning') {
-                        sendEvent({ type: 'thinking', node: 'coder', text: part.textDelta });
-                    } else if (part.type === 'object') {
-                        sendEvent({ type: 'partial', node: 'coder', object: part.object });
+                partCount++;
+                const delta = part.textDelta || part.reasoning || part.thought || part.text || "";
+
+                if (!hasStartedStream && delta) {
+                    logger.info(`[AI] coderNode stream started (Recvd ${partCount} parts)...`);
+                    hasStartedStream = true;
+                }
+
+                if (partCount % 20 === 0) logger.info(`[AI] coderNode: Recvd ${partCount} parts (Alive)...`);
+
+                if (delta) {
+                    streamBuffer += delta;
+                    if (sendEvent && part.type === 'text-delta') sendEvent({ type: 'thinking', node: 'coder', text: delta });
+
+                    if (streamBuffer.length > 50 || streamBuffer.includes('\n')) {
+                        logger.info(`[AI] ${streamBuffer}`);
+                        streamBuffer = "";
                     }
                 }
             }
+            if (streamBuffer) logger.info(`[AI] ${streamBuffer}`);
 
-            finalObject = await object;
-            break; // Success! Break out of the retry loop.
+            const finalText = await text;
+            finalObject = extractJsonFromText(finalText);
+
+            if (!finalObject || !finalObject.files) {
+                throw new Error("Failed to extract valid JSON from coder stream");
+            }
+            break; // Success!
         } catch (error) {
-            if (error.name === 'AI_NoObjectGeneratedError' || error.name === 'AI_JSONParseError' || error.message.includes('malformed')) {
-                logger.warn(`[Graph] Coder malformed output or truncation, triggering high-priority recovery...`);
-
-                const { recoverMalformedCall } = require('../lib/correction-loop');
-                try {
-                    const recoveredText = await recoverMalformedCall();
-                    // If we got something back, we could try to parse it or just let the loop continue with a correction prompt
-                    messageContent.push({ role: 'user', content: "Your previous tool call was syntactically invalid. Output ONLY the corrected tool call using the valid schema." });
-                } catch (e) {
-                    if (attempt >= maxAttempts) throw error;
-                }
+            if (error.name === 'AI_NoObjectGeneratedError' || error.name === 'AI_JSONParseError' || error.message.includes('extract valid JSON')) {
+                logger.warn(`[Graph] Coder error, Retrying (${attempt}/${maxAttempts})...`);
+                if (attempt >= maxAttempts) throw error;
             } else {
                 throw error;
             }
@@ -736,7 +891,7 @@ async function agenticQcNode(state, config) {
     while (attempt < maxAttempts) {
         attempt++;
         try {
-            const { fullStream, object } = await streamObject({
+            const { fullStream, text } = await streamText({
                 model: gemini31Pro,
                 system: `You are a Visual QC Auditor for a High-End Editorial Shopify theme.
 
@@ -753,32 +908,57 @@ PASS the theme if ALL of the following are true:
 4. VANILLA JS ONLY: All interactivity uses Vanilla JS and Web Components.
 5. VALID SCHEMAS: All {% schema %} blocks contain valid JSON.
 
-REJECT ONLY for: Non-compliance with DESIGN.md/COMPONENT.md, broken Liquid, missing schemas, or framework code.`,
+REJECT ONLY for: Non-compliance with DESIGN.md/COMPONENT.md, broken Liquid, missing schemas, or framework code.
+
+OUTPUT FORMAT:
+Return a JSON object inside a \`\`\`json code block.
+Schema:
+{
+  "passed": boolean,
+  "errors": ["string"],
+  "thoughtProcess": "string"
+}`,
                 prompt: `Design Tokens: ${JSON.stringify(designTokens)}\n\nGenerated Code for Review:\n${JSON.stringify(generatedFiles)}`,
-                schema: z.object({
-                    passed: z.boolean(),
-                    errors: z.array(z.string()),
-                    thoughtProcess: z.string().optional()
-                }),
-                maxRetries: 5,
                 maxTokens: 32768,
             });
 
+            let hasStartedStream = false;
+            let streamBuffer = "";
+            let partCount = 0;
+
             for await (const part of fullStream) {
-                if (sendEvent) {
-                    if (part.type === 'reasoning') {
-                        sendEvent({ type: 'thinking', node: 'agenticQc', text: part.textDelta });
-                    } else if (part.type === 'object') {
-                        sendEvent({ type: 'partial', node: 'agenticQc', object: part.object });
+                partCount++;
+                const delta = part.textDelta || part.reasoning || part.thought || part.text || "";
+
+                if (!hasStartedStream && delta) {
+                    logger.info(`[AI] agenticQcNode stream started (Recvd ${partCount} parts)...`);
+                    hasStartedStream = true;
+                }
+
+                if (partCount % 20 === 0) logger.info(`[AI] agenticQcNode: Recvd ${partCount} parts (Alive)...`);
+
+                if (delta) {
+                    streamBuffer += delta;
+                    if (sendEvent && part.type === 'text-delta') sendEvent({ type: 'thinking', node: 'agenticQc', text: delta });
+
+                    if (streamBuffer.length > 50 || streamBuffer.includes('\n')) {
+                        logger.info(`[AI] ${streamBuffer}`);
+                        streamBuffer = "";
                     }
                 }
             }
+            if (streamBuffer) logger.info(`[AI] ${streamBuffer}`);
 
-            finalObject = await object;
+            const finalText = await text;
+            finalObject = extractJsonFromText(finalText);
+
+            if (!finalObject || typeof finalObject.passed !== 'boolean') {
+                throw new Error("Failed to extract valid JSON from agentic QC stream");
+            }
             break; // Success!
         } catch (error) {
-            if (error.name === 'AI_NoObjectGeneratedError' || error.name === 'AI_JSONParseError') {
-                logger.warn(`[Graph] Agentic QC silent truncation (finishReason: other), Retrying (${attempt}/${maxAttempts})...`);
+            if (error.name === 'AI_NoObjectGeneratedError' || error.name === 'AI_JSONParseError' || error.message.includes('extract valid JSON')) {
+                logger.warn(`[Graph] Agentic QC error, Retrying (${attempt}/${maxAttempts})...`);
                 if (attempt >= maxAttempts) throw error;
             } else {
                 throw error;
@@ -800,6 +980,14 @@ REJECT ONLY for: Non-compliance with DESIGN.md/COMPONENT.md, broken Liquid, miss
         reasoning: { node: 'agenticQc', text: finalObject.thoughtProcess || "Design review complete." }
     };
 }
+
+// (Utilities moved to top)
+
+/**
+ * --- UTILITY: Extract Structural Skeleton ---
+ * Minimizes an HTML string to just its structural tags, classes, and IDs for LLM context.
+ */
+// (Already moved to top)
 
 module.exports = {
     classifierNode,
