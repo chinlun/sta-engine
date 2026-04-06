@@ -20,6 +20,15 @@ try {
     logger.warn(`Design specification not found: ${e.message}`);
 }
 
+// --- BLUEPRINTS MANIFEST ---
+let blueprintsManifest = [];
+try {
+    const manifestPath = path.join(__dirname, "../../blueprints/manifest.json");
+    blueprintsManifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+} catch (e) {
+    logger.warn(`Blueprints manifest not found: ${e.message}`);
+}
+
 /**
  * --- NODE 1: Classifier ---
  */
@@ -91,7 +100,7 @@ async function designerNode(state, config) {
     }
 
     const { fullStream, object } = await streamObject({
-        model: gemini31Pro,
+        model: gemini3Flash,
         system: `You are the Lead Designer Agent. Your goal is to select a curated, high-end color palette and design tokens.
         
 AESTHETIC RULES:
@@ -144,6 +153,8 @@ async function plannerNode(state, config) {
     const { userPrompt, designTokens, catalogSize } = state;
     const sendEvent = config.configurable?.sendEvent;
 
+    const manifestSummary = blueprintsManifest.map(bp => `- ID: ${bp.blueprint_id} | Vibe: ${bp.vibe} | Description: ${bp.visual_description} | Best For: ${bp.best_for.join(", ")}`).join('\n');
+
     const { fullStream, object } = await streamObject({
         model: gemini31Pro,
         system: `You are the Lead Shopify Architect. Based on the selected design tokens, break down the home page into a list of components.
@@ -152,7 +163,12 @@ BLUEPRINT RULES:
 1. Editorial Hierarchy: Start with a strong visual hook (Hero), followed by product discovery, then brand story.
 2. Global Layout Elements: Always include exactly one "header.liquid" and one "footer.liquid". EXPLICITLY set their type to "header" and "footer" and mark them as isGlobal: true.
 3. Page Template Sections: All other components should be tagged as type "section" and will be part of the Home Page Template (index.json).
-4. No HTML/CSS: Describe layouts in English (e.g. "A split layout with image on left and text on right").`,
+4. No HTML/CSS: Describe layouts in English (e.g. "A split layout with image on left and text on right").
+5. If the layout includes a hero section, select the most appropriate Hero Blueprint ID from the available list based on the user's prompt. Provide the \`blueprint_id\`.
+
+Available Hero Blueprints:
+${manifestSummary}
+`,
         prompt: `User Prompt: ${userPrompt}\nCatalog Size: ${catalogSize}\nDesign Tokens: ${JSON.stringify(designTokens)}`,
         schema: z.object({
             components: z.array(z.object({
@@ -161,6 +177,7 @@ BLUEPRINT RULES:
                 isGlobal: z.boolean().optional().describe("MUST be true for elements like header/footer that live in the layout shell."),
                 layout_directive: z.string().describe("Direction for the coder agent.")
             })).describe("List of all components for the theme. Global elements must be tagged correctly."),
+            blueprint_id: z.string().optional().describe("The ID of the hero blueprint from the manifest.json to use, if applicable."),
             reasoning: z.string()
         }),
         maxTokens: 8192,
@@ -172,9 +189,15 @@ BLUEPRINT RULES:
 
     const finalObject = await object;
     const duration = Date.now() - startTime;
+
+    if (finalObject.blueprint_id) {
+        logger.info(`[Graph] Selected Hero Blueprint: ${finalObject.blueprint_id}`);
+    }
+
     logger.info(`[Graph] ✅ Node: plannerNode complete (${duration}ms)`);
     return {
         components: finalObject.components,
+        selectedBlueprintId: finalObject.blueprint_id,
         reasoning: { node: 'planner', text: finalObject.reasoning }
     };
 }
@@ -353,7 +376,8 @@ async function coderNode(state, config) {
         designTokens,
         sectionContent,
         layoutShell,
-        tsErrors
+        tsErrors,
+        selectedBlueprintId
     } = state;
     const sendEvent = config.configurable?.sendEvent;
 
@@ -383,6 +407,44 @@ async function coderNode(state, config) {
         type: 'text',
         text: `You are building a single component for a Shopify theme.\nDesign Tokens: ${JSON.stringify(designTokens)}\nGlobal Layout Shell Context (Truncated): ${layoutShell ? truncate(layoutShell, 3000) : "Not Provided"}\n\nComponent to Build:\nName: ${targetComponent.name}\nType: ${targetComponent.type}\nLayout Directive: ${targetComponent.layout_directive}\nSophisticated Content: ${JSON.stringify(sectionContent[targetComponent.name] || {})} `
     });
+
+    // 2.5 Blueprint Injection (if applicable)
+    const isHero = (targetComponent.layout_directive && targetComponent.layout_directive.toLowerCase().includes('hero')) || targetComponent.name.toLowerCase().includes('hero');
+    if (isHero && selectedBlueprintId) {
+        const blueprint = blueprintsManifest.find(bp => bp.blueprint_id === selectedBlueprintId);
+        if (blueprint) {
+            try {
+                const blueprintsDir = path.join(__dirname, "../../blueprints");
+                const desktopHtml = fs.readFileSync(path.join(blueprintsDir, blueprint.paths.desktop), 'utf8');
+                const mobileHtml = fs.readFileSync(path.join(blueprintsDir, blueprint.paths.mobile), 'utf8');
+
+                messageContent.push({
+                    type: 'text',
+                    text: `### STRUCTURAL BLUEPRINT (HERO)
+Use the following Desktop and Mobile HTML structures purely as **reference and inspiration** to create a completely customized section for the user based on their prompt. 
+Do NOT copy this HTML exactly as is.
+
+CRITICAL REQUIREMENTS:
+- You MUST perfectly JIT Liquid-ize this to make it Shopify compatible.
+- Merge the conceptual structures from desktop/mobile into one responsive \`.liquid\` file.
+- Use \`{% schema %}\` to make every text and image field editable in Shopify.
+- CRITICAL: Scope all your CSS using \`#shopify-section-{{ section.id }}\`.
+
+DESKTOP HTML REFERENCE:
+${desktopHtml}
+
+MOBILE HTML REFERENCE:
+${mobileHtml}`
+                });
+                logger.info(`[Graph] Injected Hero Blueprint (${selectedBlueprintId}) into code generation context.`);
+            } catch (err) {
+                logger.warn(`[Graph] Failed to load blueprint HTML for ${selectedBlueprintId}, falling back to standard generation: ${err.message}`);
+            }
+        } else {
+            logger.warn(`[Graph] Blueprint ${selectedBlueprintId} not found in manifest, gracefully falling back to standard generation.`);
+        }
+    }
+
 
     let attempt = 0;
     const maxAttempts = 3;

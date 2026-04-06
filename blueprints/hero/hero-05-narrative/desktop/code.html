@@ -1,0 +1,419 @@
+<!-- Hero Variant 9: Dual CTA Hero - Intentional Asymmetry --><html><head></head><body><div class="variant-9-wrapper">
+<style>
+        .variant-9-wrapper {
+            --v9-surface: #faf9f5;
+            --v9-on-surface: #2f342e;
+            --v9-primary: #5f5e5e;
+            --v9-on-primary: #faf7f6;
+            --v9-secondary: #5f5f5f;
+            --v9-outline: rgba(120, 124, 117, 0.3);
+            --v9-container: #edeee8;
+            --v9-font-headline: 'Noto Serif', serif;
+            --v9-font-body: 'Manrope', sans-serif;
+            
+            background-color: var(--v9-surface);
+            color: var(--v9-on-surface);
+            font-family: var(--v9-font-body);
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            padding: 80px 24px;
+            min-height: 800px;
+        }
+
+        @media (min-width: 768px) {
+            .variant-9-wrapper {
+                flex-direction: row;
+                align-items: center;
+                padding: 80px 80px;
+            }
+        }
+
+        .v9-content {
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            gap: 48px;
+            width: 100%;
+        }
+
+        @media (min-width: 768px) {
+            .v9-content {
+                width: 40%;
+            }
+        }
+
+        .v9-label {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.2em;
+            color: var(--v9-primary);
+            margin: 0;
+        }
+
+        .v9-title {
+            font-family: var(--v9-font-headline);
+            font-size: 48px;
+            line-height: 1.1;
+            letter-spacing: -0.02em;
+            margin: 0;
+        }
+
+        @media (min-width: 768px) {
+            .v9-title {
+                font-size: 72px;
+            }
+        }
+
+        .v9-title span {
+            font-style: italic;
+            display: block;
+            margin-left: 32px;
+        }
+
+        @media (min-width: 768px) {
+            .v9-title span {
+                margin-left: 64px;
+            }
+        }
+
+        .v9-description {
+            font-size: 18px;
+            line-height: 1.6;
+            color: var(--v9-secondary);
+            max-width: 448px;
+            margin: 0;
+        }
+
+        .v9-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            padding-top: 16px;
+        }
+
+        @media (min-width: 640px) {
+            .v9-actions {
+                flex-direction: row;
+            }
+        }
+
+        .v9-btn {
+            padding: 20px 40px;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: none;
+            font-family: inherit;
+        }
+
+        .v9-btn-primary {
+            background-color: var(--v9-primary);
+            color: var(--v9-on-primary);
+        }
+
+        .v9-btn-primary:hover {
+            background-color: #403f3f;
+        }
+
+        .v9-btn-outline {
+            background-color: transparent;
+            border: 1px solid var(--v9-outline);
+            color: var(--v9-on-surface);
+        }
+
+        .v9-btn-outline:hover {
+            background-color: var(--v9-container);
+        }
+
+        .v9-image-container {
+            width: 100%;
+            margin-top: 64px;
+            position: relative;
+            display: flex;
+            justify-content: center;
+        }
+
+        @media (min-width: 768px) {
+            .v9-image-container {
+                width: 60%;
+                margin-top: 0;
+                justify-content: flex-end;
+            }
+        }
+
+        .v9-image-frame {
+            position: relative;
+            width: 100%;
+            max-width: 576px;
+            aspect-ratio: 3/4;
+            background-color: #f4f4ef;
+            padding: 40px;
+            box-sizing: border-box;
+        }
+
+        .v9-image-frame img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            filter: grayscale(1) brightness(0.95);
+        }
+
+        .v9-decorative {
+            display: none;
+            position: absolute;
+            bottom: -40px;
+            left: -80px;
+            width: 192px;
+            height: 192px;
+            background: rgba(72, 98, 114, 0.1);
+            backdrop-filter: blur(20px);
+        }
+
+        @media (min-width: 768px) {
+            .v9-decorative {
+                display: block;
+            }
+        }
+    </style>
+<div class="v9-content">
+<p class="v9-label">Pre-Fall 2024</p>
+<h2 class="v9-title">
+            The Silent <br/>
+<span>Dialogue</span>
+</h2>
+<p class="v9-description">
+            An exploration of tactile minimalism. Garments designed to speak softly but resonate deeply through silhouette and craft.
+        </p>
+<div class="v9-actions">
+<button class="v9-btn v9-btn-primary">Shop Collection</button>
+<button class="v9-btn v9-btn-outline">View Lookbook</button>
+</div>
+</div>
+<div class="v9-image-container">
+<div class="v9-image-frame">
+<img alt="Editorial fashion" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCHvPU4NaOerbtTDIEPE4j3fKWWJEfn-hbGEH6TNF3IjljFxnjUbXbq8_6yMVMl-GUg66DGMeutanRURFGzcN8S_Lp70mYngf7fZfSZpKTFmPnvSz675_mkon6vEHSYJXbOfH0rkzYin38Q6or_9C2bG3lMG0B8aJEqXK89wv8_1VLjO7GgoOt-7CbEHZ95SWbo9Wg73lEnztZLsl710_dZPcC09lkpKQrw8qtcUnTyTsadHwvTs_UZsqx33zxKywsj1USrpVFziOg"/>
+<div class="v9-decorative"></div>
+</div>
+</div>
+</div>
+<!-- Hero Variant 10: Carousel Hero (Curated Selection) -->
+<div class="variant-10-wrapper">
+<style>
+        .variant-10-wrapper {
+            --v10-bg: #f4f4ef;
+            --v10-surface: #faf9f5;
+            --v10-on-surface: #2f342e;
+            --v10-secondary: #5f5f5f;
+            --v10-primary: #5f5e5e;
+            --v10-outline: rgba(120, 124, 117, 0.2);
+            --v10-font-headline: 'Noto Serif', serif;
+            --v10-font-body: 'Manrope', sans-serif;
+            
+            background-color: var(--v10-bg);
+            color: var(--v10-on-surface);
+            font-family: var(--v10-font-body);
+            padding: 128px 24px;
+        }
+
+        @media (min-width: 768px) {
+            .variant-10-wrapper {
+                padding: 128px 40px;
+            }
+        }
+
+        .v10-container {
+            max-width: 1536px;
+            margin: 0 auto;
+        }
+
+        .v10-header {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 64px;
+        }
+
+        @media (min-width: 768px) {
+            .v10-header {
+                flex-direction: row;
+                align-items: flex-end;
+            }
+        }
+
+        .v10-intro {
+            max-width: 576px;
+        }
+
+        .v10-title {
+            font-family: var(--v10-font-headline);
+            font-size: 32px;
+            letter-spacing: -0.01em;
+            margin: 0 0 24px 0;
+        }
+
+        @media (min-width: 768px) {
+            .v10-title {
+                font-size: 48px;
+            }
+        }
+
+        .v10-text {
+            color: var(--v10-secondary);
+            margin: 0;
+        }
+
+        .v10-nav {
+            display: none;
+            gap: 16px;
+            padding-bottom: 8px;
+        }
+
+        @media (min-width: 768px) {
+            .v10-nav {
+                display: flex;
+            }
+        }
+
+        .v10-nav-btn {
+            background: transparent;
+            border: 1px solid var(--v10-outline);
+            padding: 16px;
+            cursor: pointer;
+            transition: background 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .v10-nav-btn:hover {
+            background-color: var(--v10-surface);
+        }
+
+        .v10-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 32px;
+        }
+
+        @media (min-width: 768px) {
+            .v10-grid {
+                flex-direction: row;
+            }
+        }
+
+        .v10-card {
+            width: 100%;
+            cursor: pointer;
+            text-decoration: none;
+            color: inherit;
+        }
+
+        @media (min-width: 768px) {
+            .v10-card {
+                width: 33.333%;
+            }
+            .v10-card-offset {
+                transform: translateY(48px);
+            }
+        }
+
+        .v10-img-box {
+            aspect-ratio: 4/5;
+            overflow: hidden;
+            background-color: var(--v10-surface);
+            margin-bottom: 24px;
+        }
+
+        .v10-img-box img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.7s ease;
+        }
+
+        .v10-card:hover .v10-img-box img {
+            transform: scale(1.05);
+        }
+
+        .v10-card-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .v10-series {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.2em;
+            color: rgba(95, 94, 94, 0.6);
+            display: block;
+        }
+
+        .v10-item-name {
+            font-family: var(--v10-font-headline);
+            font-size: 20px;
+            margin: 4px 0 0 0;
+            font-weight: 400;
+        }
+
+        .v10-price {
+            font-size: 14px;
+            color: var(--v10-secondary);
+        }
+    </style>
+<div class="v10-container">
+<div class="v10-header">
+<div class="v10-intro">
+<h3 class="v10-title">Archive Selection</h3>
+<p class="v10-text">A curated look at our most enduring silhouettes, re-imagined for the modern palette.</p>
+</div>
+<div class="v10-nav">
+<button class="v10-nav-btn"><svg fill="none" height="24" stroke="currentColor" stroke-width="1.5" viewbox="0 0 24 24" width="24"><path d="M19 12H5M5 12L12 19M5 12L12 5"></path></svg></button>
+<button class="v10-nav-btn"><svg fill="none" height="24" stroke="currentColor" stroke-width="1.5" viewbox="0 0 24 24" width="24"><path d="M5 12H19M19 12L12 5M19 12L12 19"></path></svg></button>
+</div>
+</div>
+<div class="v10-grid">
+<div class="v10-card">
+<div class="v10-img-box">
+<img alt="Cashmere" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCIiXCeWIiuVMVzt3L6KLXt60Gcxh7oYq97Gd9xU19kiLmOz3wX4wznXz6MKDAiiFawv71qefQ3ar5T0aopgPLuXCLfzLtTZNyjeVQDOyNOvZfO0MLDL6bbX2vNx-fxzRUAJQBpb7TwH42EfNBKogHhr1saHp4axXB7756RuG1BbgIxN7ntGU_ZQsllkFQTZP5OtCS4qw7_ft0zxbaQxogaVCiZE-B1vCmUWtbCdIIPwQx97SPjwcBWV2xnU_NppABtsXzan4J5bVE"/>
+</div>
+<div class="v10-card-footer">
+<div>
+<span class="v10-series">Series 01</span>
+<h4 class="v10-item-name">Cashmere Raw-Edge Wrap</h4>
+</div>
+<span class="v10-price">$1,250</span>
+</div>
+</div>
+<div class="v10-card v10-card-offset">
+<div class="v10-img-box">
+<img alt="Linen Dress" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA3Vp4qLCmdtIbPq9zwkYyNWUb8vs9mzAUGGQmEs_Mko7fZRKY0EUjKWdYJ34_om5dDx-QHIFt8aF_8BBuZJXU8yOjk7CMu-XuFveGxJPoWZdP6blSqrJUR-ikOd4CsJFgQLuO-UQ5UufcD4aboTA6k1PCJllUqoCe3VZTh1WVmrr1VWvji4TkvU7Q5HmTqrOkxc0WrcrgeOdfqyTcX6A-3Z6jn1i8_2DqDtK-5T-4rRchghPnqZ2VRxlDY2VyHvYoOq2bRVBtD-lM"/>
+</div>
+<div class="v10-card-footer">
+<div>
+<span class="v10-series">Series 02</span>
+<h4 class="v10-item-name">Linen Sculptural Midi</h4>
+</div>
+<span class="v10-price">$890</span>
+</div>
+</div>
+<div class="v10-card">
+<div class="v10-img-box">
+<img alt="Leather Tote" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC3luiDWLgJ0F9mPegtmGNKeGaqc5ftCV290VXZ5L2GN6mEVhgdiPmJvD5zruKuDePb8wR9ZpNn0Y0ew9yQ1dcVRRGP53EvjyO0m4BZS-P7P2QU2PNyrHYPhdCUoCRmOrR5OSsYwQBoj614C8L7pQY_JtrSeAATUvJ1wK52qFJQ8m-zLUs98QdnjY8T4t_mNqEdk2l0--mlGduMTeMLYjemld4yIPt7OPBvaPAURn1qA7cz4B18GZtzPA65BmhWRHb2ImIMt7KVze8"/>
+</div>
+<div class="v10-card-footer">
+<div>
+<span class="v10-series">Series 03</span>
+<h4 class="v10-item-name">Nappa Architect Tote</h4>
+</div>
+<span class="v10-price">$2,100</span>
+</div>
+</div>
+</div>
+</div>
+</div></body></html>

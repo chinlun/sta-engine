@@ -1,0 +1,276 @@
+<!-- Hero Variant 1 --><html><head></head><body><div class="atelier-component" id="hero-variant-1">
+<style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Serif:wght@400;700&family=Manrope:wght@300;400;600&display=swap');
+
+        #hero-variant-1.atelier-component {
+            background-color: #FDFCF8;
+            color: #1A1A1A;
+            font-family: 'Manrope', sans-serif;
+            margin: 0;
+            padding: 80px 0;
+            overflow: hidden;
+            display: grid;
+            grid-template-columns: 1fr;
+            min-height: 80vh;
+        }
+
+        #hero-variant-1 .content-box {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 40px 24px;
+            order: 2;
+        }
+
+        #hero-variant-1 .image-box {
+            position: relative;
+            min-height: 400px;
+            order: 1;
+        }
+
+        #hero-variant-1 img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            filter: grayscale(20%);
+        }
+
+        #hero-variant-1 .tagline {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.2em;
+            margin-bottom: 32px;
+            color: #5f5e5e;
+        }
+
+        #hero-variant-1 h1 {
+            font-family: 'Noto Serif', serif;
+            font-size: 42px;
+            line-height: 1.1;
+            margin: 0 0 48px 0;
+            letter-spacing: -0.02em;
+        }
+
+        #hero-variant-1 p {
+            font-size: 18px;
+            line-height: 1.6;
+            color: #5c605a;
+            max-width: 440px;
+            margin-bottom: 64px;
+        }
+
+        #hero-variant-1 .actions {
+            display: flex;
+            align-items: center;
+            gap: 32px;
+            flex-wrap: wrap;
+        }
+
+        #hero-variant-1 .btn-primary {
+            background-color: #1A1A1A;
+            color: #FDFCF8;
+            border: none;
+            padding: 16px 40px;
+            text-transform: uppercase;
+            font-size: 12px;
+            letter-spacing: 0.15em;
+            cursor: pointer;
+            transition: opacity 0.3s ease;
+        }
+
+        #hero-variant-1 .btn-primary:hover {
+            opacity: 0.9;
+        }
+
+        #hero-variant-1 .btn-text {
+            text-decoration: none;
+            color: #1A1A1A;
+            text-transform: uppercase;
+            font-size: 12px;
+            letter-spacing: 0.15em;
+            border-bottom: 1px solid #afb3ac;
+            padding-bottom: 4px;
+            transition: border-color 0.3s ease;
+        }
+
+        #hero-variant-1 .btn-text:hover {
+            border-color: #1A1A1A;
+        }
+
+        @media (min-width: 768px) {
+            #hero-variant-1.atelier-component {
+                grid-template-columns: 1fr 1fr;
+                padding: 0;
+                min-height: 920px;
+            }
+            #hero-variant-1 .content-box {
+                padding: 80px 80px;
+                order: 1;
+            }
+            #hero-variant-1 .image-box {
+                order: 2;
+                min-height: 100%;
+            }
+            #hero-variant-1 h1 {
+                font-size: 72px;
+            }
+        }
+    </style>
+<div class="content-box">
+<span class="tagline">Edition 01 / Permanent Collection</span>
+<h1>The quiet art of <br/> intentional <br/> dressing.</h1>
+<p>Designed in our Parisian studio, our permanent collection focuses on architectural silhouettes and the world's finest sustainable textiles.</p>
+<div class="actions">
+<button class="btn-primary">Shop Collection</button>
+<a class="btn-text" href="#">View Lookbook</a>
+</div>
+</div>
+<div class="image-box">
+<img alt="Minimalist luxury fashion" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC1DBitm5Biibjw226LFg35bln89T5jOcAaezhbahhiZUK5ioJw1k4bKExMweu0MR7jt0r5_FtoCH6oalPqnHEo_ZXAw6_g__dETeiUVOhi2WtQWqphnnyWcrqO7WolJnOdaPy_D5FUa6jinTbMZ6OchXm0U_rY1vNtSf5W9F0CxKUHHP7CWPeBinIREPA778UhGoI7RcM-BOMq8m2RKIWNkz52m5X4d54SSXQYMwdyEFKylPta-Tl_wLPeiuOCbSaBwX-ORmwzUBI"/>
+</div>
+</div>
+<div style="height: 40px;"></div>
+<!-- Hero Variant 2 -->
+<div class="atelier-component" id="hero-variant-2">
+<style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Serif:wght@400;700&family=Manrope:wght@300;400;600&display=swap');
+
+        #hero-variant-2.atelier-component {
+            background-color: #f4f4ef;
+            color: #1A1A1A;
+            font-family: 'Manrope', sans-serif;
+            margin: 0;
+            padding: 80px 24px;
+            position: relative;
+            text-align: center;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 600px;
+        }
+
+        #hero-variant-2 .bg-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-120%, -50%); /* Start off-center for asymmetry */
+            font-family: 'Noto Serif', serif;
+            font-size: 15rem;
+            opacity: 0.03;
+            white-space: nowrap;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        #hero-variant-2 .container {
+            max-width: 900px;
+            position: relative;
+            z-index: 10;
+        }
+
+        #hero-variant-2 .tagline {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.3em;
+            margin-bottom: 40px;
+            display: block;
+            color: #5f5e5e;
+        }
+
+        #hero-variant-2 h2 {
+            font-family: 'Noto Serif', serif;
+            font-size: 48px;
+            line-height: 1;
+            margin: 0 0 48px 0;
+            letter-spacing: -0.02em;
+        }
+
+        #hero-variant-2 .divider {
+            width: 80px;
+            height: 1px;
+            background-color: #afb3ac;
+            margin: 0 auto 48px;
+        }
+
+        #hero-variant-2 p {
+            font-size: 18px;
+            line-height: 1.6;
+            color: #5c605a;
+            max-width: 640px;
+            margin: 0 auto 64px;
+        }
+
+        #hero-variant-2 .btn-primary {
+            background-color: #1A1A1A;
+            color: #FDFCF8;
+            border: none;
+            padding: 20px 48px;
+            text-transform: uppercase;
+            font-size: 12px;
+            letter-spacing: 0.15em;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        #hero-variant-2 .btn-primary:hover {
+            background-color: #333;
+        }
+
+        #hero-variant-2 .floating-image {
+            display: none;
+            position: absolute;
+            bottom: 48px;
+            right: 80px;
+            width: 288px;
+            background-color: #ffffff;
+            padding: 8px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+            text-align: left;
+            z-index: 20;
+        }
+
+        #hero-variant-2 .floating-image img {
+            width: 100%;
+            height: auto;
+            aspect-ratio: 3/4;
+            object-fit: cover;
+        }
+
+        #hero-variant-2 .image-caption {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-top: 12px;
+            color: #5f5e5e;
+        }
+
+        @media (min-width: 768px) {
+            #hero-variant-2 h2 {
+                font-size: 80px;
+            }
+            #hero-variant-2 .bg-text {
+                font-size: 20rem;
+                transform: translate(-50%, -50%);
+            }
+        }
+
+        @media (min-width: 1024px) {
+            #hero-variant-2 .floating-image {
+                display: block;
+            }
+        }
+    </style>
+<div class="bg-text">ATELIER</div>
+<div class="container">
+<span class="tagline">Autumn / Winter 2024</span>
+<h2>Silhouettes of Silence</h2>
+<div class="divider"></div>
+<p>A curated selection of monochromatic essentials that define the modern wardrobe through texture, weight, and light.</p>
+<button class="btn-primary">Explore The Series</button>
+</div>
+<div class="floating-image">
+<img alt="Minimalist detail" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAa6nlPtk6ZblYY7Qr8ziPiRnTszYht7CHano6jhXwseqRpAjLaO4omvtqf07mYg3CRrQ_ObZnKTjFHG7wS7gPdV8ptLaIvlK7InoHnY1VP4_qfI_0i26eOCoqzO2o_2E0_FVKPJeinvYb8fe7Zy0Cpvd1GQnEEqPcOxA23hBjW4t9sjDHw2dYnNpnbXkwfpz8ox8wpOOMBeUb9BGXuGOBkoTBqXl_CE5auJcOPr33euBxOoLf8kmkGkjtkDNN2BXgPb7yyH8uR2u4"/>
+<div class="image-caption">Detail: Raw Silk No. 04</div>
+</div>
+</div></body></html>

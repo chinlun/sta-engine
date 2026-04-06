@@ -1,0 +1,205 @@
+<html><head><link href="https://fonts.googleapis.com/css2?family=Noto+Serif:wght@400;700&amp;family=Manrope:wght@400;500;600&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<style>
+  #hero-variant-20 {
+    background-color: #FDFCF8; /* Quiet Luxury Background */
+    padding: 120px 0;
+    font-family: 'Manrope', sans-serif;
+    overflow-x: hidden;
+    color: #1A1A1A; /* Quiet Luxury Text */
+  }
+
+  .atelier-container {
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 0 80px;
+  }
+
+  .offset-grid {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    align-items: end;
+    gap: 0;
+  }
+
+  .text-block {
+    grid-column: 1 / span 5;
+    z-index: 10;
+    padding-bottom: 80px;
+    transform: translateY(40px);
+  }
+
+  .image-block {
+    grid-column: 5 / span 8;
+    position: relative;
+    background-color: #f4f4ef;
+    padding: 40px;
+  }
+
+  .image-wrapper {
+    aspect-ratio: 4/5;
+    width: 100%;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .image-wrapper img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .eyebrow {
+    font-family: 'Manrope', sans-serif;
+    font-size: 0.75rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: #5f5e5e;
+    margin-bottom: 24px;
+    display: block;
+  }
+
+  .display-title {
+    font-family: 'Noto Serif', serif;
+    font-size: 4.5rem;
+    line-height: 0.95;
+    letter-spacing: -0.04em;
+    color: #1A1A1A;
+    margin: 0;
+  }
+
+  .description {
+    font-family: 'Manrope', sans-serif;
+    font-size: 1rem;
+    line-height: 1.6;
+    color: #4A4A4A;
+    margin-top: 48px;
+    max-width: 320px;
+  }
+
+  .cta-link {
+    display: inline-flex;
+    align-items: center;
+    margin-top: 60px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #1A1A1A;
+    text-decoration: none;
+    letter-spacing: 0.05em;
+    transition: opacity 0.3s ease;
+  }
+
+  .cta-link:hover {
+    opacity: 0.7;
+  }
+
+  .cta-link span {
+    margin-left: 8px;
+    font-size: 18px;
+  }
+
+  .floating-detail {
+    position: absolute;
+    bottom: -20px;
+    right: 80px;
+    background: #ffffff;
+    padding: 24px;
+    width: 200px;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.03);
+  }
+
+  .detail-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #afb3ac;
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  .detail-value {
+    font-size: 12px;
+    color: #5f5e5e;
+  }
+
+  @media (max-width: 1024px) {
+    .display-title { font-size: 3.5rem; }
+    .text-block { grid-column: 1 / span 6; }
+    .image-block { grid-column: 6 / span 7; }
+    .atelier-container { padding: 0 48px; }
+  }
+
+  @media (max-width: 768px) {
+    #hero-variant-20 {
+      padding: 60px 0;
+    }
+    .atelier-container {
+      padding: 0 24px;
+    }
+    .offset-grid {
+      display: flex;
+      flex-direction: column;
+      text-align: center;
+    }
+    .text-block {
+      padding-bottom: 48px;
+      transform: none;
+      order: 2;
+      width: 100%;
+    }
+    .image-block {
+      order: 1;
+      width: 100%;
+      padding: 20px;
+      margin-bottom: 40px;
+    }
+    .description {
+      max-width: 100%;
+      margin: 24px auto 0 auto;
+    }
+    .display-title {
+      font-size: 2.75rem;
+    }
+    .display-title span {
+      padding-left: 0 !important;
+    }
+    .floating-detail {
+      display: none;
+    }
+    .cta-link {
+      margin-top: 40px;
+    }
+  }
+</style>
+</head><body><div id="hero-variant-20">
+<div class="atelier-container">
+<div class="offset-grid">
+<!-- Heading Section (Offset Left) -->
+<div class="text-block">
+<span class="eyebrow">Autumn / Winter 2024</span>
+<h1 class="display-title">
+          Structural<br/>
+<span style="padding-left: 1.5rem;">Softness</span>
+</h1>
+<p class="description">
+          An exploration of architectural silhouettes rendered in fluid, organic fabrics. Designed for the modern observer who values the quiet dialogue between form and material.
+        </p>
+<a class="cta-link" href="#">
+          EXPLORE THE COLLECTION
+          <span class="material-symbols-outlined">north_east</span>
+</a>
+</div>
+<!-- Image Section (Offset Right) -->
+<div class="image-block">
+<div class="image-wrapper">
+<img alt="Minimalist fashion photography" data-alt="High-end editorial fashion shot of a woman in a structural beige wool coat standing against a minimalist limestone wall with sharp sunlight shadows" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC88sAdGRgfs8k5J5RoQwLt3dAHLsr0oIzDrZDOCBEZfeHdAzgZ20LqoPN0fp-2jNW0E2fsJCaSusW7kkPlsjb4HO0S5QqDGo7qQcZ_6HSB6l19nY9U9qC-_pkhgK6TDk0FUa3hiKFr1T6rDtx0bArBwOcwKhJVHsSQZSy1G0Cioik6_Sj9ja2GVo0DrNduDk2d78D8X8szKhla8tMch8JqIM-BpS_RQB2tnTmrbO1NVffj2iP21-XCYZ_RTVvMJ2Rd33-0xY1EEzY"/>
+</div>
+<!-- Subtle Floating Detail -->
+<div class="floating-detail">
+<span class="detail-label">Textile Origin</span>
+<span class="detail-value">Italian Virgin Wool &amp; Raw Silk Blends</span>
+</div>
+</div>
+</div>
+</div>
+</div></body></html>

@@ -1,0 +1,69 @@
+<html><head>
+<meta charset="utf-8"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif:ital,wght@0,400;0,700;1,400&amp;family=Manrope:wght@300;400;500;700&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+  .material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+  }
+  .hero-variant-16 {
+    font-family: 'Manrope', sans-serif;
+    background-color: #FDFCF8;
+  }
+  .hero-variant-16 h1, 
+  .hero-variant-16 h2, 
+  .hero-variant-16 h3,
+  .hero-variant-16 .font-serif-quote {
+    font-family: 'Noto Serif', serif;
+  }
+  @media (max-width: 768px) {
+    .hero-variant-16 .duo-tone-container {
+      flex-direction: column !important;
+    }
+    .hero-variant-16 .duo-tone-side {
+      width: 100% !important;
+    }
+  }
+</style>
+</head>
+<body class="margin-0 padding-0">
+<!-- Hero Variant 16: The Duo-Tone (Atomic Component) -->
+<div class="hero-variant-16 overflow-hidden">
+<section class="duo-tone-container flex min-h-screen">
+<!-- Left Column: High-Contrast Dark Block -->
+<div class="duo-tone-side w-[45%] bg-[#1A1A1A] flex items-center justify-center px-8 md:px-16 py-20 md:py-[80px]">
+<div class="max-w-md w-full">
+<span class="block font-sans text-[10px] tracking-[0.3em] text-[#A1A1A1] uppercase mb-8">Autumn / Winter 2024</span>
+<h1 class="text-5xl md:text-7xl lg:text-8xl text-[#FDFCF8] leading-[1.1] mb-12 -ml-0 md:-ml-12 relative z-10">
+          The <br/><span class="italic">Modern</span><br/> Silhouette
+        </h1>
+<p class="text-[#A1A1A1] text-sm md:text-base leading-relaxed mb-16 max-w-sm">
+          A study in architectural tailoring and the quiet confidence of monochrome textures. Crafted for the digital artisan.
+        </p>
+<div class="flex flex-col md:flex-row gap-6">
+<button class="bg-[#FDFCF8] text-[#1A1A1A] px-10 py-4 text-xs tracking-widest uppercase transition-all duration-300 hover:opacity-90">
+            Explore Collection
+          </button>
+<button class="border border-[#FDFCF8]/30 text-[#FDFCF8] px-10 py-4 text-xs tracking-widest uppercase transition-all duration-300 hover:bg-[#FDFCF8]/10">
+            View Film
+          </button>
+</div>
+</div>
+</div>
+<!-- Right Column: Light Imagery Block -->
+<div class="duo-tone-side w-[55%] bg-[#FDFCF8] flex items-center justify-center p-8 md:p-16 lg:p-24 relative">
+<div class="w-full h-full relative aspect-[4/5] md:aspect-auto">
+<img alt="High-fashion editorial portrait" class="w-full h-full object-cover grayscale brightness-95 contrast-105" data-alt="Editorial fashion photography of a model in a sharp charcoal wool coat against a minimal stone background, high-contrast lighting, avant-garde pose" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBOPGpj2NZY-jiQ83xWP_GdFS2HHynUVYLSnW7_-DtE_6vb05s0PBM0luB9j19_5F6mtVdvNOYvHmYzout_86uAEFBouaz3TcHp4mksb74QaLoo-tTzsqj_SfQSd7n8yuZ61-Ydg7nD-qOpS0yTGJwMB82yZvqJoTl_7zId-71Z3u34a33HWPb9nTXNOUxuywkMr3Csg7kYe4JOy67pzdGfrObyWPuF-hB5XNYbvQchYQSNZoKBvj6grq9nIfck_d73h03wDruYrTk"/>
+<!-- Asymmetrical Floating Label -->
+<div class="absolute -bottom-10 -left-10 hidden lg:block bg-[#FDFCF8] p-12 max-w-xs shadow-xl border border-[#1A1A1A]/5">
+<p class="font-serif-quote text-2xl text-[#1A1A1A] leading-snug italic">"True luxury is found in the absence of noise."</p>
+<div class="mt-6 flex items-center gap-4">
+<span class="w-8 h-[1px] bg-[#1A1A1A]/20"></span>
+<span class="font-sans text-[10px] tracking-widest uppercase text-[#5f5e5e]">Atelier Philosophy</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+</div>
+</body></html>

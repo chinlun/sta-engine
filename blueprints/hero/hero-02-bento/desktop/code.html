@@ -1,0 +1,370 @@
+<!-- Hero Variant 3: Bento Grid Hero --><html><head></head><body><div class="hv3-root" id="hero-variant-3">
+<style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Serif:ital,wght@0,400;0,700;1,400&family=Manrope:wght@300;400;600&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
+
+        .hv3-root {
+            --hv3-bg: #faf9f5;
+            --hv3-text: #2f342e;
+            --hv3-secondary: #5f5f5f;
+            --hv3-outline: #787c75;
+            --hv3-surface-low: #f4f4ef;
+            --hv3-surface-highest: #e0e4dc;
+            --hv3-surface-container: #edeee8;
+            
+            background-color: var(--hv3-bg);
+            color: var(--hv3-text);
+            font-family: 'Manrope', sans-serif;
+            padding: 80px 24px;
+            overflow: hidden;
+        }
+
+        .hv3-container {
+            max-width: 1536px;
+            margin: 0 auto;
+        }
+
+        .hv3-header {
+            margin-bottom: 64px;
+        }
+
+        .hv3-subtitle {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.2em;
+            color: var(--hv3-outline);
+            display: block;
+            margin-bottom: 16px;
+        }
+
+        .hv3-title {
+            font-family: 'Noto Serif', serif;
+            font-size: clamp(3rem, 8vw, 8rem);
+            line-height: 1;
+            letter-spacing: -0.05em;
+            margin: 0;
+        }
+
+        .hv3-title span {
+            font-style: italic;
+            padding-left: 100px;
+        }
+
+        .hv3-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 24px;
+        }
+
+        .hv3-feature {
+            background-color: var(--hv3-surface-low);
+            position: relative;
+            overflow: hidden;
+            aspect-ratio: 4/5;
+        }
+
+        .hv3-feature img, .hv3-secondary-block img {
+            width: 100%;
+            height: 100%;
+            object-cover: cover;
+            transition: transform 0.7s ease;
+        }
+
+        .hv3-feature:hover img, .hv3-secondary-block:hover img {
+            transform: scale(1.05);
+        }
+
+        .hv3-feature-label {
+            position: absolute;
+            bottom: 40px;
+            left: 40px;
+            color: #fff;
+            font-family: 'Noto Serif', serif;
+            font-size: 24px;
+        }
+
+        .hv3-secondary-col {
+            display: grid;
+            grid-template-rows: 1fr auto;
+            gap: 24px;
+        }
+
+        .hv3-secondary-block {
+            background-color: var(--hv3-surface-highest);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hv3-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(0,0,0,0.05);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .hv3-secondary-block:hover .hv3-overlay {
+            opacity: 1;
+        }
+
+        .hv3-overlay-btn {
+            background: #fff;
+            padding: 12px 32px;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        .hv3-bottom-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+        }
+
+        .hv3-info-box {
+            background-color: var(--hv3-surface-low);
+            padding: 32px;
+            border: 1px solid rgba(120, 124, 117, 0.1);
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+        }
+
+        .hv3-info-title {
+            font-family: 'Noto Serif', serif;
+            font-size: 20px;
+            margin: 0 0 16px 0;
+        }
+
+        .hv3-info-text {
+            font-size: 14px;
+            color: var(--hv3-secondary);
+            line-height: 1.6;
+            margin: 0 0 24px 0;
+        }
+
+        .hv3-link {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            text-decoration: none;
+            color: var(--hv3-text);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .material-symbols-outlined {
+            font-size: 16px;
+            vertical-align: middle;
+        }
+
+        @media (min-width: 768px) {
+            .hv3-root {
+                padding: 80px 40px;
+            }
+            .hv3-grid {
+                grid-template-columns: repeat(12, 1fr);
+                height: 800px;
+            }
+            .hv3-feature {
+                grid-column: span 7;
+                aspect-ratio: auto;
+            }
+            .hv3-secondary-col {
+                grid-column: span 5;
+            }
+        }
+    </style>
+<div class="hv3-container">
+<div class="hv3-header">
+<span class="hv3-subtitle">Spring / Summer 2024</span>
+<h1 class="hv3-title">The Art of <br/><span>Quietude</span></h1>
+</div>
+<div class="hv3-grid">
+<div class="hv3-feature">
+<img alt="Editorial Fashion" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAJWKHiZVD_OvRNxmqLhpwBVPGngxqMISFf1i8soGK5yp6S7wVWlU07u0mNW06qGxzooqTXSeIP7gUYgCzNJNrFBeOTxHusQuk_Quyqx-DdxhwSZ7TbP_E_BXDA4styMh9acybXVPmYzJNhLBMEoDAA9r6uS_6bUC3DOLu0bdZWCJzw8nDwbac1qX2nW9sAsIkM8ae9RI7gzmL6y7g5SqqCFiy0W_ovp4DatdM-r-7ynyKAYnh7DglzDXljEZTxD602PoavggBnNjc"/>
+<div class="hv3-feature-label">Collection No. 04</div>
+</div>
+<div class="hv3-secondary-col">
+<div class="hv3-secondary-block">
+<img alt="Detail View" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBlA9_X73-6ZJAWNVqk_pd21Bp52X9pMoJQhS345AOFCdr_NWMsfMF2yZVoW0zh3ZBBnk_80_e3q1LnMZg3fhLvNNsdtpL76SgAnbVVwnhaw45TW7_5OmCZSXwVrvLuxv1fzzZzSynj6puoRICBh9r2GQHAeCQTAyfbs87YPHHidY4KJQTpE5QwksUWeWNFJ4hrRUZ4NLe2hYiVZqKvcVSLPGB0dSCj3IUW_7FC9Ane-xpzwHtv18IDcbMQc_8ZaFOnQdUzgGerFuc"/>
+<div class="hv3-overlay">
+<span class="hv3-overlay-btn">View Detail</span>
+</div>
+</div>
+<div class="hv3-bottom-row">
+<div class="hv3-secondary-block">
+<img alt="Accessories" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCPybgeGroIezgNHzwfKSFClJSHb_brOBjVfLoZbDTkRVHpa8bP4ofCyn1zB0r3uu7yWpZzpFLflG1-T5aVvzKw7R1kWL1aowaK0HigwObtKWfQkrUR_pzgOfmqVOxPMddD36Xh6LikOOqnLfYhAIbC55U0akxNrqKhcs4QErzkirITwaV0_EuIn1ksouM5BWo-b3135DF74CDbjr5SGmWUnsZYxJCEFRmvXbLGl-Ujopbt0_69Gc03AaP8AukahwItXm93IJQGeCY"/>
+</div>
+<div class="hv3-info-box">
+<h3 class="hv3-info-title">Modern Tailoring</h3>
+<p class="hv3-info-text">Precision cut from sustainable fabrics for a lifetime of wear.</p>
+<a class="hv3-link" href="#">
+                            Explore <span class="material-symbols-outlined">arrow_forward</span>
+</a>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Hero Variant 4: Atmosphere Hero -->
+<div class="hv4-root" id="hero-variant-4">
+<style>
+        .hv4-root {
+            position: relative;
+            height: 100vh;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            overflow: hidden;
+            background-color: #000;
+            font-family: 'Manrope', sans-serif;
+            color: #ffffff;
+        }
+
+        .hv4-bg {
+            position: absolute;
+            inset: 0;
+            z-index: 0;
+        }
+
+        .hv4-bg img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            filter: grayscale(1) brightness(0.7);
+        }
+
+        .hv4-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.2);
+        }
+
+        .hv4-content {
+            position: relative;
+            z-index: 10;
+            width: 100%;
+            padding: 0 24px;
+        }
+
+        .hv4-inner {
+            max-width: 900px;
+        }
+
+        .hv4-tag {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.3em;
+            color: rgba(255, 255, 255, 0.8);
+            display: block;
+            margin-bottom: 32px;
+        }
+
+        .hv4-title {
+            font-family: 'Noto Serif', serif;
+            font-size: clamp(3.5rem, 12vw, 120px);
+            line-height: 0.9;
+            letter-spacing: -0.05em;
+            margin: 0 0 48px 0;
+        }
+
+        .hv4-cta-group {
+            display: flex;
+            flex-direction: column;
+            gap: 48px;
+        }
+
+        .hv4-button {
+            background: #fff;
+            color: #5f5e5e;
+            border: none;
+            padding: 20px 48px;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            cursor: pointer;
+            width: fit-content;
+            transition: background 0.3s ease;
+        }
+
+        .hv4-button:hover {
+            background: #e0e4dc;
+        }
+
+        .hv4-desc {
+            max-width: 320px;
+            font-size: 14px;
+            line-height: 2;
+            color: rgba(255, 255, 255, 0.7);
+            margin: 0;
+        }
+
+        .hv4-pagination {
+            position: absolute;
+            bottom: 40px;
+            right: 40px;
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .hv4-bar {
+            width: 48px;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.3);
+            position: relative;
+        }
+
+        .hv4-bar-fill {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            width: 33%;
+            background: #fff;
+        }
+
+        .hv4-page-num {
+            font-size: 10px;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+        }
+
+        @media (min-width: 768px) {
+            .hv4-content {
+                padding: 0 80px;
+            }
+            .hv4-cta-group {
+                flex-direction: row;
+                align-items: center;
+            }
+        }
+    </style>
+<div class="hv4-bg">
+<img alt="Atmospheric" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBxyrm4-1WhTEUuRWz_9m--dcPbyRBABc7SwSGRPOV8y-I6McKHwWih6EvGMDQSdyEm_Vf0_cVwzqrnJOWBydTzV1A5H0iSd7WWrxjLE4FRuDJ0BMBGQb4Kqef-alNvTqWE7Kk82VtzN3cOjYGm7mV9sIdyyUnU0oZS_JHZFCQScph1N70fBxjZ7-0K6q2jeRkPZvLI2t0DcWv_VytJ-q1yNofgKb0-hDcR9uD5wHROSmsCo6HPqH-RGEAP1e2bYCGY94j5WnmevKM"/>
+<div class="hv4-overlay"></div>
+</div>
+<div class="hv4-content">
+<div class="hv4-inner">
+<span class="hv4-tag">The Winter Archive</span>
+<h2 class="hv4-title">Timeless<br/>Permanence</h2>
+<div class="hv4-cta-group">
+<button class="hv4-button">Shop The Collection</button>
+<p class="hv4-desc">An exploration of raw textures and architectural silhouettes designed for the discerning individual.</p>
+</div>
+</div>
+</div>
+<div class="hv4-pagination">
+<div class="hv4-bar">
+<div class="hv4-bar-fill"></div>
+</div>
+<span class="hv4-page-num">01 / 03</span>
+</div>
+</div></body></html>

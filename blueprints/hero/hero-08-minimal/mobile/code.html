@@ -1,0 +1,77 @@
+<html><head>
+<meta charset="utf-8"/>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif:wght@400;700&amp;family=Manrope:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            "atelier-bg": "#FDFCF8",
+            "atelier-charcoal": "#1A1A1A",
+            "atelier-grey": "#5F5E5E",
+            "atelier-surface": "#F4F4EF"
+          },
+          fontFamily: {
+            headline: ["Noto Serif", "serif"],
+            body: ["Manrope", "sans-serif"],
+            label: ["Manrope", "sans-serif"]
+          }
+        },
+      },
+    }
+  </script>
+<style>
+    .asymmetric-grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+    }
+  </style>
+</head>
+<body class="bg-[#FDFCF8]">
+<!-- Hero Variant 18: The Minimal Editorial Component (Mobile Optimized) -->
+<div class="w-full bg-[#FDFCF8] font-body text-atelier-charcoal overflow-hidden">
+<main class="py-10 px-6">
+<div class="flex flex-col items-center">
+<!-- Headline & Introduction Column -->
+<div class="w-full flex flex-col items-center text-center mb-12">
+<span class="font-label text-[10px] tracking-[0.3em] uppercase text-atelier-grey mb-6 block">EST. 1994 — ARCHIVAL SERIES</span>
+<h1 class="font-headline text-5xl leading-[1.1] tracking-tighter text-atelier-charcoal mb-8">
+            The Art of <br/>
+<span class="italic font-normal">Intentional</span> <br/>
+            Simplicity.
+          </h1>
+<p class="font-body text-atelier-grey text-base max-w-sm leading-relaxed mb-10 opacity-80">
+            We believe that luxury is found in the space between the stitches. Curating timeless silhouettes for the discerning modern archive.
+          </p>
+<div class="flex flex-col items-center gap-6 w-full">
+<button class="w-full px-12 py-5 bg-atelier-charcoal text-[#FDFCF8] font-label text-xs tracking-widest uppercase hover:bg-opacity-90 transition-all duration-300">
+              Explore Collection
+            </button>
+<a class="font-label text-xs tracking-widest uppercase text-atelier-charcoal border-b border-atelier-charcoal pb-1 hover:opacity-70 transition-opacity" href="#">
+              Our Process
+            </a>
+</div>
+</div>
+<!-- Hero Image (Mobile Optimized Stack) -->
+<div class="w-full relative">
+<div class="bg-atelier-surface p-6">
+<div class="aspect-[3/4] overflow-hidden grayscale contrast-110">
+<img alt="High-fashion model in minimalist charcoal wool coat" class="w-full h-full object-cover grayscale" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAb3rNdX0csWY77CwDPk0Iu3su7kIRVp2by1uMBeNmRQwKx1b_xSVbEQt0ktDJ-m1Sno_8it_MgHBGpUXd5QujaxtHIQc-NoR5BO7UXpmsLfsmfiA3bI6bAbHSltAFVrOh_Rwo58DnKEZ_UEjk6Dr1Z2_G5vySVgcpsTp6ye5i8zgy2JtmKUmwdO6K61xfYafd215CYwDLSY3XfpkatPqhD_0RQAntOd8ys836Rp-Sp8bObLRAZKZG494vbUM-d3qUiysZ-UGsDr3A"/>
+</div>
+</div>
+<!-- Floating Label for Mobile (Moved inside or slightly adjusted for narrow viewport) -->
+<div class="mt-6 bg-white px-6 py-8 shadow-sm text-center">
+<div class="font-headline text-xl tracking-tighter text-atelier-charcoal leading-none mb-2">Look 012</div>
+<div class="font-label text-[9px] tracking-widest uppercase text-atelier-grey">Virgin Wool &amp; Silk Fusion</div>
+</div>
+</div>
+</div>
+<!-- Scroll Indicator - Centered for Mobile -->
+<div class="mt-16 flex flex-col items-center opacity-30">
+<div class="font-label text-[9px] tracking-[0.4em] uppercase mb-4">Scroll to Discover</div>
+<div class="h-16 w-[1px] bg-atelier-charcoal origin-top scale-y-100"></div>
+</div>
+</main>
+</div>
+</body></html>

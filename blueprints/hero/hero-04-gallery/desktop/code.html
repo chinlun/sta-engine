@@ -1,0 +1,366 @@
+<!-- Hero Variant 7 --><html><head></head><body><div class="hero-v7-container">
+<style>
+        .hero-v7-container {
+            --v7-bg: #faf9f5;
+            --v7-text: #2f342e;
+            --v7-text-variant: #5c605a;
+            --v7-primary: #5f5e5e;
+            --v7-on-primary: #faf7f6;
+            --v7-surface-container: #edeee8;
+            --v7-surface-low: #f4f4ef;
+            --v7-outline: rgba(120, 124, 117, 0.3);
+            
+            background-color: var(--v7-bg);
+            color: var(--v7-text);
+            font-family: 'Manrope', sans-serif;
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            overflow-x: hidden;
+        }
+
+        .hero-v7-container * {
+            box-sizing: border-box;
+        }
+
+        .v7-section {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 80px 40px;
+        }
+
+        .v7-wrapper {
+            max-width: 1280px;
+            margin: 0 auto;
+            width: 100%;
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 40px;
+        }
+
+        .v7-content {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .v7-label {
+            font-size: 0.65rem;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: var(--v7-primary);
+            margin-bottom: 32px;
+            display: block;
+        }
+
+        .v7-title {
+            font-family: 'Noto Serif', serif;
+            font-size: 3rem;
+            line-height: 1.1;
+            letter-spacing: -0.02em;
+            margin-bottom: 48px;
+            max-width: 600px;
+        }
+
+        .v7-title span {
+            font-style: italic;
+        }
+
+        .v7-description {
+            font-size: 1.125rem;
+            color: var(--v7-text-variant);
+            max-width: 448px;
+            margin-bottom: 64px;
+            line-height: 1.6;
+        }
+
+        .v7-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .v7-btn {
+            padding: 16px 40px;
+            font-size: 0.875rem;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: none;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+        }
+
+        .v7-btn-primary {
+            background-color: var(--v7-primary);
+            color: var(--v7-on-primary);
+        }
+
+        .v7-btn-primary:hover {
+            opacity: 0.9;
+        }
+
+        .v7-btn-outline {
+            background: transparent;
+            border: 1px solid var(--v7-outline);
+            color: var(--v7-text);
+        }
+
+        .v7-btn-outline:hover {
+            background-color: var(--v7-surface-container);
+        }
+
+        .v7-visual {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+        }
+
+        .v7-image-bg {
+            position: absolute;
+            top: 24px;
+            right: -24px;
+            bottom: -24px;
+            left: 24px;
+            background-color: var(--v7-surface-low);
+            z-index: 0;
+        }
+
+        .v7-image-container {
+            width: 100%;
+            height: 600px;
+            background-color: var(--v7-surface-container);
+            overflow: hidden;
+            position: relative;
+            z-index: 1;
+        }
+
+        .v7-image-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            filter: grayscale(20%) contrast(90%);
+        }
+
+        .v7-quote-box {
+            display: none;
+            position: absolute;
+            bottom: 64px;
+            left: -48px;
+            background: #ffffff;
+            padding: 32px;
+            border: 1px solid rgba(175, 179, 172, 0.1);
+            z-index: 2;
+        }
+
+        .v7-quote {
+            font-family: 'Noto Serif', serif;
+            font-style: italic;
+            font-size: 1.25rem;
+            color: var(--v7-primary);
+            margin: 0;
+        }
+
+        @media (min-width: 768px) {
+            .v7-wrapper {
+                grid-template-columns: repeat(12, 1fr);
+                gap: 0;
+            }
+            .v7-content {
+                grid-column: span 7;
+            }
+            .v7-visual {
+                grid-column: span 5;
+                padding: 48px;
+            }
+            .v7-title {
+                font-size: 5rem;
+            }
+            .v7-actions {
+                flex-direction: row;
+            }
+        }
+
+        @media (min-width: 1024px) {
+            .v7-quote-box {
+                display: block;
+            }
+        }
+    </style>
+<section class="v7-section">
+<div class="v7-wrapper">
+<div class="v7-content">
+<span class="v7-label">Volume 04 — SS24</span>
+<h1 class="v7-title">
+                    The quiet art of <span>intentional</span> living through raw materiality.
+                </h1>
+<p class="v7-description">
+                    A curation of form, light, and texture. Each piece in the Archive collection is a testament to the beauty of silence in a loud world. Crafted for the modern nomad.
+                </p>
+<div class="v7-actions">
+<button class="v7-btn v7-btn-primary">Discover Archive</button>
+<button class="v7-btn v7-btn-outline">View Lookbook</button>
+</div>
+</div>
+<div class="v7-visual">
+<div class="v7-image-bg"></div>
+<div class="v7-image-container">
+<img alt="Minimalist Fashion" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAwt7xVZdbIU3E3tZyZThZIr0g-9Fdg8HEi98JmZT1-X_ShmR7mSOiBRfgBgHmiFV-h-vcBVCc5etq8Fkn3CDt3w-G-gmxs2_Dc49WD_kAEwbJ-WfiPxUXavnJay7Yn4mj8xAEm-hmXeqQJMmmEmwmQ3d-_eglbSKBIjhsFz7ao6833Laef0js3-IFsPkXvJ4B55SwX6wok1Ra00tt8hxNFL3pfvtkVT0YH8NBJhJzmx2SWyPNXywft3-8kyg6wX-suVofvH_neF1Y"/>
+</div>
+<div class="v7-quote-box">
+<p class="v7-quote">"Details define the soul."</p>
+</div>
+</div>
+</div>
+</section>
+</div>
+<!-- Hero Variant 8 -->
+<div class="hero-v8-container">
+<style>
+        .hero-v8-container {
+            --v8-bg: #faf9f5;
+            --v8-text: #2f342e;
+            --v8-text-variant: #5c605a;
+            --v8-primary: #5f5e5e;
+            --v8-on-surface: #2f342e;
+            
+            font-family: 'Manrope', sans-serif;
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            overflow: hidden;
+        }
+
+        .hero-v8-container * {
+            box-sizing: border-box;
+        }
+
+        .v8-section {
+            position: relative;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            background-color: #edeee8;
+        }
+
+        .v8-background {
+            position: absolute;
+            inset: 0;
+            z-index: 0;
+        }
+
+        .v8-background img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .v8-overlay {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(to right, var(--v8-bg) 0%, rgba(250, 249, 245, 0.4) 50%, transparent 100%);
+        }
+
+        .v8-content-wrapper {
+            position: relative;
+            z-index: 10;
+            max-width: 1280px;
+            margin: 0 auto;
+            width: 100%;
+            padding: 0 40px 128px;
+        }
+
+        .v8-card {
+            background-color: rgba(250, 249, 245, 0.8);
+            backdrop-filter: blur(12px);
+            padding: 40px;
+            width: 100%;
+        }
+
+        .v8-label {
+            font-size: 0.65rem;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: var(--v8-primary);
+            margin-bottom: 24px;
+            display: block;
+        }
+
+        .v8-title {
+            font-family: 'Noto Serif', serif;
+            font-size: 2.5rem;
+            line-height: 1.2;
+            margin-bottom: 32px;
+            color: var(--v8-on-surface);
+        }
+
+        .v8-description {
+            font-size: 1rem;
+            color: var(--v8-text-variant);
+            margin-bottom: 40px;
+            line-height: 1.6;
+        }
+
+        .v8-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 16px;
+            font-size: 0.875rem;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--v8-on-surface);
+            text-decoration: none;
+            transition: all 0.3s ease;
+        }
+
+        .v8-link span:first-child {
+            border-bottom: 1px solid var(--v8-on-surface);
+            padding-bottom: 4px;
+        }
+
+        .v8-link .v8-arrow {
+            font-family: 'Material Symbols Outlined';
+            transition: transform 0.3s ease;
+        }
+
+        .v8-link:hover .v8-arrow {
+            transform: translateX(8px);
+        }
+
+        @media (min-width: 768px) {
+            .v8-card {
+                width: 50%;
+                padding: 64px;
+            }
+            .v8-title {
+                font-size: 3.75rem;
+            }
+        }
+    </style>
+<section class="v8-section">
+<div class="v8-background">
+<img alt="Luxury Atmosphere" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC3u7d-_SV8UAqWu0YF9n9yQOhagUfJlPQLIqtloYzS848lCtkuIpB5HtmRm2qHkpZlPgM0KEqpEhCoqlWU_0gPueVqCr_b2wJ7FC9Zbw_y-msjBUQICS70Hu5uhS2P3raYMTggElfBELgsLJjeicnkvJf5oMvG7DJoGNGRLT42lwlijK__inqvfapn1u68sd9VypUjE8-z0TRF0bCGBFhcaaBBKQY2e1ePlIcpwihdF_A6hv6T4ZMq9FP4p2Taqmak0wMtXpj210w"/>
+<div class="v8-overlay"></div>
+</div>
+<div class="v8-content-wrapper">
+<div class="v8-card">
+<span class="v8-label">The Signature Series</span>
+<h2 class="v8-title">Refined by <br/>Time &amp; Texture.</h2>
+<p class="v8-description">
+                    Explorations in high-grade silk, organic wool, and hand-woven ceramics. A collection designed to endure beyond the season.
+                </p>
+<a class="v8-link" href="#">
+<span>Shop Signature</span>
+<span class="v8-arrow">arrow_forward</span>
+</a>
+</div>
+</div>
+</section>
+</div></body></html>

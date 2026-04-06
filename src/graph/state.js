@@ -8,6 +8,7 @@ const ThemeGenerationState = Annotation.Root({
     catalogSize: Annotation(),
     designBrief: Annotation(), // Deprecated, replaced by designTokens
     designTokens: Annotation(),
+    selectedBlueprintId: Annotation(),
     components: Annotation({
         reducer: (x, y) => [...(x || []), ...y],
         default: () => [],

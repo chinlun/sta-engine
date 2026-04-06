@@ -1,0 +1,162 @@
+[
+  {
+    "blueprint_id": "hero-01-editorial",
+    "desktop_frame_id": "hero-01-editorial-desktop",
+    "mobile_frame_id": "hero-01-editorial-mobile",
+    "paths": {
+      "desktop": "hero/hero-01-editorial/desktop/code.html",
+      "mobile": "hero/hero-01-editorial/mobile/code.html"
+    },
+    "vibe": "Quiet Luxury",
+    "visual_description": "A sophisticated split-screen layout balancing large serif typography with full-height editorial imagery. Features generous white space and asymmetrical inset elements for a high-end brand feel.",
+    "best_for": [
+      "High-End Fashion",
+      "Bespoke Tailoring",
+      "Luxury Travel"
+    ]
+  },
+  {
+    "blueprint_id": "hero-02-bento",
+    "desktop_frame_id": "hero-02-bento-desktop",
+    "mobile_frame_id": "hero-02-bento-mobile",
+    "paths": {
+      "desktop": "hero/hero-02-bento/desktop/code.html",
+      "mobile": "hero/hero-02-bento/mobile/code.html"
+    },
+    "vibe": "Artisanal Minimal",
+    "visual_description": "A modern bento-style grid utilizing multiple image aspect ratios and structured text modules. Creates a narrative flow through modular blocks and intentional negative space.",
+    "best_for": [
+      "Curated Boutiques",
+      "Artisan Ceramics",
+      "Modern Furniture"
+    ]
+  },
+  {
+    "blueprint_id": "hero-03-statement",
+    "desktop_frame_id": "hero-03-statement-desktop",
+    "mobile_frame_id": "hero-03-statement-mobile",
+    "paths": {
+      "desktop": "hero/hero-03-statement/desktop/code.html",
+      "mobile": "hero/hero-03-statement/mobile/code.html"
+    },
+    "vibe": "Editorial Minimal",
+    "visual_description": "Features a large-scale bleed image with an overlapping content card for depth and focus. Minimalist typography and tonal background blocks create a clean, contemporary aesthetic.",
+    "best_for": [
+      "Sustainable Apparel",
+      "Interior Design",
+      "Designer Accessories"
+    ]
+  },
+  {
+    "blueprint_id": "hero-04-gallery",
+    "desktop_frame_id": "hero-04-gallery-desktop",
+    "mobile_frame_id": "hero-04-gallery-mobile",
+    "paths": {
+      "desktop": "hero/hero-04-gallery/desktop/code.html",
+      "mobile": "hero/hero-04-gallery/mobile/code.html"
+    },
+    "vibe": "Quiet Luxury",
+    "visual_description": "An asymmetrical gallery-inspired layout with floating image frames and centered editorial quotes. Emphasizes texture and materiality through large, high-fidelity visual assets.",
+    "best_for": [
+      "Fine Fragrance",
+      "Textile Design",
+      "Home Decor"
+    ]
+  },
+  {
+    "blueprint_id": "hero-05-narrative",
+    "desktop_frame_id": "hero-05-narrative-desktop",
+    "mobile_frame_id": "hero-05-narrative-mobile",
+    "paths": {
+      "desktop": "hero/hero-05-narrative/desktop/code.html",
+      "mobile": "hero/hero-05-narrative/mobile/code.html"
+    },
+    "vibe": "Quiet Luxury",
+    "visual_description": "A cinematic triptych arrangement featuring varying image scales to guide the viewer's eye. Typography is tucked into whitespace margins for an airy, high-fashion lookbook feel.",
+    "best_for": [
+      "Editorial Archives",
+      "Lifestyle Brands",
+      "Luxury Skincare"
+    ]
+  },
+  {
+    "blueprint_id": "hero-06-duotone",
+    "desktop_frame_id": "hero-06-duotone-desktop",
+    "mobile_frame_id": "hero-06-duotone-mobile",
+    "paths": {
+      "desktop": "hero/hero-06-duotone/desktop/code.html",
+      "mobile": "hero/hero-06-duotone/mobile/code.html"
+    },
+    "vibe": "High-Contrast Minimal",
+    "visual_description": "A bold color-blocked split layout using charcoal and off-white for a striking visual hierarchy. Features reversed typography and sharp, modern lines for a conceptual aesthetic.",
+    "best_for": [
+      "Conceptual Fashion",
+      "Modern Watches",
+      "Design Agencies"
+    ]
+  },
+  {
+    "blueprint_id": "hero-07-inset",
+    "desktop_frame_id": "hero-07-inset-desktop",
+    "mobile_frame_id": "hero-07-inset-mobile",
+    "paths": {
+      "desktop": "hero/hero-07-inset/desktop/code.html",
+      "mobile": "hero/hero-07-inset/mobile/code.html"
+    },
+    "vibe": "Artisanal Minimal",
+    "visual_description": "A layered frame composition with floating inset images and typography cards. Uses subtle z-index variations to create depth and a tactile, scrapbook-editorial quality.",
+    "best_for": [
+      "Bespoke Jewelry",
+      "Art Galleries",
+      "Niche Perfumery"
+    ]
+  },
+  {
+    "blueprint_id": "hero-08-minimal",
+    "desktop_frame_id": "hero-08-minimal-desktop",
+    "mobile_frame_id": "hero-08-minimal-mobile",
+    "paths": {
+      "desktop": "hero/hero-08-minimal/desktop/code.html",
+      "mobile": "hero/hero-08-minimal/mobile/code.html"
+    },
+    "vibe": "Quiet Luxury",
+    "visual_description": "An ultra-minimal layout centered around a single high-impact image and large-scale serif typography. Heavily reliant on 100px+ margins for a prestigious, airy atmosphere.",
+    "best_for": [
+      "Premium Basics",
+      "Luxury Footwear",
+      "Minimalist Tech"
+    ]
+  },
+  {
+    "blueprint_id": "hero-09-triptych",
+    "desktop_frame_id": "hero-09-triptych-desktop",
+    "mobile_frame_id": "hero-09-triptych-mobile",
+    "paths": {
+      "desktop": "hero/hero-09-triptych/desktop/code.html",
+      "mobile": "hero/hero-09-triptych/mobile/code.html"
+    },
+    "vibe": "Quiet Luxury",
+    "visual_description": "A narrative grid of three images with mixed aspect ratios creating a rhythmic visual composition. Text elements are placed asymmetrically to balance the image weights.",
+    "best_for": [
+      "Lookbooks",
+      "Interior Design",
+      "Lifestyle Portfolios"
+    ]
+  },
+  {
+    "blueprint_id": "hero-10-offset",
+    "desktop_frame_id": "hero-10-offset-desktop",
+    "mobile_frame_id": "hero-10-offset-mobile",
+    "paths": {
+      "desktop": "hero/hero-10-offset/desktop/code.html",
+      "mobile": "hero/hero-10-offset/mobile/code.html"
+    },
+    "vibe": "Artisanal Minimal",
+    "visual_description": "Features an asymmetrical typographic layout with the headline offset from the primary visual. High reliance on grid-spacing and precise alignment for a structural yet fluid look.",
+    "best_for": [
+      "Ceramics",
+      "Stationery",
+      "Organic Cosmetics"
+    ]
+  }
+]

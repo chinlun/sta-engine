@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Quiet Luxury Hero Components - Mobile</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500&amp;family=Noto+Serif:ital,wght@0,400;0,700;1,400&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+</head>
+<body style="margin: 0; background-color: #FDFCF8;">
+<!-- Hero Variant 7 - Mobile -->
+<div class="hero-v7-mobile-container" data-purpose="hero-v7">
+<style>
+        .hero-v7-mobile-container {
+            --v7-bg: #FDFCF8;
+            --v7-text: #1A1A1A;
+            --v7-text-variant: #5c605a;
+            --v7-primary: #1A1A1A;
+            --v7-on-primary: #FDFCF8;
+            --v7-surface-container: #edeee8;
+            --v7-surface-low: #f4f4ef;
+            --v7-outline: rgba(26, 26, 26, 0.2);
+            
+            background-color: var(--v7-bg);
+            color: var(--v7-text);
+            font-family: 'Manrope', sans-serif;
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            overflow-x: hidden;
+        }
+
+        .hero-v7-mobile-container * {
+            box-sizing: border-box;
+        }
+
+        .v7-mob-section {
+            display: flex;
+            flex-direction: column;
+            padding: 40px 24px;
+            text-align: center;
+            align-items: center;
+        }
+
+        .v7-mob-label {
+            font-size: 0.65rem;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: var(--v7-primary);
+            margin-bottom: 24px;
+            display: block;
+        }
+
+        .v7-mob-title {
+            font-family: 'Noto Serif', serif;
+            font-size: 2.25rem;
+            line-height: 1.2;
+            letter-spacing: -0.02em;
+            margin-bottom: 24px;
+            max-width: 100%;
+        }
+
+        .v7-mob-title span {
+            font-style: italic;
+        }
+
+        .v7-mob-description {
+            font-size: 1rem;
+            color: var(--v7-text-variant);
+            max-width: 100%;
+            margin-bottom: 40px;
+            line-height: 1.6;
+        }
+
+        .v7-mob-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            width: 100%;
+            margin-bottom: 48px;
+        }
+
+        .v7-mob-btn {
+            padding: 16px 32px;
+            font-size: 0.8125rem;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: none;
+            text-decoration: none;
+            display: block;
+            text-align: center;
+            width: 100%;
+        }
+
+        .v7-mob-btn-primary {
+            background-color: var(--v7-primary);
+            color: var(--v7-on-primary);
+        }
+
+        .v7-mob-btn-outline {
+            background: transparent;
+            border: 1px solid var(--v7-outline);
+            color: var(--v7-text);
+        }
+
+        .v7-mob-visual {
+            position: relative;
+            width: 100%;
+            margin-top: 20px;
+        }
+
+        .v7-mob-image-bg {
+            position: absolute;
+            top: 12px;
+            right: -12px;
+            bottom: -12px;
+            left: 12px;
+            background-color: var(--v7-surface-low);
+            z-index: 0;
+        }
+
+        .v7-mob-image-container {
+            width: 100%;
+            height: 450px;
+            background-color: var(--v7-surface-container);
+            overflow: hidden;
+            position: relative;
+            z-index: 1;
+        }
+
+        .v7-mob-image-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            filter: grayscale(10%) contrast(95%);
+        }
+
+        .v7-mob-quote-box {
+            position: relative;
+            margin-top: -32px;
+            margin-left: auto;
+            margin-right: auto;
+            background: #ffffff;
+            padding: 20px;
+            border: 1px solid rgba(26, 26, 26, 0.05);
+            z-index: 2;
+            max-width: 80%;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.03);
+        }
+
+        .v7-mob-quote {
+            font-family: 'Noto Serif', serif;
+            font-style: italic;
+            font-size: 1rem;
+            color: var(--v7-primary);
+            margin: 0;
+        }
+    </style>
+<section class="v7-mob-section">
+<span class="v7-mob-label">Volume 04 — SS24</span>
+<h1 class="v7-mob-title">
+            The quiet art of <span>intentional</span> living through raw materiality.
+        </h1>
+<p class="v7-mob-description">
+            A curation of form, light, and texture. Each piece in the Archive collection is a testament to the beauty of silence in a loud world.
+        </p>
+<div class="v7-mob-actions">
+<button class="v7-mob-btn v7-mob-btn-primary">Discover Archive</button>
+<button class="v7-mob-btn v7-mob-btn-outline">View Lookbook</button>
+</div>
+<div class="v7-mob-visual">
+<div class="v7-mob-image-bg"></div>
+<div class="v7-mob-image-container">
+<img alt="Minimalist Fashion" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAwt7xVZdbIU3E3tZyZThZIr0g-9Fdg8HEi98JmZT1-X_ShmR7mSOiBRfgBgHmiFV-h-vcBVCc5etq8Fkn3CDt3w-G-gmxs2_Dc49WD_kAEwbJ-WfiPxUXavnJay7Yn4mj8xAEm-hmXeqQJMmmEmwmQ3d-_eglbSKBIjhsFz7ao6833Laef0js3-IFsPkXvJ4B55SwX6wok1Ra00tt8hxNFL3pfvtkVT0YH8NBJhJzmx2SWyPNXywft3-8kyg6wX-suVofvH_neF1Y"/>
+</div>
+<div class="v7-mob-quote-box">
+<p class="v7-mob-quote">"Details define the soul."</p>
+</div>
+</div>
+</section>
+</div>
+<hr style="border: 0; border-top: 1px solid rgba(26,26,26,0.05); margin: 0;"/>
+<!-- Hero Variant 8 - Mobile -->
+<div class="hero-v8-mobile-container" data-purpose="hero-v8">
+<style>
+        .hero-v8-mobile-container {
+            --v8-bg: #FDFCF8;
+            --v8-text: #1A1A1A;
+            --v8-text-variant: #5c605a;
+            --v8-primary: #1A1A1A;
+            
+            font-family: 'Manrope', sans-serif;
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            overflow: hidden;
+            background-color: var(--v8-bg);
+        }
+
+        .hero-v8-mobile-container * {
+            box-sizing: border-box;
+        }
+
+        .v8-mob-section {
+            display: flex;
+            flex-direction: column;
+            min-height: auto;
+        }
+
+        .v8-mob-visual {
+            width: 100%;
+            height: 350px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .v8-mob-visual img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .v8-mob-overlay {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(to bottom, transparent 0%, rgba(253, 252, 248, 0.4) 100%);
+        }
+
+        .v8-mob-content {
+            padding: 40px 24px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .v8-mob-card {
+            background-color: transparent;
+            width: 100%;
+        }
+
+        .v8-mob-label {
+            font-size: 0.65rem;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: var(--v8-primary);
+            margin-bottom: 16px;
+            display: block;
+        }
+
+        .v8-mob-title {
+            font-family: 'Noto Serif', serif;
+            font-size: 2rem;
+            line-height: 1.25;
+            margin-bottom: 20px;
+            color: var(--v8-text);
+        }
+
+        .v8-mob-description {
+            font-size: 1rem;
+            color: var(--v8-text-variant);
+            margin-bottom: 32px;
+            line-height: 1.6;
+        }
+
+        .v8-mob-link {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            font-size: 0.8125rem;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--v8-text);
+            text-decoration: none;
+            transition: all 0.3s ease;
+        }
+
+        .v8-mob-link-text {
+            border-bottom: 1px solid var(--v8-text);
+            padding-bottom: 4px;
+        }
+
+        .v8-mob-arrow {
+            font-family: 'Material Symbols Outlined';
+            font-size: 18px;
+        }
+    </style>
+<section class="v8-mob-section">
+<div class="v8-mob-visual">
+<img alt="Luxury Atmosphere" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC3u7d-_SV8UAqWu0YF9n9yQOhagUfJlPQLIqtloYzS848lCtkuIpB5HtmRm2qHkpZlPgM0KEqpEhCoqlWU_0gPueVqCr_b2wJ7FC9Zbw_y-msjBUQICS70Hu5uhS2P3raYMTggElfBELgsLJjeicnkvJf5oMvG7DJoGNGRLT42lwlijK__inqvfapn1u68sd9VypUjE8-z0TRF0bCGBFhcaaBBKQY2e1ePlIcpwihdF_A6hv6T4ZMq9FP4p2Taqmak0wMtXpj210w"/>
+<div class="v8-mob-overlay"></div>
+</div>
+<div class="v8-mob-content">
+<div class="v8-mob-card">
+<span class="v8-mob-label">The Signature Series</span>
+<h2 class="v8-mob-title">Refined by <br/>Time &amp; Texture.</h2>
+<p class="v8-mob-description">
+                    Explorations in high-grade silk, organic wool, and hand-woven ceramics. A collection designed to endure beyond the season.
+                </p>
+<a class="v8-mob-link" href="#">
+<span class="v8-mob-link-text">Shop Signature</span>
+<span class="v8-mob-arrow">arrow_forward</span>
+</a>
+</div>
+</div>
+</section>
+</div>
+</body></html>

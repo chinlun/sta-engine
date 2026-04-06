@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif:ital,wght@0,400;0,700;1,400&amp;family=Manrope:wght@300;400;600&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        @font-face {
+            font-family: 'Noto Serif';
+            src: url('https://fonts.googleapis.com/css2?family=Noto+Serif:ital,wght@0,400;0,700;1,400&display=swap');
+        }
+        @font-face {
+            font-family: 'Manrope';
+            src: url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;600&display=swap');
+        }
+
+        :root {
+            --ql-bg: #FDFCF8;
+            --ql-text: #1A1A1A;
+            --ql-text-muted: #5F5E5E;
+        }
+
+        .font-headline { font-family: 'Noto Serif', serif; }
+        .font-body, .font-label { font-family: 'Manrope', sans-serif; }
+
+        .hero-triptych-container {
+            background-color: var(--ql-bg);
+            color: var(--ql-text);
+            padding: 80px 0;
+            width: 100%;
+        }
+
+        /* Scoped styles for the Triptych Hero component */
+        .triptych-grid {
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+            gap: 3rem;
+            align-items: start;
+            max-width: 1440px;
+            margin: 0 auto;
+            padding: 0 2rem;
+        }
+
+        @media (max-width: 768px) {
+            .triptych-grid {
+                display: flex;
+                flex-direction: column;
+                gap: 4rem;
+                padding: 0 1.5rem;
+            }
+            .hero-triptych-container {
+                padding: 60px 0;
+            }
+            .triptych-item {
+                width: 100%;
+                margin-top: 0 !important;
+            }
+        }
+
+        .triptych-img-wrapper {
+            overflow: hidden;
+            background-color: #f0eee9;
+        }
+
+        .triptych-img-wrapper img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .triptych-img-wrapper:hover img {
+            transform: scale(1.05);
+        }
+    </style>
+</head>
+<body class="bg-[#FDFCF8] m-0 p-0">
+<!-- Hero Variant 19: The Triptych Content -->
+<div class="hero-triptych-container" id="hero-triptych">
+<div class="triptych-grid">
+<!-- Narrative Column 1: Small Vertical (The Detail) -->
+<div class="triptych-item col-span-3 mt-24">
+<div class="triptych-img-wrapper aspect-[3/4]">
+<img alt="Textural Detail" data-alt="Macro close-up of high-quality grey linen fabric texture with soft natural shadows and architectural folding patterns" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDMObvNQfcD9nuPIdt02X47xtdYTjHfjukLaHjl3_YKfAw6UuPjLhnFlekvpDe0VyzSKEXB2LsDgiK4PGcQzdhPWcRsqdWkT2gtN12xakFGjeiRbXtYCz2Eic2sGNEUHvW60lfd5f5aFi4n39dtGXXSrxCA6sJOBHdsZFX8Qh3qUNlGUvwVKsu-qNX72S8tCgjeJLCJepQq2WTHGifmK9RlaOSDsRGyiqKkPUkCgC_jjPhLQ4UFqDP0FP4gGVPh3bDwW94SVhvSBik"/>
+</div>
+<div class="mt-8 text-left">
+<span class="font-label text-[10px] tracking-[0.2em] uppercase text-[#5F5E5E]">Detail 01</span>
+<p class="font-body text-sm text-[#1A1A1A] mt-2 leading-relaxed max-w-[240px]">The tactile resonance of raw fibers, woven with intentionality in our northern atelier.</p>
+</div>
+</div>
+<!-- Narrative Column 2: Large Center (The Statement) -->
+<div class="triptych-item col-span-6">
+<div class="mb-12 md:mb-20 text-center">
+<h1 class="font-headline text-5xl md:text-7xl lg:text-8xl text-[#1A1A1A] leading-[1.1] tracking-tighter">The Quiet<br/><span class="italic md:ml-24">Composition</span></h1>
+</div>
+<div class="triptych-img-wrapper aspect-[4/5] md:aspect-[3/4]">
+<img alt="Hero Portrait" data-alt="Editorial fashion photography of a model in a minimalist charcoal wool coat standing against a pale limestone wall in soft overcast light" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCcnqOzrlT7Y6KhwNZmEk5xEOJsOvSjebT5gmjbGUoQbKH6yTnn6mClxKg43Y7bbi0ZsaR7mxr9uLM8un1xSHa8O6DHOUM5pvzltaYndizzAtscHLjxbnuE7IsDSGX4-XqBjDzz-Kk244PN3D4t9mxmcifm9m0zQ5bI53Ck81iNiM1ILD_4Un49WE0n1wAupGLzRBi2x_lOmtj80QNs3lB0iW4QjYOyD62EF0ozpTY5TIT2rFuol885B49FLiTnzAOO2Sg72Kp6DHY"/>
+</div>
+<div class="mt-12 flex flex-col items-center">
+<button class="bg-[#1A1A1A] text-[#FDFCF8] px-12 py-4 font-label text-[10px] tracking-widest uppercase transition-all duration-300 hover:bg-[#333333] hover:px-14">
+                    Explore Collection
+                </button>
+</div>
+</div>
+<!-- Narrative Column 3: Medium Offset (The Environment) -->
+<div class="triptych-item col-span-3 mt-48">
+<div class="triptych-img-wrapper aspect-[2/3]">
+<img alt="Environmental Shot" data-alt="Minimalist architectural interior with clean lines, concrete surfaces, and a single ray of morning sunlight hitting a wooden bench" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDv1VxGhBlcokZ_RZx-ikcFxko2Ed9oy-Sd--MaqTVFk7raxxjU7xxPMhnmePNW0qAvtYtzKi6Sf4W0RQGVr_3kFAcCt9Ze8wMZhmlcngwU-5yB-A6mpATWt6fu8tLdiOXgDDws8jYI46XhvmaxGdEw-4YdqMfm2n-5GAsv0qxSFHGCILNrQebaJ6mw7tYT72053k1nvg7zCHU8RNRH1Oock9GDmArnhqVmf3dDYzkOmjEot4SwK11xQLgWUf_0-o54G1WRwpvRfi0"/>
+</div>
+<div class="mt-8 text-right">
+<span class="font-label text-[10px] tracking-[0.2em] uppercase text-[#5F5E5E]">Space 02</span>
+<p class="font-body text-sm text-[#1A1A1A] mt-2 leading-relaxed ml-auto max-w-[240px]">Where form meets function in a silent dialogue of structural grace.</p>
+</div>
+</div>
+</div>
+</div>
+</body></html>

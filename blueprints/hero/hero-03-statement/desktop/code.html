@@ -1,0 +1,269 @@
+<!-- Hero Variant 5: Overlapping Card Hero --><html><head></head><body><div class="hero-v5-container" id="hero-variant-5">
+<style>
+        #hero-variant-5.hero-v5-container {
+            --v5-bg: #faf9f5;
+            --v5-text: #1A1A1A;
+            --v5-secondary: #5f5e5e;
+            --v5-card-bg: #ffffff;
+            --v5-serif: 'Noto Serif', serif;
+            --v5-sans: 'Manrope', sans-serif;
+            
+            background-color: var(--v5-bg);
+            color: var(--v5-text);
+            font-family: var(--v5-sans);
+            position: relative;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px 24px;
+            box-sizing: border-box;
+            overflow: hidden;
+        }
+
+        #hero-variant-5 .v5-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            width: 100%;
+            max-width: 1400px;
+            margin: 0 auto;
+            position: relative;
+        }
+
+        #hero-variant-5 .v5-image-wrapper {
+            width: 100%;
+            aspect-ratio: 4/5;
+            overflow: hidden;
+        }
+
+        #hero-variant-5 .v5-image-wrapper img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        #hero-variant-5 .v5-content-card {
+            background-color: var(--v5-card-bg);
+            padding: 32px;
+            z-index: 10;
+            margin-top: -80px;
+            width: 90%;
+            margin-left: auto;
+            margin-right: auto;
+            box-sizing: border-box;
+        }
+
+        #hero-variant-5 .v5-label {
+            display: block;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.2em;
+            color: var(--v5-secondary);
+            margin-bottom: 24px;
+        }
+
+        #hero-variant-5 .v5-title {
+            font-family: var(--v5-serif);
+            font-size: 40px;
+            line-height: 1.1;
+            letter-spacing: -0.04em;
+            margin: 0 0 24px 0;
+            color: var(--v5-text);
+        }
+
+        #hero-variant-5 .v5-description {
+            font-size: 16px;
+            line-height: 1.6;
+            color: var(--v5-secondary);
+            margin-bottom: 32px;
+            max-width: 400px;
+        }
+
+        #hero-variant-5 .v5-button {
+            display: inline-block;
+            background-color: var(--v5-text);
+            color: #ffffff;
+            padding: 16px 40px;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            border: none;
+            cursor: pointer;
+            text-decoration: none;
+            transition: opacity 0.3s ease;
+        }
+
+        #hero-variant-5 .v5-button:hover {
+            opacity: 0.9;
+        }
+
+        @media (min-width: 768px) {
+            #hero-variant-5 .v5-grid {
+                grid-template-columns: repeat(12, 1fr);
+            }
+            #hero-variant-5 .v5-image-wrapper {
+                grid-column: 4 / 13;
+                aspect-ratio: 16/9;
+            }
+            #hero-variant-5 .v5-content-card {
+                position: absolute;
+                left: 0;
+                top: 50%;
+                transform: translateY(-50%);
+                width: 40%;
+                margin: 0;
+                padding: 64px;
+            }
+            #hero-variant-5 .v5-title {
+                font-size: 72px;
+            }
+        }
+    </style>
+<div class="v5-grid">
+<div class="v5-image-wrapper">
+<img alt="Editorial fashion photography" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAs02JnjNzK1mSDYCvazclVRAb19gHEUQJOC9NCjzWhFpvYqdbKb3GsLlpf73dQfgmuLaGiCnoeEizwvOUZoRi2neq1qvHeVGr0h3deXiLNRuvTUu6PDcKluHMfM9zkQY7lmrAnvxCdFrzKAtC_JCPzvtIdcS80fFTsUr92XcIiWDHjwv6g2cbzTrb6vj10t9mcwomiDgsqtZjlJY6x3PR2-q-iT3UcYTCdU4c_uGCVqIED5dHfLsrXtW9ULgSrCHwQ-SlEFy7sotY"/>
+</div>
+<div class="v5-content-card">
+<span class="v5-label">Collection 2024 / Edition 01</span>
+<h1 class="v5-title">The Quiet <br/>Statement.</h1>
+<p class="v5-description">
+                Curated silhouettes that speak through texture rather than volume. A study in architectural tailoring and noble fibers.
+            </p>
+<button class="v5-button">Explore the Edit</button>
+</div>
+</div>
+</div>
+<!-- Hero Variant 6: Parallax Hero (The Digital Atelier) -->
+<div class="hero-v6-container" id="hero-variant-6">
+<style>
+        #hero-variant-6.hero-v6-container {
+            --v6-overlay-bg: rgba(250, 249, 245, 0.3);
+            --v6-text: #1A1A1A;
+            --v6-serif: 'Noto Serif', serif;
+            --v6-sans: 'Manrope', sans-serif;
+            
+            position: relative;
+            height: 100vh;
+            width: 100%;
+            overflow: hidden;
+            font-family: var(--v6-sans);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-sizing: border-box;
+        }
+
+        #hero-variant-6 .v6-background {
+            position: absolute;
+            inset: 0;
+            background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuAs0xOyCilISwQbS0Fn5yKSoeuR-id5-mYQQqjIVSVPAi2J-rcVboqYvsX0bp9v1aoSkP7RAVhBIMEXzeJpKeTdeQLJ6O2C6sA13kEer8TtFfFMZ7v11pCVtmHSHYVHfIuJkO_LeJzwS7o3WCNVKhK500dj5RCNB9EKg_5iPPVk-y2ONeOLUBwonqX2EpCvlYH9mkKy4zpDxzyVFK-NyvfKA5OraYhArb59Ube1G0nyxoPBEoCl0APUEG3VxaYXj__llnH2fiSaD6Y');
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+            filter: grayscale(20%);
+            z-index: 1;
+        }
+
+        #hero-variant-6 .v6-overlay {
+            position: absolute;
+            inset: 0;
+            background-color: rgba(26, 26, 26, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2;
+        }
+
+        #hero-variant-6 .v6-glass-card {
+            background-color: var(--v6-overlay-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            padding: 48px 24px;
+            text-align: center;
+            max-width: 680px;
+            width: calc(100% - 48px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            box-sizing: border-box;
+        }
+
+        #hero-variant-6 .v6-label {
+            display: block;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.3em;
+            color: var(--v6-text);
+            margin-bottom: 16px;
+        }
+
+        #hero-variant-6 .v6-title {
+            font-family: var(--v6-serif);
+            font-size: 36px;
+            letter-spacing: -0.04em;
+            color: var(--v6-text);
+            margin: 0 0 24px 0;
+        }
+
+        #hero-variant-6 .v6-description {
+            font-size: 16px;
+            line-height: 1.6;
+            color: var(--v6-text);
+            margin-bottom: 32px;
+        }
+
+        #hero-variant-6 .v6-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+            color: var(--v6-text);
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.2em;
+        }
+
+        #hero-variant-6 .v6-link span {
+            border-bottom: 1px solid var(--v6-text);
+            padding-bottom: 4px;
+        }
+
+        #hero-variant-6 .v6-link svg {
+            transition: transform 0.3s ease;
+        }
+
+        #hero-variant-6 .v6-link:hover svg {
+            transform: translateX(8px);
+        }
+
+        @media (max-width: 768px) {
+            #hero-variant-6 .v6-background {
+                background-attachment: scroll;
+            }
+        }
+
+        @media (min-width: 768px) {
+            #hero-variant-6 .v6-glass-card {
+                padding: 80px;
+            }
+            #hero-variant-6 .v6-title {
+                font-size: 64px;
+            }
+            #hero-variant-6 .v6-description {
+                font-size: 18px;
+            }
+        }
+    </style>
+<div class="v6-background"></div>
+<div class="v6-overlay">
+<div class="v6-glass-card">
+<span class="v6-label">Craftsmanship</span>
+<h2 class="v6-title">Honest Materials.</h2>
+<p class="v6-description">
+                Each piece is developed in our Paris-based atelier, utilizing heritage techniques passed through generations of master tailors.
+            </p>
+<a class="v6-link" href="#">
+<span>Our Process</span>
+<svg fill="none" height="20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="20"><line x1="5" x2="19" y1="12" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+</a>
+</div>
+</div>
+</div></body></html>
