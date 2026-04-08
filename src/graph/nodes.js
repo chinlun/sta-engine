@@ -52,19 +52,66 @@ function getStructuralSkeleton(html) {
         .trim();
 }
 
-function extractJsonFromText(text) {
+function repairJson(text) {
     if (!text) return null;
+
+    // 1. Try standard extraction first
     const codeBlockRegex = /```(?:json)?\s*([\s\S]*?)\s*```/g;
     let match;
     while ((match = codeBlockRegex.exec(text)) !== null) {
-        try { return JSON.parse(match[1].trim()); } catch (e) { }
+        const candidate = match[1].trim();
+        try { return JSON.parse(candidate); } catch (e) {
+            // If it fails, try to balance it
+            const repaired = balanceJson(candidate);
+            try { return JSON.parse(repaired); } catch (e2) { }
+        }
     }
+
+    // 2. Try raw brace extraction
     const firstBrace = text.indexOf('{');
     const lastBrace = text.lastIndexOf('}');
-    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-        try { return JSON.parse(text.substring(firstBrace, lastBrace + 1)); } catch (e) { }
+    if (firstBrace !== -1) {
+        let candidate = text.substring(firstBrace, (lastBrace !== -1 && lastBrace > firstBrace) ? lastBrace + 1 : text.length);
+        try { return JSON.parse(candidate); } catch (e) {
+            const repaired = balanceJson(candidate);
+            try { return JSON.parse(repaired); } catch (e2) { }
+        }
     }
     return null;
+}
+
+function balanceJson(json) {
+    let stack = [];
+    let inString = false;
+    let escaped = false;
+
+    for (let i = 0; i < json.length; i++) {
+        const char = json[i];
+        if (char === '"' && !escaped) inString = !inString;
+        if (inString) {
+            if (char === '\\') escaped = !escaped;
+            else escaped = false;
+            continue;
+        }
+        if (char === '{' || char === '[') stack.push(char === '{' ? '}' : ']');
+        else if (char === '}' || char === ']') {
+            if (stack.length > 0 && stack[stack.length - 1] === char) stack.pop();
+        }
+    }
+
+    let repaired = json;
+    // Close trailing string if needed
+    if (inString) repaired += '"';
+
+    // Close open structures in reverse order
+    while (stack.length > 0) {
+        repaired += stack.pop();
+    }
+    return repaired;
+}
+
+function extractJsonFromText(text) {
+    return repairJson(text);
 }
 
 /**
@@ -129,18 +176,27 @@ async function designerNode(state, config) {
     const { userPrompt, referenceImageBase64 } = state;
     const sendEvent = config.configurable?.sendEvent;
 
-    const messageContent = [
-        { type: 'text', text: `User Prompt: ${userPrompt}` }
-    ];
+    let attempt = 0;
+    const maxAttempts = 3;
+    let lastError = null;
 
-    if (referenceImageBase64) {
-        messageContent.push({ type: 'image', image: referenceImageBase64 });
-    }
+    while (attempt < maxAttempts) {
+        attempt++;
+        try {
+            const messageContent = [
+                { type: 'text', text: `User Prompt: ${userPrompt}` }
+            ];
+            if (referenceImageBase64) {
+                messageContent.push({ type: 'image', image: referenceImageBase64 });
+            }
+            if (lastError) {
+                messageContent.push({ type: 'text', text: `CRITICAL: Your previous response failed to parse. REASON: ${lastError.message}. Ensure you return valid JSON strictly according to the schema.` });
+            }
 
-    const { fullStream, text } = await streamText({
-        model: gemini3Flash,
-        system: `You are the Lead Designer Agent. Your goal is to select a curated, high-end color palette and design tokens.
-        
+            const { fullStream, text } = await streamText({
+                model: gemini31Pro,
+                system: `You are the Lead Designer Agent. Your goal is to select a curated, high-end color palette and design tokens.
+                
 AESTHETIC RULES:
 1. "Sophisticated" & Premium: Avoid basic colors. Use HSL-tailored, harmonious palettes.
 2. Editorial Design: Prioritize typography and white space. No rounded corners (0px).
@@ -167,55 +223,56 @@ Schema:
   },
   "reasoning": "string"
 }`,
-        messages: [{ role: 'user', content: messageContent }],
-        maxTokens: 4096,
-    });
+                messages: [{ role: 'user', content: messageContent }],
+                maxTokens: 4096,
+            });
 
-    let hasStartedStream = false;
-    let streamBuffer = "";
-    let partCount = 0;
+            let hasStartedStream = false;
+            let streamBuffer = "";
+            let partCount = 0;
 
-    for await (const part of fullStream) {
-        partCount++;
-        // Exhaustive key capture for 3.1 Pro robustness
-        const delta = part.textDelta || part.reasoning || part.thought || part.text || "";
+            for await (const part of fullStream) {
+                partCount++;
+                const delta = part.textDelta || part.reasoning || part.thought || part.text || "";
 
-        if (!hasStartedStream && delta) {
-            logger.info(`[AI] designerNode stream started (Recvd ${partCount} parts)...`);
-            hasStartedStream = true;
-        }
+                if (!hasStartedStream && delta) {
+                    logger.info(`[AI] designerNode stream started...`);
+                    hasStartedStream = true;
+                }
 
-        // Alive signal every 20 parts if silent
-        if (partCount % 20 === 0) logger.info(`[AI] designerNode: Recvd ${partCount} parts (Alive)...`);
+                if (delta) {
+                    streamBuffer += delta;
+                    if (sendEvent && (part.type === 'text-delta' || part.type === 'reasoning' || part.type === 'thought')) {
+                        sendEvent({ type: 'thinking', node: 'designer', text: delta });
+                    }
 
-        if (delta) {
-            streamBuffer += delta;
-            if (sendEvent && (part.type === 'text-delta' || part.type === 'reasoning' || part.type === 'thought')) {
-                sendEvent({ type: 'thinking', node: 'designer', text: delta });
+                    if (streamBuffer.length > 50 || streamBuffer.includes('\n')) {
+                        logger.info(`[AI] ${streamBuffer}`);
+                        streamBuffer = "";
+                    }
+                }
+            }
+            if (streamBuffer) logger.info(`[AI] ${streamBuffer}`);
+
+            const finalText = await text;
+            const finalObject = extractJsonFromText(finalText);
+
+            if (!finalObject || !finalObject.design_tokens) {
+                throw new Error("Failed to extract valid JSON from designer stream");
             }
 
-            // Buffer flushes periodically or on newline (NO TRIMMING)
-            if (streamBuffer.length > 50 || streamBuffer.includes('\n')) {
-                logger.info(`[AI] ${streamBuffer}`);
-                streamBuffer = "";
-            }
+            const duration = Date.now() - startTime;
+            logger.info(`[Graph] ✅ Node: designerNode complete (${duration}ms)`);
+            return {
+                designTokens: finalObject.design_tokens,
+                reasoning: { node: 'designer', text: finalObject.reasoning }
+            };
+        } catch (error) {
+            lastError = error;
+            logger.warn(`[Graph] Designer error, Retrying (${attempt}/${maxAttempts})... Error: ${error.message}`);
+            if (attempt >= maxAttempts) throw error;
         }
     }
-    if (streamBuffer) logger.info(`[AI] ${streamBuffer}`);
-
-    const finalText = await text;
-    const finalObject = extractJsonFromText(finalText);
-
-    if (!finalObject || !finalObject.design_tokens) {
-        throw new Error("Failed to extract valid JSON from designer stream");
-    }
-
-    const duration = Date.now() - startTime;
-    logger.info(`[Graph] ✅ Node: designerNode complete (${duration}ms)`);
-    return {
-        designTokens: finalObject.design_tokens,
-        reasoning: { node: 'designer', text: finalObject.reasoning }
-    };
 }
 
 /**
@@ -228,12 +285,30 @@ async function plannerNode(state, config) {
     const { userPrompt, designTokens, catalogSize } = state;
     const sendEvent = config.configurable?.sendEvent;
 
+    let attempt = 0;
+    const maxAttempts = 3;
+    let lastError = null;
+
     const manifestSummary = blueprintsManifest.map(bp => `- ID: ${bp.blueprint_id} | Vibe: ${bp.vibe} | Description: ${bp.visual_description} | Best For: ${bp.best_for.join(", ")}`).join('\n');
 
-    const { fullStream, text } = await streamText({
-        model: gemini3Flash,
-        system: `You are the Lead Shopify Architect. Based on the selected design tokens, break down the home page into a list of components.
-        
+    while (attempt < maxAttempts) {
+        attempt++;
+        try {
+            const messages = [
+                {
+                    role: 'user', content: [
+                        { type: 'text', text: `User Prompt: ${userPrompt}\nCatalog Size: ${catalogSize}\nDesign Tokens: ${JSON.stringify(designTokens)}` }
+                    ]
+                }
+            ];
+            if (lastError) {
+                messages[0].content.push({ type: 'text', text: `CRITICAL: Your previous response failed to parse. REASON: ${lastError.message}. Ensure you return valid JSON strictly according to the schema.` });
+            }
+
+            const { fullStream, text } = await streamText({
+                model: gemini31Pro, // Upgraded to Pro
+                system: `You are the Lead Shopify Architect. Based on the selected design tokens, break down the home page into a list of components.
+                
 BLUEPRINTS:
 ${manifestSummary}
 
@@ -259,55 +334,61 @@ Schema:
   "blueprint_id": "string",
   "reasoning": "string"
 }`,
-        prompt: `User Prompt: ${userPrompt}\nCatalog Size: ${catalogSize}\nDesign Tokens: ${JSON.stringify(designTokens)}`,
-        maxTokens: 8192,
-    });
+                messages,
+                maxTokens: 8192,
+            });
 
-    let hasStartedStream = false;
-    let streamBuffer = "";
-    let partCount = 0;
+            let hasStartedStream = false;
+            let streamBuffer = "";
+            let partCount = 0;
 
-    for await (const part of fullStream) {
-        partCount++;
-        const delta = part.textDelta || part.reasoning || part.thought || part.text || "";
+            for await (const part of fullStream) {
+                partCount++;
+                const delta = part.textDelta || part.reasoning || part.thought || part.text || "";
 
-        if (!hasStartedStream && delta) {
-            logger.info(`[AI] plannerNode stream started (Recvd ${partCount} parts)...`);
-            hasStartedStream = true;
-        }
+                if (!hasStartedStream && delta) {
+                    logger.info(`[AI] plannerNode stream started...`);
+                    hasStartedStream = true;
+                }
 
-        if (partCount % 20 === 0) logger.info(`[AI] plannerNode: Recvd ${partCount} parts (Alive)...`);
+                if (delta) {
+                    streamBuffer += delta;
+                    if (sendEvent && (part.type === 'text-delta' || part.type === 'reasoning' || part.type === 'thought')) {
+                        sendEvent({ type: 'thinking', node: 'planner', text: delta });
+                    }
 
-        if (delta) {
-            streamBuffer += delta;
-            if (sendEvent && part.type === 'text-delta') sendEvent({ type: 'thinking', node: 'planner', text: delta });
-
-            if (streamBuffer.length > 60 || streamBuffer.includes('\n')) {
-                logger.info(`[AI] ${streamBuffer}`);
-                streamBuffer = "";
+                    if (streamBuffer.length > 50 || streamBuffer.includes('\n')) {
+                        logger.info(`[AI] ${streamBuffer}`);
+                        streamBuffer = "";
+                    }
+                }
             }
+            if (streamBuffer) logger.info(`[AI] ${streamBuffer}`);
+
+            const finalText = await text;
+            const finalObject = extractJsonFromText(finalText);
+
+            if (!finalObject || !finalObject.components) {
+                throw new Error("Failed to extract valid JSON from planner stream");
+            }
+
+            const duration = Date.now() - startTime;
+            if (finalObject.blueprint_id) {
+                logger.info(`[Graph] Selected Hero Blueprint: ${finalObject.blueprint_id}`);
+            }
+
+            logger.info(`[Graph] ✅ Node: plannerNode complete (${duration}ms)`);
+            return {
+                components: finalObject.components,
+                selectedBlueprintId: finalObject.blueprint_id,
+                reasoning: { node: 'planner', text: finalObject.reasoning }
+            };
+        } catch (error) {
+            lastError = error;
+            logger.warn(`[Graph] Planner error, Retrying (${attempt}/${maxAttempts})... Error: ${error.message}`);
+            if (attempt >= maxAttempts) throw error;
         }
     }
-    if (streamBuffer) logger.info(`[AI] ${streamBuffer}`);
-
-    const finalText = await text;
-    const finalObject = extractJsonFromText(finalText);
-
-    if (!finalObject || !finalObject.components) {
-        throw new Error("Failed to extract valid JSON from planner stream");
-    }
-
-    const duration = Date.now() - startTime;
-    if (finalObject.blueprint_id) {
-        logger.info(`[Graph] Selected Hero Blueprint: ${finalObject.blueprint_id}`);
-    }
-
-    logger.info(`[Graph] ✅ Node: plannerNode complete (${duration}ms)`);
-    return {
-        components: finalObject.components,
-        selectedBlueprintId: finalObject.blueprint_id,
-        reasoning: { node: 'planner', text: finalObject.reasoning }
-    };
 }
 
 // (Utilities moved to top)
@@ -367,15 +448,15 @@ Schema:
                 const delta = part.textDelta || part.reasoning || part.thought || part.text || "";
 
                 if (!hasStartedStream && delta) {
-                    logger.info(`[AI] contentWriterNode stream started (Recvd ${partCount} parts)...`);
+                    logger.info(`[AI] contentWriterNode stream started...`);
                     hasStartedStream = true;
                 }
 
-                if (partCount % 20 === 0) logger.info(`[AI] contentWriterNode: Recvd ${partCount} parts (Alive)...`);
-
                 if (delta) {
                     streamBuffer += delta;
-                    if (sendEvent && part.type === 'text-delta') sendEvent({ type: 'thinking', node: 'contentWriter', text: delta });
+                    if (sendEvent && (part.type === 'text-delta' || part.type === 'reasoning' || part.type === 'thought')) {
+                        sendEvent({ type: 'thinking', node: 'contentWriter', text: delta });
+                    }
 
                     if (streamBuffer.length > 50 || streamBuffer.includes('\n')) {
                         logger.info(`[AI] ${streamBuffer}`);
@@ -550,14 +631,14 @@ async function coderNode(state, config) {
     };
 
     const targetComponent = components[currentComponentIndex];
-    console.log(`[Graph] Node: coderNode (Component: ${targetComponent.name} | ${currentComponentIndex + 1}/${components.length})`);
+    logger.info(`[Graph] Node: coderNode (Component: ${targetComponent.name} | ${currentComponentIndex + 1}/${components.length})`);
 
     const errors = [...(tsErrors || [])];
     const messageContent = [];
 
     // 1. Errors first
     if (errors.length > 0) {
-        console.log(`[Graph] 🚨 Coder Node is processing ${errors.length} validation errors.`);
+        logger.info(`[Graph] 🚨 Coder Node is processing ${errors.length} validation errors.`);
         messageContent.push({
             type: 'text',
             text: `### CRITICAL: FIX THESE ERRORS FROM PREVIOUS ATTEMPT:\n${errors.join("\n")}\n\nYou MUST fix these errors in the code.`
@@ -708,7 +789,6 @@ Schema:
         try {
             const filePath = `sections/${targetComponent.name}.liquid`;
             const content = finalObject.files && finalObject.files[0] ? finalObject.files[0].content : "";
-            const { uploadThemeState, getThemeState } = require("../services/r2-service");
             const currentState = await getThemeState(themeId);
             const updatedState = [...currentState];
             const idx = updatedState.findIndex(s => (s.filePath || s.path) === filePath);
@@ -846,6 +926,22 @@ async function assemblerNode(state, config) {
         path: 'templates/index.json',
         content: JSON.stringify(indexJson, null, 2)
     };
+
+    // Incremental R2 Update (Synchronous)
+    const { themeId } = state;
+    if (themeId) {
+        try {
+            const currentState = await getThemeState(themeId);
+            const updatedState = [...currentState];
+            const filePath = 'templates/index.json';
+            const idx = updatedState.findIndex(s => (s.filePath || s.path) === filePath);
+            const mod = { filePath, content: indexJsonFile.content, action: 'update', path: filePath };
+            if (idx >= 0) updatedState[idx] = mod;
+            else updatedState.push(mod);
+            await uploadThemeState(themeId, updatedState);
+            logger.info(`[R2] Incremental update saved for assemblerNode: ${filePath}`);
+        } catch (e) { logger.warn(`[R2] Failed incremental update in assemblerNode: ${e.message}`); }
+    }
 
     return {
         generatedFiles: [indexJsonFile],

@@ -149,7 +149,7 @@ function wrapResilientModel(modelIds: string[]) {
 //     'gemini-2.5-flash'
 // ]);
 export const gemini31Pro = wrapResilientModel([
-    // 'gemini-3.1-pro-preview',
+    'gemini-3.1-pro-preview',
     'gemini-3-flash-preview',
     'gemini-3.1-flash-lite-preview',
 ]);

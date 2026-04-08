@@ -85,6 +85,7 @@ async function intentAnalyzerNode(state, config) {
     });
 
     const duration = Date.now() - startTime;
+    logger.info(`[AI] Intent Analyzer Reasoning: ${object.reasoning}`);
     logger.info(`[ModifierGraph] ✅ Intent Analyzer complete (${duration}ms): Target ${object.targetFilePath}`);
 
     return {
@@ -150,15 +151,31 @@ Schema:
             });
 
             let streamBuffer = "";
+            let partCount = 0;
+            let hasStartedStream = false;
+
             for await (const part of fullStream) {
+                partCount++;
                 const delta = part.textDelta || part.reasoning || part.thought || part.text || "";
+
+                if (!hasStartedStream && delta) {
+                    logger.info(`[AI] modifierNode stream started...`);
+                    hasStartedStream = true;
+                }
+
                 if (delta) {
                     streamBuffer += delta;
                     if (sendEvent && (part.type === 'text-delta' || part.type === 'reasoning' || part.type === 'thought')) {
                         sendEvent({ type: 'thinking', node: 'modifier', text: delta });
                     }
+
+                    if (streamBuffer.length > 50 || streamBuffer.includes('\n')) {
+                        logger.info(`[AI] ${streamBuffer}`);
+                        streamBuffer = "";
+                    }
                 }
             }
+            if (streamBuffer) logger.info(`[AI] ${streamBuffer}`);
 
             const finalText = await text;
             finalObject = extractJsonFromText(finalText);

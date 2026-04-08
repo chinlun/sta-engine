@@ -33,7 +33,7 @@ export const flyMachineService = {
         });
 
         if (!response.ok) {
-            console.error(`[Fly API] ❌ List machines failed ${response.status}`);
+            logger.error(`[Fly API] ❌ List machines failed ${response.status}`);
             return [];
         }
 
@@ -45,7 +45,7 @@ export const flyMachineService = {
         const appName = process.env.FLY_APP_NAME;
         if (!apiToken || !appName) throw new Error("Missing FLY_API_TOKEN or FLY_APP_NAME");
 
-        console.log(`[Fly API] ⏳ Creating machine for ${storeUrl}...`);
+        logger.info(`[Fly API] ⏳ Creating machine for ${storeUrl}...`);
         const payload = {
             config: {
                 image: `registry.fly.io/${appName}:latest`,
@@ -91,7 +91,7 @@ export const flyMachineService = {
                 const rawText = await response.text();
 
                 if (!response.ok) {
-                    console.warn(`[Fly API] ⚠️ Create machine attempt ${attempt} failed with ${response.status}: ${rawText}`);
+                    logger.warn(`[Fly API] ⚠️ Create machine attempt ${attempt} failed with ${response.status}: ${rawText}`);
                     if (response.status >= 500) {
                         lastError = new Error(`Fly API ${response.status}: ${rawText}`);
                         const delay = Math.pow(2, attempt) * 1000;
@@ -102,7 +102,7 @@ export const flyMachineService = {
                 }
 
                 const data = JSON.parse(rawText);
-                console.log(`[Fly API] ✅ Created machine: ${data.id}.`);
+                logger.info(`[Fly API] ✅ Created machine: ${data.id}.`);
                 return data.id;
             } catch (err: any) {
                 lastError = err;
@@ -121,16 +121,16 @@ export const flyMachineService = {
         const apiToken = process.env.FLY_API_TOKEN;
         const appName = process.env.FLY_APP_NAME;
 
-        console.log(`[Fly API] ⏳ Sending start signal to machine ${machineId}...`);
+        logger.info(`[Fly API] ⏳ Sending start signal to machine ${machineId}...`);
         const response = await fetch(`https://api.machines.dev/v1/apps/${appName}/machines/${machineId}/start`, {
             method: "POST",
             headers: { "Authorization": `Bearer ${apiToken}` }
         });
 
         if (!response.ok) {
-            console.warn(`[Fly API] ⚠️ Start machine returned ${response.status}`);
+            logger.warn(`[Fly API] ⚠️ Start machine returned ${response.status}`);
         } else {
-            console.log(`[Fly API] ✅ Start signal sent to ${machineId}`);
+            logger.info(`[Fly API] ✅ Start signal sent to ${machineId}`);
         }
     },
 
@@ -138,7 +138,7 @@ export const flyMachineService = {
         const apiToken = process.env.FLY_API_TOKEN;
         const appName = process.env.FLY_APP_NAME;
 
-        console.log(`[Fly API] ⏳ Waiting for machine ${machineId} to start...`);
+        logger.info(`[Fly API] ⏳ Waiting for machine ${machineId} to start...`);
         let lastState = '';
         for (let i = 0; i < 30; i++) {
             const response = await fetch(`https://api.machines.dev/v1/apps/${appName}/machines/${machineId}`, {
@@ -148,19 +148,19 @@ export const flyMachineService = {
             if (response.ok) {
                 const data = await response.json();
                 if (data.state !== lastState) {
-                    console.log(`[Fly API] ℹ️ Machine ${machineId} state: ${data.state}`);
+                    logger.info(`[Fly API] ℹ️ Machine ${machineId} state: ${data.state}`);
                     lastState = data.state;
                 }
                 if (data.state === "started") {
-                    console.log(`[Fly API] ✅ Machine ${machineId} is fully started`);
+                    logger.info(`[Fly API] ✅ Machine ${machineId} is fully started`);
                     return true;
                 }
             } else {
-                console.warn(`[Fly API] ⚠️ Failed to fetch machine status: ${response.status}`);
+                logger.warn(`[Fly API] ⚠️ Failed to fetch machine status: ${response.status}`);
             }
             await new Promise(resolve => setTimeout(resolve, 2000));
         }
-        console.error(`[Fly API] ❌ Machine ${machineId} failed to start within timeout.`);
+        logger.error(`[Fly API] ❌ Machine ${machineId} failed to start within timeout.`);
         throw new Error("Machine failed to start within timeout.");
     },
 
@@ -168,16 +168,16 @@ export const flyMachineService = {
         const apiToken = process.env.FLY_API_TOKEN;
         const appName = process.env.FLY_APP_NAME;
 
-        console.log(`[Fly API] ⏳ Stopping machine ${machineId}...`);
+        logger.info(`[Fly API] ⏳ Stopping machine ${machineId}...`);
         const response = await fetch(`https://api.machines.dev/v1/apps/${appName}/machines/${machineId}/stop`, {
             method: "POST",
             headers: { "Authorization": `Bearer ${apiToken}` }
         });
 
         if (!response.ok) {
-            console.warn(`[Fly API] ⚠️ Stop machine returned ${response.status}`);
+            logger.warn(`[Fly API] ⚠️ Stop machine returned ${response.status}`);
         } else {
-            console.log(`[Fly API] ✅ Stopped machine ${machineId}`);
+            logger.info(`[Fly API] ✅ Stopped machine ${machineId}`);
             // Clean up log monitor if active
             const monitor = activeMonitors.get(machineId);
             if (monitor) {
@@ -193,16 +193,16 @@ export const flyMachineService = {
         const apiToken = process.env.FLY_API_TOKEN;
         const appName = process.env.FLY_APP_NAME;
 
-        console.log(`[Fly API] ⏳ Destroying machine ${machineId}...`);
+        logger.info(`[Fly API] ⏳ Destroying machine ${machineId}...`);
         const response = await fetch(`https://api.machines.dev/v1/apps/${appName}/machines/${machineId}?kill=true`, {
             method: "DELETE",
             headers: { "Authorization": `Bearer ${apiToken}` }
         });
 
         if (!response.ok) {
-            console.warn(`[Fly API] ⚠️ Destroy machine returned ${response.status}`);
+            logger.warn(`[Fly API] ⚠️ Destroy machine returned ${response.status}`);
         } else {
-            console.log(`[Fly API] ✅ Destroyed machine ${machineId}`);
+            logger.info(`[Fly API] ✅ Destroyed machine ${machineId}`);
             // Clean up log monitor if active
             const monitor = activeMonitors.get(machineId);
             if (monitor) {
@@ -218,7 +218,7 @@ export const flyMachineService = {
         const apiToken = process.env.FLY_API_TOKEN;
         const appName = process.env.FLY_APP_NAME;
 
-        console.log(`[Fly API] 🚀 Executing command on machine ${machineId}:`, JSON.stringify(command));
+        logger.info(`[Fly API] 🚀 Executing command on machine ${machineId}: ${JSON.stringify(command)}`);
         const response = await fetch(`https://api.machines.dev/v1/apps/${appName}/machines/${machineId}/exec`, {
             method: "POST",
             headers: {
@@ -230,18 +230,18 @@ export const flyMachineService = {
 
         if (!response.ok) {
             const errorText = await response.text();
-            console.error(`[Fly API] ❌ Exec command failed ${response.status}:`, errorText);
+            logger.error(`[Fly API] ❌ Exec command failed ${response.status}: ${errorText}`);
             throw new Error(`Failed to exec command: ${response.status} ${errorText}`);
         }
 
         const rawText = await response.text();
         try {
             const data = JSON.parse(rawText);
-            console.log(`[Fly API] ✅ Exec command completed (Exit Code ${data.exit_code}).`);
-            if (data.stdout) console.log(`[Fly API] STDOUT:\n${data.stdout}`);
-            if (data.stderr) console.error(`[Fly API] STDERR:\n${data.stderr}`);
+            logger.info(`[Fly API] ✅ Exec command completed (Exit Code ${data.exit_code}).`);
+            if (data.stdout) logger.info(`[Fly API] STDOUT:\n${data.stdout}`);
+            if (data.stderr) logger.error(`[Fly API] STDERR:\n${data.stderr}`);
         } catch (e) {
-            console.log(`[Fly API] ✅ Exec command completed. Raw response:\n${rawText}`);
+            logger.info(`[Fly API] ✅ Exec command completed. Raw response:\n${rawText}`);
         }
     },
 
@@ -287,7 +287,7 @@ export const flyMachineService = {
             }
         };
 
-        console.log(`[Fly API] 🚀 Atomic Syncing file ${filePath} to machine ${machineId}...`);
+        logger.info(`[Fly API] 🚀 Atomic Syncing file ${filePath} to machine ${machineId}...`);
 
         // Ensure staging directory structure exists on remote
         await this.execCommand(machineId, ['mkdir', '-p', `${fullRoot}/sta_staging/${dirName}`]);
@@ -322,7 +322,7 @@ export const flyMachineService = {
         hmac.update(payload);
         const signature = hmac.digest('hex');
 
-        console.log(`[Fly API] 🚀 Bulk Atomic Syncing ${files.length} files to machine ${machineId}...`);
+        logger.info(`[Fly API] 🚀 Bulk Atomic Syncing ${files.length} files to machine ${machineId}...`);
         const response = await fetch(targetUrl, {
             method: "POST",
             headers: {
@@ -335,7 +335,7 @@ export const flyMachineService = {
 
         if (!response.ok) {
             const errorText = await response.text();
-            console.error(`[Fly API] ❌ HTTP Bulk Sync failed ${response.status}:`, errorText);
+            logger.error(`[Fly API] ❌ HTTP Bulk Sync failed ${response.status}: ${errorText}`);
             throw new Error(`Failed to HTTP bulk sync: ${response.status} ${errorText}`);
         }
 

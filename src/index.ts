@@ -64,8 +64,9 @@ app.post('/api/build', async (req, res) => {
     };
 
     try {
-        let { messages, machineId, referenceHtml, referenceImageBase64 } = req.body;
-        logger.info(`[/api/build] 📥 Received build request (HTML=${!!referenceHtml}, Image=${!!referenceImageBase64})`);
+        let { messages, machineId, themeId, referenceHtml, referenceImageBase64 } = req.body;
+        const targetThemeId = themeId || machineId || `theme-${Date.now()}`;
+        logger.info(`[/api/build] 📥 Received build request (ID=${targetThemeId}, HTML=${!!referenceHtml}, Image=${!!referenceImageBase64})`);
 
         // --- Auto-Discovery for Tri-Modal context if missing from request ---
         if (!referenceHtml || !referenceImageBase64) {
@@ -114,7 +115,8 @@ app.post('/api/build', async (req, res) => {
             generatedFiles: [],
             referenceHtml,
             referenceImageBase64,
-            designBrief // Pass through the injected/explicit blueprint
+            designBrief, // Pass through the injected/explicit blueprint
+            themeId: targetThemeId
         };
 
         const stream = await themeWorkflow.stream(inputs, {
@@ -272,9 +274,31 @@ app.post('/api/build', async (req, res) => {
 
                                     if (success) {
                                         mod.content = fixedContent;
+
+                                        // Update the original modifications array so the final save gets it too
+                                        const origIdx = modifications.findIndex((m: any) => m.filePath === mod.filePath);
+                                        if (origIdx >= 0) modifications[origIdx].content = fixedContent;
+
                                         // Re-sync the fixed file
                                         sendEvent({ type: 'progress', stage: 'FLY_PUSHING', message: `📤 Re-syncing fixed ${mod.filePath}...` });
                                         await flyMachineService.syncFile(machineId, mod.filePath, mod.content);
+
+                                        // Incremental R2 upload
+                                        if (targetThemeId) {
+                                            try {
+                                                const { uploadThemeState, getThemeState } = require('./services/r2-service');
+                                                const existingState = await getThemeState(targetThemeId);
+                                                const updatedState = [...existingState];
+                                                const idx = updatedState.findIndex((f: any) => (f.filePath || f.path) === mod.filePath);
+                                                if (idx >= 0) updatedState[idx] = { filePath: mod.filePath, content: fixedContent, action: 'update', path: mod.filePath };
+                                                else updatedState.push({ filePath: mod.filePath, content: fixedContent, action: 'update', path: mod.filePath });
+
+                                                await uploadThemeState(targetThemeId, updatedState);
+                                                logger.info(`[R2] ☁️ Persisting repaired file ${mod.filePath} to R2 for ${targetThemeId}`);
+                                            } catch (e) {
+                                                logger.warn(`[R2] Failed incremental update during repair: ${e}`);
+                                            }
+                                        }
                                     }
                                 } else {
                                     stopMonitoring();

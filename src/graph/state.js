@@ -5,6 +5,7 @@ const { Annotation } = require("@langchain/langgraph");
  */
 const ThemeGenerationState = Annotation.Root({
     userPrompt: Annotation(),
+    themeId: Annotation(),
     catalogSize: Annotation(),
     designBrief: Annotation(), // Deprecated, replaced by designTokens
     designTokens: Annotation(),

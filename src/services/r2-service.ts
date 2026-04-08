@@ -1,5 +1,6 @@
 import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { logger } from "../lib/logger";
 
 function createR2Client(): S3Client {
     const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID;
@@ -29,7 +30,7 @@ export const uploadToR2 = async (key: string, body: Buffer | string, contentType
     const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME || "sta-themes";
     const s3Client = createR2Client();
 
-    console.log(`[R2] Uploading ${key} to bucket ${R2_BUCKET_NAME}`);
+    logger.info(`[R2] Uploading ${key} to bucket ${R2_BUCKET_NAME}`);
 
     try {
         // Step 1: Upload the object
@@ -50,10 +51,10 @@ export const uploadToR2 = async (key: string, body: Buffer | string, contentType
             { expiresIn: 60 }
         );
 
-        console.log(`[R2] Signed URL generated (60s expiry)`);
+        logger.info(`[R2] Signed URL generated (60s expiry)`);
         return signedUrl;
     } catch (error) {
-        console.error("Error uploading to R2:", error);
+        logger.error(`Error uploading to R2: ${error}`);
         throw error;
     }
 };
@@ -85,7 +86,7 @@ export const getThemeState = async (themeId: string): Promise<any[]> => {
         return JSON.parse(bodyContents);
     } catch (error: any) {
         if (error.name === 'NoSuchKey') return [];
-        console.error(`[R2] Failed to get state for ${themeId}:`, error);
+        logger.error(`[R2] Failed to get state for ${themeId}: ${error}`);
         throw error;
     }
 };
