@@ -62,12 +62,12 @@ router.post("/sync", async (req, res) => {
 
 router.post("/sync-bulk", async (req, res) => {
     try {
-        const { machineId, files, globalSettings } = req.body;
+        const { machineId, files, globalSettings, themeId } = req.body;
         if (!machineId || !Array.isArray(files) || files.length === 0) {
             return res.status(400).json({ error: "Missing machineId or files array" });
         }
 
-        logger.info(`[PreviewRoutes] 📦 Received bulk sync request for ${files.length} files to machine ${machineId}`);
+        logger.info(`[PreviewRoutes] 📦 Received bulk sync request for ${files.length} files to machine ${machineId} (Theme: ${themeId})`);
 
         // 1. Validate and Auto-Repair (Gate A)
         const themePlan = { modifications: files, globalSettings, thoughtProcess: "" };
@@ -259,11 +259,50 @@ router.post("/sync-bulk", async (req, res) => {
 
                 // --- Regex Handler: Section type does not refer to existing section file ---
                 if (!handled && reason.includes("does not refer to an existing section")) {
+                    const sectionMatch = reason.match(/'([^']+)'/);
+                    const missingType = sectionMatch ? sectionMatch[1] : null;
                     const content = syncedFiles.get(failedFile);
-                    if (content) {
-                        filesToResync.push({ filePath: failedFile, content });
-                        logger.info(`[PreviewRoutes] 🔄 [Regex] Re-syncing template "${failedFile}" (section dependency should be fixed)`);
-                        handled = true;
+
+                    if (content && missingType) {
+                        try {
+                            const indexJson = JSON.parse(content);
+                            let fixed = false;
+
+                            // Check if a section with this type exists in the JSON
+                            for (const key in (indexJson.sections || {})) {
+                                if (indexJson.sections[key].type === missingType) {
+                                    // Try to find a match in syncedFiles
+                                    const availableSections = Array.from(syncedFiles.keys())
+                                        .filter(k => k.startsWith('sections/') && k.endsWith('.liquid'))
+                                        .map(k => k.replace('sections/', '').replace('.liquid', ''));
+
+                                    // Find a close match (e.g., 'Prestige Hero' vs 'prestige-hero')
+                                    const bestMatch = availableSections.find(s =>
+                                        s.toLowerCase() === missingType.toLowerCase().replace(/\s+/g, '-') ||
+                                        s.toLowerCase() === missingType.toLowerCase().replace(/\s+/g, '_') ||
+                                        s.toLowerCase().replace(/[^a-z0-0]/g, '') === missingType.toLowerCase().replace(/[^a-z0-0]/g, '')
+                                    );
+
+                                    if (bestMatch) {
+                                        logger.info(`[PreviewRoutes] 🛠️ [Regex] Auto-correcting section type "${missingType}" -> "${bestMatch}" in "${failedFile}"`);
+                                        indexJson.sections[key].type = bestMatch;
+                                        fixed = true;
+                                    }
+                                }
+                            }
+
+                            if (fixed) {
+                                const fixedContent = JSON.stringify(indexJson, null, 2);
+                                syncedFiles.set(failedFile, fixedContent);
+                                filesToResync.push({ filePath: failedFile, content: fixedContent });
+                                handled = true;
+                            }
+                        } catch (e) { }
+                    }
+
+                    if (!handled && content) {
+                        // If no deterministic fix, don't mark as handled so LLM can try
+                        logger.warn(`[PreviewRoutes] ⚠️ Could not deterministically fix missing section "${missingType}". Falling back to LLM...`);
                     }
                 }
 
@@ -274,7 +313,13 @@ router.post("/sync-bulk", async (req, res) => {
                         logger.info(`[PreviewRoutes] 🤖 [LLM] No regex handler for "${failedFile}". Calling AI correction...`);
                         const result = await executeCorrectionLoop(
                             { message: errorMsg, filePath: failedFile },
-                            content
+                            content,
+                            Array.from(syncedFiles.keys()),
+                            (delta) => {
+                                // Standard REST endpoint - we log and wait.
+                                // If we want real-time we'd need SSE here too.
+                                logger.info(`[AI-Correction-Thought] ${delta}`);
+                            }
                         );
                         if (result.success) {
                             syncedFiles.set(failedFile, result.fixedContent);
@@ -299,6 +344,31 @@ router.post("/sync-bulk", async (req, res) => {
                     logger.info(`[PreviewRoutes] ✅ Correction round complete.`);
                 } catch (e: any) {
                     logger.error(`[PreviewRoutes] ❌ Correction sequential sync failed: ${e.message}`);
+                }
+
+                // --- PERSIST TO R2 (Incremental per round) ---
+                if (themeId) {
+                    (async () => {
+                        try {
+                            const { uploadThemeState, getThemeState } = require("../services/r2-service");
+                            const existingState = await getThemeState(themeId);
+                            const updatedState = [...existingState];
+
+                            syncedFiles.forEach((content, filePath) => {
+                                const idx = updatedState.findIndex(f => (f.filePath || f.path) === filePath);
+                                if (idx >= 0) {
+                                    updatedState[idx] = { filePath, content, action: 'update', path: filePath };
+                                } else {
+                                    updatedState.push({ filePath, content, action: 'update', path: filePath });
+                                }
+                            });
+
+                            logger.info(`[PreviewRoutes] ☁️ Persisting round ${round} corrections to R2 for ${themeId}`);
+                            await uploadThemeState(themeId, updatedState);
+                        } catch (e: any) {
+                            logger.error(`[PreviewRoutes] ⚠️ Failed to persist R2 state: ${e.message}`);
+                        }
+                    })();
                 }
             } else {
                 logger.info(`[PreviewRoutes] ℹ️ No correctable files found in this round.`);

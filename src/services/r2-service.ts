@@ -57,3 +57,35 @@ export const uploadToR2 = async (key: string, body: Buffer | string, contentType
         throw error;
     }
 };
+
+/**
+ * Uploads the state of the generated overlay files as a JSON string to R2.
+ */
+export const uploadThemeState = async (themeId: string, files: any[]): Promise<void> => {
+    const key = `themes/${themeId}/state.json`;
+    await uploadToR2(key, JSON.stringify(files), 'application/json');
+};
+
+/**
+ * Retrieves the state of the generated overlay files from R2.
+ */
+export const getThemeState = async (themeId: string): Promise<any[]> => {
+    const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME || "sta-themes";
+    const s3Client = createR2Client();
+
+    try {
+        const response = await s3Client.send(new GetObjectCommand({
+            Bucket: R2_BUCKET_NAME,
+            Key: `themes/${themeId}/state.json`,
+        }));
+
+        if (!response.Body) return [];
+
+        const bodyContents = await response.Body.transformToString();
+        return JSON.parse(bodyContents);
+    } catch (error: any) {
+        if (error.name === 'NoSuchKey') return [];
+        console.error(`[R2] Failed to get state for ${themeId}:`, error);
+        throw error;
+    }
+};

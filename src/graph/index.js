@@ -81,5 +81,6 @@ workflow.addConditionalEdges(
 
 const themeWorkflow = workflow.compile();
 
-module.exports = { themeWorkflow };
+const { modifierWorkflow } = require("./modifier");
 
+module.exports = { themeWorkflow, modifierWorkflow };

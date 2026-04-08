@@ -6,6 +6,7 @@ const { IntegrityManager } = require("../services/integrity-manager");
 const { logger } = require("../lib/logger");
 const fs = require('fs');
 const path = require('path');
+const { uploadThemeState, getThemeState } = require("../services/r2-service");
 
 // --- DESIGN SYSTEM SOURCE OF TRUTH ---
 let designSystemContent = "";
@@ -189,7 +190,9 @@ Schema:
 
         if (delta) {
             streamBuffer += delta;
-            if (sendEvent && part.type === 'text-delta') sendEvent({ type: 'thinking', node: 'designer', text: delta });
+            if (sendEvent && (part.type === 'text-delta' || part.type === 'reasoning' || part.type === 'thought')) {
+                sendEvent({ type: 'thinking', node: 'designer', text: delta });
+            }
 
             // Buffer flushes periodically or on newline (NO TRIMMING)
             if (streamBuffer.length > 50 || streamBuffer.includes('\n')) {
@@ -498,6 +501,25 @@ main {
 
     const duration = Date.now() - startTime;
     logger.info(`[Graph] ✅ Node: structuralNode complete (${duration}ms)`);
+
+    // Incremental R2 Update
+    const { themeId } = state;
+    if (themeId) {
+        (async () => {
+            try {
+                const currentState = await getThemeState(themeId);
+                const updatedState = [...currentState];
+                files.forEach(f => {
+                    const idx = updatedState.findIndex(s => (s.filePath || s.path) === f.path);
+                    if (idx >= 0) updatedState[idx] = { ...f, filePath: f.path, action: 'update' };
+                    else updatedState.push({ ...f, filePath: f.path, action: 'update' });
+                });
+                await uploadThemeState(themeId, updatedState);
+                logger.info(`[R2] Incremental update saved for structuralNode`);
+            } catch (e) { logger.warn(`[R2] Failed incremental update: ${e.message}`); }
+        })();
+    }
+
     return {
         layoutShell: themeLiquid,
         generatedFiles: files,
@@ -646,7 +668,9 @@ Schema:
 
                 if (delta) {
                     streamBuffer += delta;
-                    if (sendEvent && part.type === 'text-delta') sendEvent({ type: 'thinking', node: 'coder', text: delta });
+                    if (sendEvent && (part.type === 'text-delta' || part.type === 'reasoning' || part.type === 'thought')) {
+                        sendEvent({ type: 'thinking', node: 'coder', text: delta });
+                    }
 
                     if (streamBuffer.length > 50 || streamBuffer.includes('\n')) {
                         logger.info(`[AI] ${streamBuffer}`);
@@ -677,10 +701,29 @@ Schema:
 
     const duration = Date.now() - startTime;
     logger.info(`[Graph] ✅ Node: coderNode complete (${duration}ms)`);
+
+    // Incremental R2 Update (Synchronous)
+    const { themeId } = state;
+    if (themeId) {
+        try {
+            const filePath = `sections/${targetComponent.name}.liquid`;
+            const content = finalObject.files && finalObject.files[0] ? finalObject.files[0].content : "";
+            const { uploadThemeState, getThemeState } = require("../services/r2-service");
+            const currentState = await getThemeState(themeId);
+            const updatedState = [...currentState];
+            const idx = updatedState.findIndex(s => (s.filePath || s.path) === filePath);
+            const mod = { filePath, content, action: 'update', path: filePath };
+            if (idx >= 0) updatedState[idx] = mod;
+            else updatedState.push(mod);
+            await uploadThemeState(themeId, updatedState);
+            logger.info(`[R2] Incremental update saved for coderNode: ${filePath}`);
+        } catch (e) { logger.warn(`[R2] Failed incremental update: ${e.message}`); }
+    }
+
     return {
         currentComponentFiles: finalObject.files,
-        tsErrors: [], // clear errors for next spin
-        reasoning: { node: 'coder', text: `Generated component ${targetComponent.name}.` }
+        tsErrors: [],
+        reasoning: { node: 'coder', text: `Generated ${targetComponent.name} section.` }
     };
 }
 

@@ -1,6 +1,6 @@
 import express from 'express';
 import cors from 'cors';
-import { uploadToR2 } from './services/r2-service';
+import { uploadToR2, uploadThemeState, getThemeState } from './services/r2-service';
 import { ensureThemeSlot, uploadThemeToShopify, waitForThemeReady, publishTheme } from './services/shopify-service';
 import { createMagicPreviewHandler } from './services/preview-service';
 import { buildTheme, normalizeMod, validateAndRepair } from './services/builder';
@@ -10,7 +10,7 @@ import { BuildThemeToolSchema, BuildThemeToolParams, ThemePlan } from './schema'
 import dotenv from 'dotenv';
 import { streamText, tool, generateText } from 'ai';
 import { google } from '@ai-sdk/google';
-import { themeWorkflow } from './graph';
+import { themeWorkflow, modifierWorkflow } from './graph';
 import { customGoogle } from './lib/ai';
 import previewRoutes from './routes/preview-routes';
 import { flyMachineService } from './services/fly-machine-service';
@@ -268,7 +268,7 @@ app.post('/api/build', async (req, res) => {
                                         message: remoteError.message,
                                         filePath: mod.filePath,
                                         line: lineNumber
-                                    }, mod.content, currentRetries);
+                                    }, mod.content, mods.map(m => m.filePath));
 
                                     if (success) {
                                         mod.content = fixedContent;
@@ -340,6 +340,16 @@ app.post('/api/build', async (req, res) => {
                 }
             });
 
+            try {
+                const targetThemeId = req.body.themeId || machineId;
+                if (targetThemeId && modifications.length > 0) {
+                    sendEvent({ type: 'progress', stage: 'SAVING_STATE', message: 'Saving session state...' });
+                    await uploadThemeState(targetThemeId, modifications);
+                }
+            } catch (e) {
+                logger.warn(`[Sync] Failed to upload theme state: ${e}`);
+            }
+
             sendEvent({ type: 'progress', stage: 'SUCCESS', message: 'Theme successfully built and synced!' });
             sendEvent({ type: 'done' });
             logger.info(`[${requestId}] ✅ LangGraph Build successful`);
@@ -347,11 +357,98 @@ app.post('/api/build', async (req, res) => {
             throw new Error("LangGraph finished without generating files.");
         }
         res.end();
-    } catch (error) {
-        logger.error({ error }, `[${requestId}] ❌ Request failed:`);
+    } catch (error: any) {
+        logger.error(error, `[${requestId}] ❌ Request failed: ${error.message}`);
         sendEvent({ type: 'error', message: String(error) });
         res.end();
     }
+});
+
+app.post('/api/modify', async (req, res) => {
+    const { messages, machineId, themeId: reqThemeId } = req.body;
+    const themeId = reqThemeId || machineId;
+    const requestId = `mod-${Date.now()}`;
+
+    console.log(`[ModifyRequest] 📥 Received /api/modify request: ${requestId} for theme ${themeId}`);
+    logger.info(`[${requestId}] 📨 New modify request received`);
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
+
+    const sendEvent = (data: any) => res.write(`data: ${JSON.stringify(data)}\n\n`);
+
+    try {
+        if (!themeId) throw new Error("themeId or machineId is required for modification");
+        const userPrompt = messages[messages.length - 1]?.content || "";
+
+        sendEvent({ type: 'progress', stage: 'LOADING_STATE', message: 'Retrieving theme state from R2...' });
+        const baseFiles = await getThemeState(themeId);
+        if (!baseFiles || baseFiles.length === 0) {
+            throw new Error(`No existing theme state found for ${themeId}. Cannot modify.`);
+        }
+
+        const stream = await modifierWorkflow.stream({
+            userPrompt,
+            themeId,
+            baseFiles,
+            tsErrors: []
+        }, {
+            recursionLimit: 50,
+            configurable: { sendEvent: (e: any) => sendEvent(e) }
+        });
+
+        let finalState: any = null;
+
+        for await (const chunk of stream) {
+            const node = Object.keys(chunk)[0];
+            const output = chunk[node];
+            finalState = { ...finalState, ...output };
+
+            if (output.reasoning) {
+                const rList = Array.isArray(output.reasoning) ? output.reasoning : [output.reasoning];
+                const lastReasoning = rList[rList.length - 1];
+                if (lastReasoning) {
+                    sendEvent({ type: 'thinking', node: lastReasoning.node, content: lastReasoning.text });
+                }
+            }
+        }
+
+        if (finalState && finalState.modifiedFiles && finalState.modifiedFiles.length > 0) {
+            const mod = finalState.modifiedFiles[0];
+            sendEvent({ type: 'progress', stage: 'FLY_PUSHING', message: `Syncing ${mod.path} to preview...` });
+
+            if (machineId) {
+                await flyMachineService.syncFile(machineId, mod.path, mod.content);
+                try {
+                    await flyMachineService.execCommand(machineId, [
+                        "bash", "-c",
+                        "wget -qO- --post-data='' http://127.0.0.1:9295/notify?source=engine || curl -s -X POST http://127.0.0.1:9295/notify?source=engine || echo 'Signaler not available'"
+                    ]);
+                } catch (e) { }
+            }
+
+            sendEvent({ type: 'progress', stage: 'SAVING_STATE', message: 'Saving updated theme state...' });
+            const updatedBaseFiles = [...baseFiles];
+            const idx = updatedBaseFiles.findIndex((f: any) => (f.filePath || f.path) === mod.path);
+            if (idx >= 0) {
+                updatedBaseFiles[idx] = { filePath: mod.path, content: mod.content, action: 'update', path: mod.path };
+            } else {
+                updatedBaseFiles.push({ filePath: mod.path, content: mod.content, action: 'update', path: mod.path });
+            }
+            await uploadThemeState(themeId, updatedBaseFiles);
+
+            sendEvent({ type: 'progress', stage: 'SUCCESS', message: 'Modification successfully deployed!' });
+            sendEvent({ type: 'done' });
+        } else {
+            throw new Error("Modifier workflow finished without generating modifications.");
+        }
+    } catch (err: any) {
+        logger.error(err, `[${requestId}] ❌ Modification request failed: ${err.message}`);
+        sendEvent({ type: 'error', message: String(err) });
+    }
+    res.end();
 });
 
 app.get('/health', (req, res) => res.send('OK'));

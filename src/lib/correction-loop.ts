@@ -1,5 +1,5 @@
-import { generateText } from 'ai';
-import { gemini3Flash } from './ai';
+import { streamText } from 'ai';
+import { gemini31Pro } from './ai';
 import { logger } from './logger';
 
 export interface ErrorContext {
@@ -28,12 +28,19 @@ function stripCodeFences(text: string): string {
 export async function executeCorrectionLoop(
     error: ErrorContext,
     fileContent: string,
+    availableFiles: string[] = [],
+    onThinking?: (text: string) => void
 ): Promise<{ fixedContent: string; success: boolean }> {
 
     logger.info(`[CorrectionLoop] 🛠️ LLM correction for "${error.filePath}": ${error.message}`);
 
     const isJson = error.filePath.endsWith('.json');
     const isLiquid = error.filePath.endsWith('.liquid');
+
+    const sectionsList = availableFiles
+        .filter(f => f.startsWith('sections/') && f.endsWith('.liquid'))
+        .map(f => f.replace('sections/', '').replace('.liquid', ''))
+        .join(', ');
 
     const prompt = `You are a Shopify Theme Expert. A theme file was rejected by Shopify CLI with the following error.
 
@@ -42,6 +49,8 @@ ERROR: ${error.message}
 
 FULL FILE CONTENT:
 ${fileContent}
+
+${sectionsList ? `AVAILABLE SECTIONS: ${sectionsList}\n` : ''}
 
 RULES:
 ${isLiquid ? `- This is a Liquid template file. It MUST contain valid Liquid syntax.
@@ -58,12 +67,19 @@ ${isJson ? `- This is a JSON config file. It MUST be valid JSON.
 FIX the error and output ONLY the corrected file content. No explanations, no markdown fences, no commentary.`;
 
     try {
-        const { text } = await generateText({
-            model: gemini3Flash,
+        const { fullStream, text } = await streamText({
+            model: gemini31Pro, // Upgrade to Pro for better corrections
             prompt,
         });
 
-        const fixedContent = stripCodeFences(text.trim());
+        for await (const part of fullStream) {
+            const delta = (part as any).textDelta || (part as any).reasoning || (part as any).thought || (part as any).text || "";
+            if (delta && onThinking) {
+                onThinking(delta);
+            }
+        }
+
+        const fixedContent = stripCodeFences((await text).trim());
 
         // Basic sanity check: content should not be empty
         if (!fixedContent || fixedContent.length < 10) {
