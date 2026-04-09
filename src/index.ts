@@ -146,58 +146,7 @@ app.post('/api/build', async (req, res) => {
                 finalState.generatedFiles = merged;
             }
 
-            // Stream reasoning/thinking if present
-            if (output.reasoning) {
-                sendEvent({
-                    type: 'thinking',
-                    node: output.reasoning.node,
-                    content: output.reasoning.text
-                });
-            }
 
-            if (node === 'classifier') {
-                sendEvent({ type: 'progress', stage: 'classifier', message: `Archetype: ${output.catalogSize}...` });
-            } else if (node === 'designer') {
-                sendEvent({ type: 'progress', stage: 'designer', message: `Selected palette: ${output.designTokens?.colors?.primary}...` });
-            } else if (node === 'planner') {
-                sendEvent({ type: 'progress', stage: 'planner', message: `Architected ${output.components?.length} components...` });
-            } else if (node === 'contentWriter') {
-                sendEvent({ type: 'progress', stage: 'content', message: `Generated sophisticated copy for sections...` });
-            } else if (node === 'structural') {
-                sendEvent({ type: 'progress', stage: 'structural', message: `Created global CSS and layout shell...` });
-            } else if (node === 'coder') {
-                sendEvent({ type: 'progress', stage: 'coder', message: `Building component files...` });
-                if (output.currentComponentFiles) {
-                    for (const file of output.currentComponentFiles) {
-                        sendEvent({ type: 'text', content: `\n### \`${file.path}\`\n\`\`\`liquid\n${file.content.substring(0, 500)}...\n\`\`\`\n` });
-                    }
-                }
-            } else if (node === 'assembler') {
-                sendEvent({ type: 'progress', stage: 'assembler', message: `Assembling finalized theme structure...` });
-                if (output.generatedFiles) {
-                    for (const file of output.generatedFiles) {
-                        sendEvent({ type: 'text', content: `\n### \`${file.path}\`\n\`\`\`liquid\n${file.content.substring(0, 500)}...\n\`\`\`\n` });
-                    }
-                }
-            } else if (node === 'tsQc') {
-                if (output.tsErrors && output.tsErrors.length > 0) {
-                    sendEvent({ type: 'progress', stage: 'ts_qc', message: `⚠️ Syntax issues found (${output.tsErrors.length}). Retrying...` });
-                } else {
-                    sendEvent({ type: 'progress', stage: 'ts_qc', message: `✅ Syntax check passed.` });
-                }
-            } else if (node === 'assemblyQc') {
-                if (output.assemblyErrors && output.assemblyErrors.length > 0) {
-                    sendEvent({ type: 'progress', stage: 'assembly_qc', message: `⚠️ Assembly issues found (${output.assemblyErrors.length}). Retrying...` });
-                } else {
-                    sendEvent({ type: 'progress', stage: 'assembly_qc', message: `✅ Assembly check passed.` });
-                }
-            } else if (node === 'agenticQc') {
-                if (output.designErrors && output.designErrors.length > 0) {
-                    sendEvent({ type: 'progress', stage: 'design_qc', message: `🎨 Design review failed. Refined styles required...` });
-                } else {
-                    sendEvent({ type: 'progress', stage: 'design_qc', message: `💎 Design review passed.` });
-                }
-            }
         }
 
         if (finalState && finalState.generatedFiles && finalState.generatedFiles.length > 0) {

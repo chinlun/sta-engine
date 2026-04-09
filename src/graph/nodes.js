@@ -122,9 +122,10 @@ async function classifierNode(state, config) {
     logger.info("[Graph] Node: classifierNode");
     const { userPrompt } = state;
     const sendEvent = config.configurable?.sendEvent;
+    if (sendEvent) sendEvent({ type: 'progress', stage: 'classifier', message: 'Analyzing your store concept...', component: 'Store Discovery' });
 
     let attempt = 0;
-    const maxAttempts = 3;
+    const maxAttempts = 10;
     let finalObject;
 
     while (attempt < maxAttempts) {
@@ -135,14 +136,19 @@ async function classifierNode(state, config) {
                 system: "You are an expert Shopify architect. Analyze the user's prompt to determine their store's SCALE and CATALOG TYPE.",
                 prompt: `Classify the following theme generation prompt: "${userPrompt}"`,
                 schema: z.object({
-                    catalogSize: z.enum(["single_product", "boutique", "enterprise"]),
-                    archetypeDescription: z.string()
+                    archetypeDescription: z.string(),
+                    catalogSize: z.enum(["single_product", "boutique", "enterprise"])
                 }),
                 maxTokens: 4096, // Classifier is small
             });
 
+            let previousLength = 0;
             for await (const partial of partialObjectStream) {
-                if (sendEvent) sendEvent({ type: 'partial', node: 'classifier', object: partial });
+                if (partial.archetypeDescription && partial.archetypeDescription.length > previousLength) {
+                    const delta = partial.archetypeDescription.substring(previousLength);
+                    if (sendEvent) sendEvent({ type: 'thinking', node: 'classifier', text: delta, component: 'Store Discovery' });
+                    previousLength = partial.archetypeDescription.length;
+                }
             }
 
             finalObject = await object;
@@ -175,9 +181,10 @@ async function designerNode(state, config) {
     logger.info("[Graph] Node: designerNode");
     const { userPrompt, referenceImageBase64 } = state;
     const sendEvent = config.configurable?.sendEvent;
+    if (sendEvent) sendEvent({ type: 'progress', stage: 'designer', message: 'Crafting your design system...', component: 'Design Strategy' });
 
     let attempt = 0;
-    const maxAttempts = 3;
+    const maxAttempts = 10;
     let lastError = null;
 
     while (attempt < maxAttempts) {
@@ -193,69 +200,46 @@ async function designerNode(state, config) {
                 messageContent.push({ type: 'text', text: `CRITICAL: Your previous response failed to parse. REASON: ${lastError.message}. Ensure you return valid JSON strictly according to the schema.` });
             }
 
-            const { fullStream, text } = await streamText({
+            const { partialObjectStream, object } = await streamObject({
                 model: gemini31Pro,
                 system: `You are the Lead Designer Agent. Your goal is to select a curated, high-end color palette and design tokens.
                 
 AESTHETIC RULES:
 1. "Sophisticated" & Premium: Avoid basic colors. Use HSL-tailored, harmonious palettes.
-2. Editorial Design: Prioritize typography and white space. No rounded corners (0px).
-
-OUTPUT FORMAT:
-Return a JSON object inside a \`\`\`json code block.
-Schema:
-{
-  "design_tokens": {
-    "colors": {
-      "primary": "string",
-      "secondary": "string",
-      "background": "string",
-      "surface": "string",
-      "text": "string"
-    },
-    "typography": {
-      "heading_font": "string",
-      "body_font": "string",
-      "scale": "minimal" | "standard" | "bold"
-    },
-    "spacing": "string",
-    "elevation": "string"
-  },
-  "reasoning": "string"
-}`,
+2. Editorial Design: Prioritize typography and white space. No rounded corners (0px).`,
                 messages: [{ role: 'user', content: messageContent }],
+                schema: z.object({
+                    reasoning: z.string().describe("Your thought process. MUST BE FIRST."),
+                    design_tokens: z.object({
+                        colors: z.object({
+                            primary: z.string(),
+                            secondary: z.string(),
+                            background: z.string(),
+                            surface: z.string(),
+                            text: z.string()
+                        }),
+                        typography: z.object({
+                            heading_font: z.string(),
+                            body_font: z.string(),
+                            scale: z.enum(["minimal", "standard", "bold"])
+                        }),
+                        spacing: z.string(),
+                        elevation: z.string()
+                    })
+                }),
                 maxTokens: 4096,
             });
 
-            let hasStartedStream = false;
-            let streamBuffer = "";
-            let partCount = 0;
-
-            for await (const part of fullStream) {
-                partCount++;
-                const delta = part.textDelta || part.reasoning || part.thought || part.text || "";
-
-                if (!hasStartedStream && delta) {
-                    logger.info(`[AI] designerNode stream started...`);
-                    hasStartedStream = true;
-                }
-
-                if (delta) {
-                    streamBuffer += delta;
-                    if (sendEvent && (part.type === 'text-delta' || part.type === 'reasoning' || part.type === 'thought')) {
-                        sendEvent({ type: 'thinking', node: 'designer', text: delta });
-                    }
-
-                    if (streamBuffer.length > 50 || streamBuffer.includes('\n')) {
-                        logger.info(`[AI] ${streamBuffer}`);
-                        streamBuffer = "";
-                    }
+            let previousLength = 0;
+            for await (const partial of partialObjectStream) {
+                if (partial.reasoning && partial.reasoning.length > previousLength) {
+                    const delta = partial.reasoning.substring(previousLength);
+                    if (sendEvent) sendEvent({ type: 'thinking', node: 'designer', text: delta, component: 'Design Strategy' });
+                    previousLength = partial.reasoning.length;
                 }
             }
-            if (streamBuffer) logger.info(`[AI] ${streamBuffer}`);
 
-            const finalText = await text;
-            const finalObject = extractJsonFromText(finalText);
+            const finalObject = await object;
 
             if (!finalObject || !finalObject.design_tokens) {
                 throw new Error("Failed to extract valid JSON from designer stream");
@@ -284,9 +268,10 @@ async function plannerNode(state, config) {
     logger.info("[Graph] Node: plannerNode");
     const { userPrompt, designTokens, catalogSize } = state;
     const sendEvent = config.configurable?.sendEvent;
+    if (sendEvent) sendEvent({ type: 'progress', stage: 'planner', message: 'Architecting your storefront...', component: 'Architectural Planning' });
 
     let attempt = 0;
-    const maxAttempts = 3;
+    const maxAttempts = 10;
     let lastError = null;
 
     const manifestSummary = blueprintsManifest.map(bp => `- ID: ${bp.blueprint_id} | Vibe: ${bp.vibe} | Description: ${bp.visual_description} | Best For: ${bp.best_for.join(", ")}`).join('\n');
@@ -305,7 +290,7 @@ async function plannerNode(state, config) {
                 messages[0].content.push({ type: 'text', text: `CRITICAL: Your previous response failed to parse. REASON: ${lastError.message}. Ensure you return valid JSON strictly according to the schema.` });
             }
 
-            const { fullStream, text } = await streamText({
+            const { partialObjectStream, object } = await streamObject({
                 model: gemini31Pro, // Upgraded to Pro
                 system: `You are the Lead Shopify Architect. Based on the selected design tokens, break down the home page into a list of components.
                 
@@ -317,56 +302,31 @@ RULES:
 2. Global Layout Elements: Always include exactly one "header.liquid" and one "footer.liquid". EXPLICITLY set their type to "header" and "footer" and mark them as isGlobal: true.
 3. Page Template Sections: All other components should be tagged as type "section" and will be part of the Home Page Template (index.json).
 4. No HTML/CSS: Describe layouts in English.
-5. Hero Blueprint: Select the most appropriate Hero Blueprint ID from the manifest.
-
-OUTPUT FORMAT:
-Return a JSON object inside a \`\`\`json code block.
-Schema:
-{
-  "components": [
-    {
-      "name": "string",
-      "type": "header" | "footer" | "section",
-      "isGlobal": boolean,
-      "layout_directive": "string"
-    }
-  ],
-  "blueprint_id": "string",
-  "reasoning": "string"
-}`,
+5. Hero Blueprint: Select the most appropriate Hero Blueprint ID from the manifest.`,
                 messages,
+                schema: z.object({
+                    reasoning: z.string().describe("Your thought process. MUST BE FIRST."),
+                    blueprint_id: z.string().optional(),
+                    components: z.array(z.object({
+                        name: z.string(),
+                        type: z.enum(["header", "footer", "section"]),
+                        isGlobal: z.boolean(),
+                        layout_directive: z.string()
+                    }))
+                }),
                 maxTokens: 8192,
             });
 
-            let hasStartedStream = false;
-            let streamBuffer = "";
-            let partCount = 0;
-
-            for await (const part of fullStream) {
-                partCount++;
-                const delta = part.textDelta || part.reasoning || part.thought || part.text || "";
-
-                if (!hasStartedStream && delta) {
-                    logger.info(`[AI] plannerNode stream started...`);
-                    hasStartedStream = true;
-                }
-
-                if (delta) {
-                    streamBuffer += delta;
-                    if (sendEvent && (part.type === 'text-delta' || part.type === 'reasoning' || part.type === 'thought')) {
-                        sendEvent({ type: 'thinking', node: 'planner', text: delta });
-                    }
-
-                    if (streamBuffer.length > 50 || streamBuffer.includes('\n')) {
-                        logger.info(`[AI] ${streamBuffer}`);
-                        streamBuffer = "";
-                    }
+            let previousLength = 0;
+            for await (const partial of partialObjectStream) {
+                if (partial.reasoning && partial.reasoning.length > previousLength) {
+                    const delta = partial.reasoning.substring(previousLength);
+                    if (sendEvent) sendEvent({ type: 'thinking', node: 'planner', text: delta, component: 'Architectural Planning' });
+                    previousLength = partial.reasoning.length;
                 }
             }
-            if (streamBuffer) logger.info(`[AI] ${streamBuffer}`);
 
-            const finalText = await text;
-            const finalObject = extractJsonFromText(finalText);
+            const finalObject = await object;
 
             if (!finalObject || !finalObject.components) {
                 throw new Error("Failed to extract valid JSON from planner stream");
@@ -402,72 +362,48 @@ async function contentWriterNode(state, config) {
     logger.info("[Graph] Node: contentWriterNode");
     const { userPrompt, components, designTokens } = state;
     const sendEvent = config.configurable?.sendEvent;
+    if (sendEvent) sendEvent({ type: 'progress', stage: 'content', message: 'Generating section copy...', component: 'Content Generation' });
 
     let attempt = 0;
-    const maxAttempts = 3;
+    const maxAttempts = 10;
     let finalObject;
 
     while (attempt < maxAttempts) {
         attempt++;
         try {
-            const { fullStream, text } = await streamText({
+            const { partialObjectStream, object } = await streamObject({
                 model: gemini3Flash,
                 system: `You are a High-End Editorial Copywriter.
                 
 TONE OF VOICE: "Sophisticated"
 - Authoritative yet graceful.
 - Concise, poetic, and evocative.
-- Avoid marketing clichés.
-
-OUTPUT FORMAT:
-Return a JSON object inside a \`\`\`json code block.
-Schema:
-{
-  "sectionContent": [
-    {
-      "componentName": "string",
-      "heading": "string",
-      "subheading": "string",
-      "body": "string",
-      "cta_label": "string",
-      "marketing_hooks": ["string"]
-    }
-  ],
-  "reasoning": "string"
-}`,
+- Avoid marketing clichés.`,
+                schema: z.object({
+                    reasoning: z.string().describe("Your thought process. MUST BE FIRST."),
+                    sectionContent: z.array(z.object({
+                        componentName: z.string(),
+                        heading: z.string(),
+                        subheading: z.string(),
+                        body: z.string(),
+                        cta_label: z.string(),
+                        marketing_hooks: z.array(z.string())
+                    }))
+                }),
                 prompt: `User Prompt: ${userPrompt}\nPlanned Components: ${JSON.stringify(components)}\nDesign Vibe: ${designTokens.typography.heading_font}`,
                 maxTokens: 16384,
             });
 
-            let hasStartedStream = false;
-            let streamBuffer = "";
-            let partCount = 0;
-
-            for await (const part of fullStream) {
-                partCount++;
-                const delta = part.textDelta || part.reasoning || part.thought || part.text || "";
-
-                if (!hasStartedStream && delta) {
-                    logger.info(`[AI] contentWriterNode stream started...`);
-                    hasStartedStream = true;
-                }
-
-                if (delta) {
-                    streamBuffer += delta;
-                    if (sendEvent && (part.type === 'text-delta' || part.type === 'reasoning' || part.type === 'thought')) {
-                        sendEvent({ type: 'thinking', node: 'contentWriter', text: delta });
-                    }
-
-                    if (streamBuffer.length > 50 || streamBuffer.includes('\n')) {
-                        logger.info(`[AI] ${streamBuffer}`);
-                        streamBuffer = "";
-                    }
+            let previousLength = 0;
+            for await (const partial of partialObjectStream) {
+                if (partial.reasoning && partial.reasoning.length > previousLength) {
+                    const delta = partial.reasoning.substring(previousLength);
+                    if (sendEvent) sendEvent({ type: 'thinking', node: 'contentWriter', text: delta, component: 'Content Generation' });
+                    previousLength = partial.reasoning.length;
                 }
             }
-            if (streamBuffer) logger.info(`[AI] ${streamBuffer}`);
 
-            const finalText = await text;
-            finalObject = extractJsonFromText(finalText);
+            finalObject = await object;
 
             if (!finalObject || !finalObject.sectionContent) {
                 throw new Error("Failed to extract valid JSON from content writer stream");
@@ -507,15 +443,18 @@ async function structuralNode(state, config) {
     const startTime = Date.now();
     logger.info("[Graph] Node: structuralNode (Deterministic)");
     const { designTokens } = state;
+    const sendEvent = config.configurable?.sendEvent;
+    if (sendEvent) sendEvent({ type: 'progress', stage: 'structural', message: 'Building global layout shell...', component: 'Layout Shell' });
 
     // 1. Generate base.css with design tokens
+    const c = designTokens.colors || {};
     const baseCss = `
 :root {
-  --color-primary: ${designTokens.primary_color || '#000000'};
-  --color-secondary: ${designTokens.secondary_color || '#999999'};
-  --color-background: ${designTokens.background_color || '#ffffff'};
-  --color-surface: ${designTokens.surface_color || '#f4f4f4'};
-  --color-text: ${designTokens.text_color || '#111111'};
+  --color-primary: ${c.primary || designTokens.primary_color || '#000000'};
+  --color-secondary: ${c.secondary || designTokens.secondary_color || '#999999'};
+  --color-background: ${c.background || designTokens.background_color || '#ffffff'};
+  --color-surface: ${c.surface || designTokens.surface_color || '#f4f4f4'};
+  --color-text: ${c.text || designTokens.text_color || '#111111'};
   --font-heading: 'Playfair Display', serif;
   --font-body: 'Inter', sans-serif;
   --spacing-base: 0.5rem;
@@ -624,13 +563,9 @@ async function coderNode(state, config) {
     } = state;
     const sendEvent = config.configurable?.sendEvent;
 
-    // Helper to truncate large strings but keep head/tail for context
-    const truncate = (str, maxChars = 2000) => {
-        if (!str || str.length <= maxChars) return str;
-        return `${str.substring(0, maxChars / 2)}\n... [TRUNCATED] ...\n${str.substring(str.length - maxChars / 2)}`;
-    };
-
     const targetComponent = components[currentComponentIndex];
+    const componentNameExt = targetComponent.name.endsWith('.liquid') || targetComponent.name.endsWith('.json') ? targetComponent.name : `${targetComponent.name}.liquid`;
+    if (sendEvent) sendEvent({ type: 'progress', stage: 'coder', message: `Generating ${targetComponent.name}...`, component: componentNameExt });
     logger.info(`[Graph] Node: coderNode (Component: ${targetComponent.name} | ${currentComponentIndex + 1}/${components.length})`);
 
     const errors = [...(tsErrors || [])];
@@ -648,7 +583,7 @@ async function coderNode(state, config) {
     // 2. Core Instructions (Blind to Input)
     messageContent.push({
         type: 'text',
-        text: `You are building a single component for a Shopify theme.\nDesign Tokens: ${JSON.stringify(designTokens)}\nGlobal Layout Shell Context (Truncated): ${layoutShell ? truncate(layoutShell, 3000) : "Not Provided"}\n\nComponent to Build:\nName: ${targetComponent.name}\nType: ${targetComponent.type}\nLayout Directive: ${targetComponent.layout_directive}\nSophisticated Content: ${JSON.stringify(sectionContent[targetComponent.name] || {})} `
+        text: `You are building a single component for a Shopify theme.\nDesign Tokens: ${JSON.stringify(designTokens)}\nGlobal Layout Shell Context (Truncated): ${layoutShell ? layoutShell.substring(0, 3000) : "Not Provided"}\n\nComponent to Build:\nName: ${targetComponent.name}\nType: ${targetComponent.type}\nLayout Directive: ${targetComponent.layout_directive}\nSophisticated Content: ${JSON.stringify(sectionContent[targetComponent.name] || {})} `
     });
 
     // 2.5 Blueprint Injection (if applicable)
@@ -690,13 +625,13 @@ ${getStructuralSkeleton(mobileHtml)}`
 
 
     let attempt = 0;
-    const maxAttempts = 3;
+    const maxAttempts = 10;
     let finalObject;
 
     while (attempt < maxAttempts) {
         attempt++;
         try {
-            const { fullStream, text } = await streamText({
+            const { partialObjectStream, object } = await streamObject({
                 model: gemini31Pro,
                 system: `# MISSION: GENERATE HIGH-END SHOPIFY SECTION (VANILLA CSS SPEC)
 Goal: Prioritize architectural, editorial beauty using STANDARD CSS (No Tailwind).
@@ -713,56 +648,32 @@ You are a Senior Frontend Engineer. Build a stunning, bespoke editorial eCommerc
 - NO TAILWIND: Do NOT use Tailwind utility classes (py-10, flex, etc.) in the HTML. Use standard CSS classes.
 - CONTENT: Use the provided "Sophisticated" content exactly. Do NOT hallucinate generic copy.
 - TECH STACK: Shopify Liquid + Vanilla JS Web Components (Light DOM) for interactivity.
-- LAYOUT: Use the "Intentional Asymmetry" and "No-Line" rules from the design system.
-
-## 4. OUTPUT FORMAT
-Return a JSON object inside a \`\`\`json code block.
-Schema:
-{
-  "files": [
-    {
-      "path": "sections/filename.liquid",
-      "content": "string"
-    }
-  ],
-  "thoughtProcess": "string"
-}`
-                ,
+- LAYOUT: Use the "Intentional Asymmetry" and "No-Line" rules from the design system.`,
                 messages: [{ role: 'user', content: messageContent }],
+                schema: z.object({
+                    thoughtProcess: z.string().describe("Your thought process. MUST BE FIRST."),
+                    files: z.array(z.object({
+                        path: z.string(),
+                        content: z.string()
+                    }))
+                }),
                 maxTokens: 32768,
             });
 
-            let hasStartedStream = false;
-            let streamBuffer = "";
+            let previousLength = 0;
             let partCount = 0;
-
-            for await (const part of fullStream) {
+            for await (const partial of partialObjectStream) {
                 partCount++;
-                const delta = part.textDelta || part.reasoning || part.thought || part.text || "";
-
-                if (!hasStartedStream && delta) {
-                    logger.info(`[AI] coderNode stream started (Recvd ${partCount} parts)...`);
-                    hasStartedStream = true;
-                }
-
                 if (partCount % 20 === 0) logger.info(`[AI] coderNode: Recvd ${partCount} parts (Alive)...`);
 
-                if (delta) {
-                    streamBuffer += delta;
-                    if (sendEvent && (part.type === 'text-delta' || part.type === 'reasoning' || part.type === 'thought')) {
-                        sendEvent({ type: 'thinking', node: 'coder', text: delta });
-                    }
-
-                    if (streamBuffer.length > 50 || streamBuffer.includes('\n')) {
-                        logger.info(`[AI] ${streamBuffer}`);
-                        streamBuffer = "";
-                    }
+                if (partial.thoughtProcess && partial.thoughtProcess.length > previousLength) {
+                    const delta = partial.thoughtProcess.substring(previousLength);
+                    if (sendEvent) sendEvent({ type: 'thinking', component: componentNameExt, node: 'Coding', text: delta });
+                    previousLength = partial.thoughtProcess.length;
                 }
             }
-            if (streamBuffer) logger.info(`[AI] ${streamBuffer}`);
 
-            const finalText = await text;
-            finalObject = extractJsonFromText(finalText);
+            finalObject = await object;
 
             if (!finalObject || !finalObject.files) {
                 throw new Error("Failed to extract valid JSON from coder stream");
@@ -783,11 +694,18 @@ Schema:
     const duration = Date.now() - startTime;
     logger.info(`[Graph] ✅ Node: coderNode complete (${duration}ms)`);
 
+    // Ensure clean filename without duplicate .liquid extensions
+    const cleanName = targetComponent.name.replace('.liquid', '');
+    const cleanFilePath = `sections/${cleanName}.liquid`;
+    if (finalObject.files && finalObject.files[0]) {
+        finalObject.files[0].path = cleanFilePath;
+    }
+
     // Incremental R2 Update (Synchronous)
     const { themeId } = state;
     if (themeId) {
         try {
-            const filePath = `sections/${targetComponent.name}.liquid`;
+            const filePath = cleanFilePath;
             const content = finalObject.files && finalObject.files[0] ? finalObject.files[0].content : "";
             const currentState = await getThemeState(themeId);
             const updatedState = [...currentState];
@@ -816,8 +734,11 @@ async function tsQcNode(state, config) {
     const { currentComponentFiles, components, currentComponentIndex } = state;
     const sendEvent = config.configurable?.sendEvent;
     const errors = [];
+    
+    const targetCompName = components[currentComponentIndex].name;
+    const componentNameExt = targetCompName.endsWith('.liquid') || targetCompName.endsWith('.json') ? targetCompName : `${targetCompName}.liquid`;
 
-    if (sendEvent) sendEvent({ type: 'progress', stage: 'COMPONENT_LINTING', message: `Linting component ${components[currentComponentIndex].name}...` });
+    if (sendEvent) sendEvent({ type: 'progress', stage: 'COMPONENT_LINTING', message: `Linting component ${targetCompName}...`, component: componentNameExt });
 
     const mods = (currentComponentFiles || []).map(f => ({
         filePath: f.path,
@@ -862,11 +783,14 @@ async function tsQcNode(state, config) {
     const duration = Date.now() - startTime;
     if (errors.length > 0) {
         logger.error(`[Graph] ❌ TS QC produced ${errors.length} errors:\n${errors.join('\n')}`);
-        if (sendEvent) sendEvent({ type: 'progress', stage: 'AI_CORRECTING', message: `Self-healing component ${components[currentComponentIndex].name}...` });
+        if (sendEvent) sendEvent({ type: 'thinking', component: componentNameExt, node: 'Linting', text: `Found ${errors.length} issues.\nCorrecting syntax...` });
+        if (sendEvent) sendEvent({ type: 'progress', stage: 'AI_CORRECTING', message: `Self-healing component ${targetCompName}...`, component: componentNameExt });
         logger.info(`[Graph] ❌ Node: tsQcNode complete (${duration}ms)`);
         return { tsErrors: errors };
     } else {
-        logger.info(`[Graph] ✅ TS QC passed for ${components[currentComponentIndex].name}.`);
+        logger.info(`[Graph] ✅ TS QC passed for ${targetCompName}.`);
+        if (sendEvent) sendEvent({ type: 'thinking', component: componentNameExt, node: 'Linting', text: `Lint passed. Ready to inject.` });
+        if (sendEvent) sendEvent({ type: 'progress', stage: 'ts_qc', message: `✅ Syntax check passed.`, component: componentNameExt });
         logger.info(`[Graph] ✅ Node: tsQcNode complete (${duration}ms)`);
         // If passed, we append these files to the main generatedFiles array and increment the index
         return {
@@ -884,6 +808,8 @@ async function assemblerNode(state, config) {
     const startTime = Date.now();
     logger.info("[Graph] Node: assemblerNode");
     const { components } = state;
+    const sendEvent = config.configurable?.sendEvent;
+    if (sendEvent) sendEvent({ type: 'progress', stage: 'assembler', message: 'Assembling finalized theme structure...' });
 
     // Filter out global components (header, footer, announcement-bar) because they are in theme.liquid
     const pageSections = components.filter(c => {
@@ -958,9 +884,9 @@ async function assemblyQcNode(state, config) {
     logger.info("[Graph] Node: assemblyQcNode (Gate B)");
     const { generatedFiles } = state;
     const sendEvent = config.configurable?.sendEvent;
+    if (sendEvent) sendEvent({ type: 'progress', stage: 'assembly_qc', message: 'Auditing theme structure...' });
     const errors = [];
 
-    if (sendEvent) sendEvent({ type: 'progress', stage: 'ASSEMBLY_CHECK', message: `Running full assembly check...` });
 
     const mods = (generatedFiles || []).map(f => ({
         filePath: f.path,
@@ -1000,7 +926,7 @@ async function assemblyQcNode(state, config) {
     const duration = Date.now() - startTime;
     if (errors.length > 0) {
         logger.error(`[Graph] ❌ Assembly QC produced ${errors.length} errors:\n${errors.join('\n')}`);
-        if (sendEvent) sendEvent({ type: 'progress', stage: 'AI_CORRECTING', message: `Correcting assembly issues...` });
+        if (sendEvent) sendEvent({ type: 'progress', stage: 'AI_CORRECTING', message: `Correcting assembly issues...`, component: 'Assembly Audit' });
         logger.info(`[Graph] ❌ Node: assemblyQcNode complete (${duration}ms)`);
     } else {
         logger.info(`[Graph] ✅ Assembly QC passed.`);
@@ -1018,13 +944,14 @@ async function agenticQcNode(state, config) {
     logger.info("[Graph] Node: agenticQcNode");
     const { userPrompt, designTokens, generatedFiles } = state;
     const sendEvent = config.configurable?.sendEvent;
+    if (sendEvent) sendEvent({ type: 'progress', stage: 'design_qc', message: 'Reviewing visual aesthetics...', component: 'Visual QC' });
 
     if (state.tsErrors && state.tsErrors.length > 0) {
         return { designErrors: [] };
     }
 
     let attempt = 0;
-    const maxAttempts = 3;
+    const maxAttempts = 10;
     let finalObject;
 
     while (attempt < maxAttempts) {
@@ -1078,7 +1005,7 @@ Schema:
 
                 if (delta) {
                     streamBuffer += delta;
-                    if (sendEvent && part.type === 'text-delta') sendEvent({ type: 'thinking', node: 'agenticQc', text: delta });
+                    if (sendEvent && part.type === 'text-delta') sendEvent({ type: 'thinking', node: 'agenticQc', text: delta, component: 'Visual QC' });
 
                     if (streamBuffer.length > 50 || streamBuffer.includes('\n')) {
                         logger.info(`[AI] ${streamBuffer}`);

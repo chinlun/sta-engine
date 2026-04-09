@@ -287,6 +287,13 @@ router.post("/sync-bulk", async (req, res) => {
                                         logger.info(`[PreviewRoutes] 🛠️ [Regex] Auto-correcting section type "${missingType}" -> "${bestMatch}" in "${failedFile}"`);
                                         indexJson.sections[key].type = bestMatch;
                                         fixed = true;
+                                    } else {
+                                        logger.info(`[PreviewRoutes] 🗑️ [Regex] No liquid file found for "${missingType}". Deleting from "${failedFile}" sections and order.`);
+                                        delete indexJson.sections[key];
+                                        if (indexJson.order && Array.isArray(indexJson.order)) {
+                                            indexJson.order = indexJson.order.filter((id: string) => id !== key);
+                                        }
+                                        fixed = true;
                                     }
                                 }
                             }

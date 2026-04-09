@@ -126,13 +126,15 @@ export function validateAndRepair(plan: ThemePlan | BuildThemeToolParams): Valid
             mod.filePath = fixedPath;
         }
 
-        // Auto-repair: Enforce hyphenated filenames for sections
+        // Auto-repair: Enforce sluggified filenames for sections
         if (mod.filePath.startsWith('sections/') && mod.filePath.endsWith('.liquid')) {
-            const fileName = path.basename(mod.filePath);
-            if (fileName.includes('_')) {
-                const fixedFileName = fileName.replace(/_/g, '-');
-                const fixedPath = path.join(path.dirname(mod.filePath), fixedFileName).replace(/\\/g, '/');
-                result.repairs.push(`Auto-hyphenated section filename: "${mod.filePath}" → "${fixedPath}"`);
+            const baseName = path.basename(mod.filePath, '.liquid');
+            // Sluggify: lowercase, replace non-alphanumeric with hyphens, trim hyphens
+            const fixedBaseName = baseName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+            
+            if (baseName !== fixedBaseName) {
+                const fixedPath = path.join(path.dirname(mod.filePath), fixedBaseName + '.liquid').replace(/\\/g, '/');
+                result.repairs.push(`Auto-sluggified section filename: "${mod.filePath}" → "${fixedPath}"`);
                 const filePathKeys = ['filePath', 'file_path', 'file', 'path', 'fileName', 'file_name', 'filename'];
                 for (const key of filePathKeys) {
                     if (mod.raw[key] === mod.filePath) {
