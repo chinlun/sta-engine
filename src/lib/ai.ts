@@ -1,5 +1,7 @@
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
+import { createDeepSeek } from '@ai-sdk/deepseek';
 import { wrapLanguageModel } from 'ai';
+import { LanguageModelV3 } from '@ai-sdk/provider';
 import { Agent, setGlobalDispatcher } from 'undici';
 import * as dotenv from 'dotenv';
 
@@ -16,40 +18,64 @@ const globalAgent = new Agent({
 });
 setGlobalDispatcher(globalAgent);
 
+/** Custom fetch with generous timeout for AI providers */
+const timeoutFetch = (url: any, options: any) => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), AI_TIMEOUT_MS);
+
+    const customOptions: any = {
+        ...options,
+        dispatcher: globalAgent,
+        signal: controller.signal
+    };
+
+    return (globalThis.fetch as any)(url, customOptions).then((res: any) => {
+        clearTimeout(timeoutId);
+        return res;
+    }).catch((err: any) => {
+        clearTimeout(timeoutId);
+        const isTimeout = err.name === 'AbortError';
+        console.error(`[AI] ${isTimeout ? '⏰ Timeout' : '❌ Network Error'} for ${url}:`, err);
+        throw err;
+    });
+};
+
 /**
- * Custom Google provider that provides a generous 5-minute timeout 
+ * Custom Google provider with generous timeout 
  */
 export const customGoogle = createGoogleGenerativeAI({
-    fetch: (url, options) => {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), AI_TIMEOUT_MS);
-
-        const customOptions: any = {
-            ...options,
-            dispatcher: globalAgent,
-            signal: controller.signal
-        };
-
-        return (globalThis.fetch as any)(url, customOptions).then((res: any) => {
-            clearTimeout(timeoutId);
-            return res;
-        }).catch((err: any) => {
-            clearTimeout(timeoutId);
-            const isTimeout = err.name === 'AbortError';
-            console.error(`[AI] ${isTimeout ? '⏰ Timeout' : '❌ Network Error'} for ${url}:`, err);
-            throw err;
-        });
-    }
+    fetch: timeoutFetch
 });
 
 /**
- * High-Availability Wrapper
- * Supports a chain of fallbacks. If the first fails with 503/429, it tries the next, and so on.
+ * Custom DeepSeek provider with generous timeout
+ * Uses DEEPSEEK_GENERATIVE_AI_API_KEY env var (non-standard name)
  */
-function wrapResilientModel(modelIds: string[]) {
-    if (modelIds.length === 0) throw new Error("At least one model ID is required");
+export const customDeepSeek = createDeepSeek({
+    apiKey: process.env.DEEPSEEK_GENERATIVE_AI_API_KEY ?? '',
+    fetch: timeoutFetch
+});
 
-    const models = modelIds.map(id => customGoogle(id));
+// ── Named model instances ────────────────────────────────────────────
+// These can be mixed across providers in the resilient fallback chains
+
+interface NamedModel {
+    name: string;
+    model: LanguageModelV3;
+}
+
+const google31Pro: NamedModel = { name: 'gemini-3.1-pro-preview', model: customGoogle('gemini-3.1-pro-preview') };
+const google3Flash: NamedModel = { name: 'gemini-3-flash-preview', model: customGoogle('gemini-3-flash-preview') };
+const google31FlashLite: NamedModel = { name: 'gemini-3.1-flash-lite-preview', model: customGoogle('gemini-3.1-flash-lite-preview') };
+const deepseekChat: NamedModel = { name: 'deepseek-chat', model: customDeepSeek('deepseek-chat') };
+
+/**
+ * High-Availability Wrapper (Multi-Provider)
+ * Accepts pre-built model instances from ANY provider.
+ * If the first fails with 503/429/timeout, it tries the next, and so on.
+ */
+function wrapResilientModel(chain: NamedModel[]) {
+    if (chain.length === 0) throw new Error("At least one model is required");
 
     const isRetryableError = (err: any) => {
         // Detailed logging for AI_APICallError to help diagnose recurring failures
@@ -62,6 +88,8 @@ function wrapResilientModel(modelIds: string[]) {
             err.code === 'UND_ERR_HEADERS_TIMEOUT' ||
             err.cause?.code === 'UND_ERR_HEADERS_TIMEOUT' ||
             err.name === 'AbortError' ||
+            err.name === 'AI_JSONParseError' ||
+            err.name === 'AI_NoObjectGeneratedError' ||
             (err.data?.error?.code === 503 || err.data?.error?.code === 429);
     };
 
@@ -85,16 +113,16 @@ function wrapResilientModel(modelIds: string[]) {
     };
 
     return wrapLanguageModel({
-        model: models[0],
+        model: chain[0].model,
         middleware: {
             specificationVersion: 'v3',
             wrapGenerate: async ({ params, doGenerate }) => {
                 let lastErr: any;
-                for (let i = 0; i < models.length; i++) {
+                for (let i = 0; i < chain.length; i++) {
                     try {
                         const result = await withRetry(
-                            async () => i === 0 ? await doGenerate() : await models[i].doGenerate(params),
-                            modelIds[i]
+                            async () => i === 0 ? await doGenerate() : await chain[i].model.doGenerate(params),
+                            chain[i].name
                         );
 
                         // Detect "silent failures": model returns OK but with empty content
@@ -104,15 +132,15 @@ function wrapResilientModel(modelIds: string[]) {
                             part.type === 'reasoning'
                         );
 
-                        if (!hasContent && result.finishReason.unified === 'other' && i < models.length - 1) {
-                            console.warn(`[AI] ⚠️ ${modelIds[i]} returned empty (finishReason: other). Falling back to ${modelIds[i + 1]}...`);
+                        if (!hasContent && result.finishReason.unified === 'other' && i < chain.length - 1) {
+                            console.warn(`[AI] ⚠️ ${chain[i].name} returned empty (finishReason: other). Falling back to ${chain[i + 1].name}...`);
                             continue;
                         }
                         return result;
                     } catch (err: any) {
                         lastErr = err;
-                        if (isRetryableError(err) && i < models.length - 1) {
-                            console.warn(`[AI] ⚠️ ${modelIds[i]} exhausted retries. Falling back to ${modelIds[i + 1]}...`);
+                        if (isRetryableError(err) && i < chain.length - 1) {
+                            console.warn(`[AI] ⚠️ ${chain[i].name} exhausted retries. Falling back to ${chain[i + 1].name}...`);
                             continue;
                         }
                         throw err;
@@ -122,16 +150,16 @@ function wrapResilientModel(modelIds: string[]) {
             },
             wrapStream: async ({ params, doStream }) => {
                 let lastErr: any;
-                for (let i = 0; i < models.length; i++) {
+                for (let i = 0; i < chain.length; i++) {
                     try {
                         return await withRetry(
-                            async () => i === 0 ? await doStream() : await models[i].doStream(params),
-                            modelIds[i]
+                            async () => i === 0 ? await doStream() : await chain[i].model.doStream(params),
+                            chain[i].name
                         );
                     } catch (err: any) {
                         lastErr = err;
-                        if (isRetryableError(err) && i < models.length - 1) {
-                            console.warn(`[AI] ⚠️ ${modelIds[i]} exhausted retries. Falling back to ${modelIds[i + 1]}...`);
+                        if (isRetryableError(err) && i < chain.length - 1) {
+                            console.warn(`[AI] ⚠️ ${chain[i].name} exhausted retries. Falling back to ${chain[i + 1].name}...`);
                             continue;
                         }
                         throw err;
@@ -143,12 +171,20 @@ function wrapResilientModel(modelIds: string[]) {
     });
 }
 
+// ── Exported resilient models ────────────────────────────────────────
+// DeepSeek sits at the end of each chain as a cross-provider safety net
+// when Gemini is overloaded (503/429).
+
 export const gemini31Pro = wrapResilientModel([
-    'gemini-3.1-pro-preview',
-    'gemini-3-flash-preview',
-    'gemini-3.1-flash-lite-preview'
+    // deepseekChat,       // 🆕 Last-resort cross-provider fallback
+    google31Pro,
+    google3Flash,
+    google31FlashLite,
+
 ]);
 export const gemini3Flash = wrapResilientModel([
-    'gemini-3-flash-preview',
-    'gemini-3.1-flash-lite-preview'
+    // deepseekChat,       // 🆕 Last-resort cross-provider fallbacks
+    google3Flash,
+    google31FlashLite,
+
 ]);

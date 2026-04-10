@@ -92,7 +92,7 @@ export const flyMachineService = {
 
                 if (!response.ok) {
                     logger.warn(`[Fly API] ⚠️ Create machine attempt ${attempt} failed with ${response.status}: ${rawText}`);
-                    if (response.status >= 500) {
+                    if (response.status >= 500 || response.status === 429) {
                         lastError = new Error(`Fly API ${response.status}: ${rawText}`);
                         const delay = Math.pow(2, attempt) * 1000;
                         await new Promise(resolve => setTimeout(resolve, delay));
@@ -217,32 +217,56 @@ export const flyMachineService = {
     async execCommand(machineId: string, command: string[]) {
         const apiToken = process.env.FLY_API_TOKEN;
         const appName = process.env.FLY_APP_NAME;
+        if (!apiToken || !appName) throw new Error("Missing FLY_API_TOKEN or FLY_APP_NAME");
 
-        logger.info(`[Fly API] 🚀 Executing command on machine ${machineId}: ${JSON.stringify(command)}`);
-        const response = await fetch(`https://api.machines.dev/v1/apps/${appName}/machines/${machineId}/exec`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${apiToken}`,
-            },
-            body: JSON.stringify({ command })
-        });
+        let lastError = null;
+        for (let attempt = 1; attempt <= 5; attempt++) {
+            try {
+                if (attempt > 1) {
+                    const delay = Math.pow(2, attempt) * 500;
+                    logger.info(`[Fly API] 🔄 Retrying execCommand (attempt ${attempt}/5) in ${delay}ms...`);
+                    await new Promise(r => setTimeout(r, delay));
+                }
 
-        if (!response.ok) {
-            const errorText = await response.text();
-            logger.error(`[Fly API] ❌ Exec command failed ${response.status}: ${errorText}`);
-            throw new Error(`Failed to exec command: ${response.status} ${errorText}`);
+                logger.info(`[Fly API] 🚀 Executing command on machine ${machineId}: ${JSON.stringify(command)}`);
+                const response = await fetch(`https://api.machines.dev/v1/apps/${appName}/machines/${machineId}/exec`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${apiToken}`,
+                    },
+                    body: JSON.stringify({ command })
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    if (response.status === 429 || response.status >= 500) {
+                        logger.warn(`[Fly API] ⚠️ Exec command failed with ${response.status} (attempt ${attempt}): ${errorText}`);
+                        lastError = new Error(`Failed to exec command: ${response.status} ${errorText}`);
+                        continue;
+                    }
+                    throw new Error(`Failed to exec command: ${response.status} ${errorText}`);
+                }
+
+                const rawText = await response.text();
+                try {
+                    const data = JSON.parse(rawText);
+                    logger.info(`[Fly API] ✅ Exec command completed (Exit Code ${data.exit_code}).`);
+                    if (data.stdout) logger.info(`[Fly API] STDOUT:\n${data.stdout}`);
+                    if (data.stderr) logger.error(`[Fly API] STDERR:\n${data.stderr}`);
+                } catch (e) {
+                    logger.info(`[Fly API] ✅ Exec command completed. Raw response:\n${rawText}`);
+                }
+                return; // Success!
+            } catch (err: any) {
+                lastError = err;
+                if (err.message && (err.message.includes("429") || err.message.includes("500") || err.message.includes("fetch"))) {
+                    continue;
+                }
+                throw err;
+            }
         }
-
-        const rawText = await response.text();
-        try {
-            const data = JSON.parse(rawText);
-            logger.info(`[Fly API] ✅ Exec command completed (Exit Code ${data.exit_code}).`);
-            if (data.stdout) logger.info(`[Fly API] STDOUT:\n${data.stdout}`);
-            if (data.stderr) logger.error(`[Fly API] STDERR:\n${data.stderr}`);
-        } catch (e) {
-            logger.info(`[Fly API] ✅ Exec command completed. Raw response:\n${rawText}`);
-        }
+        throw lastError || new Error("Failed to exec command after retries");
     },
 
     async syncFile(machineId: string, filePath: string, content: string) {

@@ -133,8 +133,9 @@ async function classifierNode(state, config) {
         try {
             const { partialObjectStream, object } = await streamObject({
                 model: gemini3Flash,
-                system: "You are an expert Shopify architect. Analyze the user's prompt to determine their store's SCALE and CATALOG TYPE.",
-                prompt: `Classify the following theme generation prompt: "${userPrompt}"`,
+                mode: 'json',
+                system: "You are an expert Shopify architect. Analyze the user's prompt to determine their store's SCALE and CATALOG TYPE. Return ONLY valid JSON.",
+                prompt: `Classify the following theme generation prompt in JSON format: "${userPrompt}"`,
                 schema: z.object({
                     archetypeDescription: z.string(),
                     catalogSize: z.enum(["single_product", "boutique", "enterprise"])
@@ -202,12 +203,13 @@ async function designerNode(state, config) {
 
             const { partialObjectStream, object } = await streamObject({
                 model: gemini31Pro,
-                system: `You are the Lead Designer Agent. Your goal is to select a curated, high-end color palette and design tokens.
+                mode: 'json',
+                system: `You are the Lead Designer Agent. Your goal is to select a curated, high-end color palette and design tokens. Return ONLY valid JSON.
                 
 AESTHETIC RULES:
 1. "Sophisticated" & Premium: Avoid basic colors. Use HSL-tailored, harmonious palettes.
 2. Editorial Design: Prioritize typography and white space. No rounded corners (0px).`,
-                messages: [{ role: 'user', content: messageContent }],
+                prompt: `User Prompt: ${userPrompt}\n\nSelect design tokens in JSON format based on the prompt.`,
                 schema: z.object({
                     reasoning: z.string().describe("Your thought process. MUST BE FIRST."),
                     design_tokens: z.object({
@@ -291,8 +293,9 @@ async function plannerNode(state, config) {
             }
 
             const { partialObjectStream, object } = await streamObject({
-                model: gemini31Pro, // Upgraded to Pro
-                system: `You are the Lead Shopify Architect. Based on the selected design tokens, break down the home page into a list of components.
+                model: gemini31Pro,
+                mode: 'json',
+                system: `You are the Lead Shopify Architect. Based on the selected design tokens, break down the home page into a list of components. Return ONLY valid JSON.
                 
 BLUEPRINTS:
 ${manifestSummary}
@@ -303,7 +306,7 @@ RULES:
 3. Page Template Sections: All other components should be tagged as type "section" and will be part of the Home Page Template (index.json).
 4. No HTML/CSS: Describe layouts in English.
 5. Hero Blueprint: Select the most appropriate Hero Blueprint ID from the manifest.`,
-                messages,
+                prompt: `User Prompt: ${userPrompt}\nCatalog Size: ${catalogSize}\nDesign System Tokens: ${JSON.stringify(designTokens)}\n\nGenerate the component plan in JSON format.`,
                 schema: z.object({
                     reasoning: z.string().describe("Your thought process. MUST BE FIRST."),
                     blueprint_id: z.string().optional(),
@@ -373,7 +376,8 @@ async function contentWriterNode(state, config) {
         try {
             const { partialObjectStream, object } = await streamObject({
                 model: gemini3Flash,
-                system: `You are a High-End Editorial Copywriter.
+                mode: 'json',
+                system: `You are a High-End Editorial Copywriter. Return ONLY valid JSON.
                 
 TONE OF VOICE: "Sophisticated"
 - Authoritative yet graceful.
@@ -390,7 +394,7 @@ TONE OF VOICE: "Sophisticated"
                         marketing_hooks: z.array(z.string())
                     }))
                 }),
-                prompt: `User Prompt: ${userPrompt}\nPlanned Components: ${JSON.stringify(components)}\nDesign Vibe: ${designTokens.typography.heading_font}`,
+                prompt: `User Prompt: ${userPrompt}\nPlanned Components: ${JSON.stringify(components)}\nDesign Vibe: ${designTokens.typography.heading_font}\n\nWrite the copy for these components in JSON format.`,
                 maxTokens: 16384,
             });
 
@@ -631,10 +635,27 @@ ${getStructuralSkeleton(mobileHtml)}`
     while (attempt < maxAttempts) {
         attempt++;
         try {
+            const fullPrompt = [
+                errors.length > 0 ? `### CRITICAL: FIX THESE ERRORS FROM PREVIOUS ATTEMPT:\n${errors.join("\n")}\n\nYou MUST fix these errors in the code.` : "",
+                `You are building a single component for a Shopify theme.
+Design Tokens: ${JSON.stringify(designTokens)}
+Global Layout Shell Context (Truncated): ${layoutShell ? layoutShell.substring(0, 3000) : "Not Provided"}
+
+Component to Build:
+Name: ${targetComponent.name}
+Type: ${targetComponent.type}
+Layout Directive: ${targetComponent.layout_directive}
+Sophisticated Content: ${JSON.stringify(sectionContent[targetComponent.name] || {})} `,
+                isHero && selectedBlueprintId ? `### STRUCTURAL BLUEPRINT REFERENCE\nGenerate a Shopify section inspired by the Hero Blueprint ${selectedBlueprintId}.` : "",
+                "\n\nGenerate the component code in JSON format."
+            ].filter(Boolean).join("\n\n");
+
             const { partialObjectStream, object } = await streamObject({
                 model: gemini31Pro,
+                mode: 'json',
                 system: `# MISSION: GENERATE HIGH-END SHOPIFY SECTION (VANILLA CSS SPEC)
-Goal: Prioritize architectural, editorial beauty using STANDARD CSS (No Tailwind).
+Goal: Prioritize architectural, editorial beauty using STANDARD CSS (No Tailwind). Return ONLY valid JSON.
+- QUALITY OVER SPEED: Do not take shortcuts. Prioritize high-fidelity, editorial design that feels premium and custom.
 
 ## 1. DESIGN SYSTEM SOURCE OF TRUTH (Aesthetic)
 ${designSystemContent}
@@ -649,9 +670,9 @@ You are a Senior Frontend Engineer. Build a stunning, bespoke editorial eCommerc
 - CONTENT: Use the provided "Sophisticated" content exactly. Do NOT hallucinate generic copy.
 - TECH STACK: Shopify Liquid + Vanilla JS Web Components (Light DOM) for interactivity.
 - LAYOUT: Use the "Intentional Asymmetry" and "No-Line" rules from the design system.`,
-                messages: [{ role: 'user', content: messageContent }],
+                prompt: fullPrompt,
                 schema: z.object({
-                    thoughtProcess: z.string().describe("Your thought process. MUST BE FIRST."),
+                    thoughtProcess: z.string().describe("Your thought process. MUST BE FIRST. Detail your architectural approach, aesthetic choices, and how you are implementing the design tokens for this specific component."),
                     files: z.array(z.object({
                         path: z.string(),
                         content: z.string()
@@ -662,9 +683,14 @@ You are a Senior Frontend Engineer. Build a stunning, bespoke editorial eCommerc
 
             let previousLength = 0;
             let partCount = 0;
+            let lastLogTime = Date.now();
             for await (const partial of partialObjectStream) {
                 partCount++;
-                if (partCount % 20 === 0) logger.info(`[AI] coderNode: Recvd ${partCount} parts (Alive)...`);
+                const now = Date.now();
+                if (now - lastLogTime >= 2000) {
+                    logger.info(`[AI] coderNode: Recvd ${partCount} parts (Alive)...`);
+                    lastLogTime = now;
+                }
 
                 if (partial.thoughtProcess && partial.thoughtProcess.length > previousLength) {
                     const delta = partial.thoughtProcess.substring(previousLength);
@@ -734,7 +760,7 @@ async function tsQcNode(state, config) {
     const { currentComponentFiles, components, currentComponentIndex } = state;
     const sendEvent = config.configurable?.sendEvent;
     const errors = [];
-    
+
     const targetCompName = components[currentComponentIndex].name;
     const componentNameExt = targetCompName.endsWith('.liquid') || targetCompName.endsWith('.json') ? targetCompName : `${targetCompName}.liquid`;
 
@@ -992,6 +1018,7 @@ Schema:
             let streamBuffer = "";
             let partCount = 0;
 
+            let lastLogTime = Date.now();
             for await (const part of fullStream) {
                 partCount++;
                 const delta = part.textDelta || part.reasoning || part.thought || part.text || "";
@@ -999,9 +1026,14 @@ Schema:
                 if (!hasStartedStream && delta) {
                     logger.info(`[AI] agenticQcNode stream started (Recvd ${partCount} parts)...`);
                     hasStartedStream = true;
+                    lastLogTime = Date.now(); // Reset timer on start
                 }
 
-                if (partCount % 20 === 0) logger.info(`[AI] agenticQcNode: Recvd ${partCount} parts (Alive)...`);
+                const now = Date.now();
+                if (now - lastLogTime >= 2000) {
+                    logger.info(`[AI] agenticQcNode: Recvd ${partCount} parts (Alive)...`);
+                    lastLogTime = now;
+                }
 
                 if (delta) {
                     streamBuffer += delta;

@@ -257,9 +257,8 @@ router.post("/sync-bulk", async (req, res) => {
                     }
                 }
 
-                // --- Regex Handler: Section type does not refer to existing section file ---
                 if (!handled && reason.includes("does not refer to an existing section")) {
-                    const sectionMatch = reason.match(/'([^']+)'/);
+                    const sectionMatch = reason.match(/Section type ['"]?([^'"\s]+)['"]?/i);
                     const missingType = sectionMatch ? sectionMatch[1] : null;
                     const content = syncedFiles.get(failedFile);
 
@@ -317,15 +316,25 @@ router.post("/sync-bulk", async (req, res) => {
                 if (!handled) {
                     const content = syncedFiles.get(failedFile);
                     if (content) {
-                        logger.info(`[PreviewRoutes] 🤖 [LLM] No regex handler for "${failedFile}". Calling AI correction...`);
+                        let partCount = 0;
+                        let lastLogTime = 0;
+                        let streamStarted = false;
                         const result = await executeCorrectionLoop(
                             { message: errorMsg, filePath: failedFile },
                             content,
                             Array.from(syncedFiles.keys()),
                             (delta) => {
-                                // Standard REST endpoint - we log and wait.
-                                // If we want real-time we'd need SSE here too.
-                                logger.info(`[AI-Correction-Thought] ${delta}`);
+                                partCount++;
+                                if (!streamStarted && delta) {
+                                    logger.info(`[AI-Correction] Stream started for "${failedFile}"`);
+                                    streamStarted = true;
+                                    lastLogTime = Date.now();
+                                }
+                                const now = Date.now();
+                                if (now - lastLogTime >= 2000) {
+                                    logger.info(`[AI-Correction] Recvd ${partCount} parts (Alive) for "${failedFile}"...`);
+                                    lastLogTime = now;
+                                }
                             }
                         );
                         if (result.success) {
@@ -386,13 +395,14 @@ router.post("/sync-bulk", async (req, res) => {
         let isCorrecting = false;
         let initialWaitPassed = false;
         let resolveSyncFinished: (val: any) => void;
-
         const processQueue = async () => {
             isCorrecting = true;
             while (pendingErrors.length > 0) {
                 const errorsToProcess = [...pendingErrors];
                 pendingErrors = [];
                 await applyCorrections(errorsToProcess);
+                // [STABILITY] Wait 4s to let the CLI process the new files and report any fallout errors
+                await new Promise(r => setTimeout(r, 4000));
             }
             isCorrecting = false;
 
@@ -419,6 +429,8 @@ router.post("/sync-bulk", async (req, res) => {
         logger.info(`[PreviewRoutes] 📤 Sequential sync of ${normalizedFiles.length} files...`);
         for (const f of normalizedFiles) {
             await flyMachineService.syncFile(machineId, f.filePath!, f.content);
+            // [PROACTIVE] Wait 250ms between files to avoid hitting Fly API rate limits immediately
+            await new Promise(r => setTimeout(r, 250));
         }
         logger.info(`[PreviewRoutes] ✅ Initial sequential sync complete. Waiting for remote confirmation...`);
 
@@ -435,8 +447,10 @@ router.post("/sync-bulk", async (req, res) => {
         }, 6000); // Wait 6s after initial sync to see if CLI throws any errors
 
         const finalResult = await syncFinishedPromise;
+        if (stopMonitor) stopMonitor(); // [CLEANUP] Stop listening to machine logs
         res.json(finalResult);
     } catch (error: any) {
+        // Fallback cleanup in case of crash
         logger.error(`[PreviewRoutes] ❌ Bulk sync failed: ${error.message}`);
         res.status(500).json({ error: error.message });
     }
