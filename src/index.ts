@@ -69,21 +69,7 @@ app.post('/api/build', async (req, res) => {
         logger.info(`[/api/build] 📥 Received build request (ID=${targetThemeId}, HTML=${!!referenceHtml}, Image=${!!referenceImageBase64})`);
 
         // --- Auto-Discovery for Tri-Modal context if missing from request ---
-        if (!referenceHtml || !referenceImageBase64) {
-            // Update discovery path to point to the active editorial design system
-            const curatedPath = path.join(process.cwd(), 'docs/design-system/the-minimalist/home_desktop_1440px');
-            const localHtmlPath = path.join(curatedPath, 'code.html');
-            const localImagePath = path.join(curatedPath, 'screen.png');
-
-            if (!referenceHtml && fs.existsSync(localHtmlPath)) {
-                logger.info(`[Build] 📂 Auto-loading active HTML reference: ${localHtmlPath}`);
-                referenceHtml = fs.readFileSync(localHtmlPath, 'utf8');
-            }
-            if (!referenceImageBase64 && fs.existsSync(localImagePath)) {
-                logger.info(`[Build] 📂 Auto-loading active Image reference: ${localImagePath}`);
-                referenceImageBase64 = fs.readFileSync(localImagePath).toString('base64');
-            }
-        }
+        // (Removed: We now rely exclusively on the user prompt/request data for palette and style)
 
         let designBrief = req.body.designBrief;
         const userPrompt = messages[messages.length - 1]?.content || "";

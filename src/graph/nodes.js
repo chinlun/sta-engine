@@ -191,14 +191,8 @@ async function designerNode(state, config) {
     while (attempt < maxAttempts) {
         attempt++;
         try {
-            const messageContent = [
-                { type: 'text', text: `User Prompt: ${userPrompt}` }
-            ];
-            if (referenceImageBase64) {
-                messageContent.push({ type: 'image', image: referenceImageBase64 });
-            }
             if (lastError) {
-                messageContent.push({ type: 'text', text: `CRITICAL: Your previous response failed to parse. REASON: ${lastError.message}. Ensure you return valid JSON strictly according to the schema.` });
+                logger.warn(`[Graph] Designer retrying after error: ${lastError.message}`);
             }
 
             const { partialObjectStream, object } = await streamObject({
