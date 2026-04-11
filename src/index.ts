@@ -14,6 +14,7 @@ import { themeWorkflow, modifierWorkflow } from './graph';
 import { customGoogle } from './lib/ai';
 import previewRoutes from './routes/preview-routes';
 import { flyMachineService } from './services/fly-machine-service';
+import { syncOrchestrator } from './services/sync-orchestrator';
 import { IntegrityManager, ValidationError } from './services/integrity-manager';
 import path from 'path';
 import fs from 'fs';
@@ -149,137 +150,51 @@ app.post('/api/build', async (req, res) => {
             const args = { globalSettings, modifications };
             sendEvent({ type: 'tool_call', toolName: 'build_theme', args });
 
-            if (machineId && modifications.length) {
-                sendEvent({ type: 'progress', stage: 'syncing', message: 'Syncing changes to live preview...' });
-                const orderedMods = [...modifications].map(mod => normalizeMod(mod))
-                    .filter(mod => mod.filePath && mod.content)
-                    .sort((a, b) => {
-                        const aIsJson = a.filePath!.endsWith('.json');
-                        const bIsJson = b.filePath!.endsWith('.json');
-                        if (aIsJson && !bIsJson) return 1;
-                        if (!aIsJson && bIsJson) return -1;
-                        return 0;
-                    });
+            if (!machineId && modifications.length) {
+                const storeUrl = process.env.SHOPIFY_STORE_DOMAIN;
+                const themeToken = process.env.SHOPIFY_THEME_ACCESS_PASSWORD;
 
-                console.log("[Sync] DEBUG FINAL FILES TO SYNC:", orderedMods.map(m => m.filePath));
-
-                const nonJsonMods = orderedMods.filter(m => !m.filePath!.endsWith('.json'));
-                const jsonMods = orderedMods.filter(m => m.filePath!.endsWith('.json'));
-
-                const syncWithMonitoring = async (mods: any[]) => {
-                    logger.info(`[Sync] 🚀 syncWithMonitoring entering with ${mods.length} files. Machine: ${machineId}`);
-                    const { executeCorrectionLoop } = require('./lib/correction-loop');
-                    let retryCounts = new Map<string, number>();
-
-                    return new Promise<void>((resolve, reject) => {
-                        let isResolved = false;
-
-                        const cleanup = () => {
-                            isResolved = true;
-                        };
-
-                        // Start Log Monitoring (Gate B+ / Remote Error Detection)
-                        const stopMonitoring = flyMachineService.monitorLogs(machineId, async (remoteError) => {
-                            if (isResolved) return;
-
-                            sendEvent({ type: 'progress', stage: 'REMOTE_ERROR_DETECTED', message: `🔍 Remote error: ${remoteError.message}` });
-
-                            // Find the file that caused the error (robust matching)
-                            const mod = mods.find(m =>
-                                remoteError.message.toLowerCase().includes(m.filePath.toLowerCase()) ||
-                                remoteError.message.toLowerCase().includes(path.basename(m.filePath).toLowerCase())
-                            );
-
-                            if (mod) {
-                                const currentRetries = retryCounts.get(mod.filePath) || 0;
-                                if (currentRetries < 3) {
-                                    retryCounts.set(mod.filePath, currentRetries + 1);
-
-                                    sendEvent({ type: 'progress', stage: 'AI_CORRECTING', message: `🛠️ Correcting ${mod.filePath} (Attempt ${currentRetries + 1})...` });
-
-                                    // Extract line number if possible from message
-                                    const lineMatch = remoteError.message.match(/line (\d+)/i) || remoteError.message.match(/:(\d+):/);
-                                    const lineNumber = lineMatch ? parseInt(lineMatch[1]) : undefined;
-
-                                    const { fixedContent, success } = await executeCorrectionLoop({
-                                        message: remoteError.message,
-                                        filePath: mod.filePath,
-                                        line: lineNumber
-                                    }, mod.content, mods.map(m => m.filePath));
-
-                                    if (success) {
-                                        mod.content = fixedContent;
-
-                                        // Update the original modifications array so the final save gets it too
-                                        const origIdx = modifications.findIndex((m: any) => m.filePath === mod.filePath);
-                                        if (origIdx >= 0) modifications[origIdx].content = fixedContent;
-
-                                        // Re-sync the fixed file
-                                        sendEvent({ type: 'progress', stage: 'FLY_PUSHING', message: `📤 Re-syncing fixed ${mod.filePath}...` });
-                                        await flyMachineService.syncFile(machineId, mod.filePath, mod.content);
-
-                                        // Incremental R2 upload
-                                        if (targetThemeId) {
-                                            try {
-                                                const { uploadThemeState, getThemeState } = require('./services/r2-service');
-                                                const existingState = await getThemeState(targetThemeId);
-                                                const updatedState = [...existingState];
-                                                const idx = updatedState.findIndex((f: any) => (f.filePath || f.path) === mod.filePath);
-                                                if (idx >= 0) updatedState[idx] = { filePath: mod.filePath, content: fixedContent, action: 'update', path: mod.filePath };
-                                                else updatedState.push({ filePath: mod.filePath, content: fixedContent, action: 'update', path: mod.filePath });
-
-                                                await uploadThemeState(targetThemeId, updatedState);
-                                                logger.info(`[R2] ☁️ Persisting repaired file ${mod.filePath} to R2 for ${targetThemeId}`);
-                                            } catch (e) {
-                                                logger.warn(`[R2] Failed incremental update during repair: ${e}`);
-                                            }
-                                        }
-                                    }
-                                } else {
-                                    stopMonitoring();
-                                    cleanup();
-                                    reject(new Error(`Max retries reached for ${mod.filePath}: ${remoteError.message}`));
-                                }
-                            }
-                        });
-
-                        // Initial Sync - SECURE SEQUENTIAL PUSH (Prevents malformed headers)
-                        sendEvent({ type: 'progress', stage: 'FLY_PUSHING', message: `📤 Syncing ${mods.length} files to preview...` });
-
-                        (async () => {
-                            try {
-                                for (let i = 0; i < mods.length; i++) {
-                                    if (isResolved) break;
-                                    const mod = mods[i];
-                                    sendEvent({ type: 'progress', stage: 'FLY_PUSHING', message: `📤 [${i + 1}/${mods.length}] ${mod.filePath}...` });
-                                    await flyMachineService.syncFile(machineId, mod.filePath, mod.content);
-                                }
-
-                                if (isResolved) return;
-
-                                // Wait a grace period for remote errors to surface
-                                for (let i = 0; i < 10; i++) {
-                                    if (isResolved) return;
-                                    await new Promise(r => setTimeout(r, 1000));
-                                }
-                                stopMonitoring();
-                                cleanup();
-                                resolve();
-                            } catch (err) {
-                                stopMonitoring();
-                                cleanup();
-                                reject(err);
-                            }
-                        })();
-                    });
-                };
-
-                if (nonJsonMods.length > 0) {
-                    await syncWithMonitoring(nonJsonMods);
-                    await new Promise(resolve => setTimeout(resolve, 2000));
+                if (storeUrl && themeToken) {
+                    sendEvent({ type: 'progress', stage: 'CLI_BOOTING', message: 'No preview machine found. Provisioning new one...' });
+                    try {
+                        machineId = await flyMachineService.createMachine(storeUrl, themeToken);
+                        logger.info(`[Build] 🤖 Auto-provisioned Machine: ${machineId}`);
+                        await flyMachineService.waitForMachine(machineId);
+                    } catch (e: any) {
+                        logger.error(`[Build] ❌ Auto-provisioning failed: ${e.message}`);
+                        sendEvent({ type: 'progress', stage: 'SYNC_ERROR', message: 'Failed to provision preview machine.' });
+                    }
                 }
-                if (jsonMods.length > 0) {
-                    await syncWithMonitoring(jsonMods);
+            }
+
+            if (machineId && modifications.length) {
+                // 1. Wait for CLI readiness (Signal driven)
+                sendEvent({ type: 'progress', stage: 'CLI_BOOTING', message: 'Waiting for Shopify CLI to prepare preview...' });
+                await syncOrchestrator.waitForCLIReady(machineId);
+                sendEvent({ type: 'progress', stage: 'CLI_READY', message: 'Shopify CLI is ready. Starting sync...' });
+
+                // 2. Order files: .liquid first, then .json, with templates/index.json absolutely last
+                const orderedMods = syncOrchestrator.orderFilesForSync(modifications);
+                const availableFiles = orderedMods.map(m => m.filePath);
+
+                // 3. Sequential per-file sync-and-verify loop
+                for (let i = 0; i < orderedMods.length; i++) {
+                    const mod = orderedMods[i];
+                    sendEvent({ type: 'progress', stage: 'FLY_PUSHING', message: `📤 [${i + 1}/${orderedMods.length}] ${mod.filePath}` });
+
+                    const result = await syncOrchestrator.syncFileWithRetry(
+                        machineId, mod.filePath, mod.content, availableFiles, targetThemeId
+                    );
+
+                    if (!result.success) {
+                        logger.error(`[Sync] ❌ Failed to sync ${mod.filePath} after multiple attempts and AI repairs.`);
+                        sendEvent({ type: 'progress', stage: 'SYNC_ERROR', message: `⚠️ ${mod.filePath} failed sync` });
+                    } else if (result.fixedContent) {
+                        // Keep our local state in sync with any AI repairs
+                        mod.content = result.fixedContent;
+                        const origIdx = modifications.findIndex((m: any) => m.filePath === mod.filePath);
+                        if (origIdx >= 0) modifications[origIdx].content = result.fixedContent;
+                    }
                 }
 
                 try {
@@ -295,7 +210,7 @@ app.post('/api/build', async (req, res) => {
                     id: 'docker-preview',
                     name: `AI Preview`,
                     role: 'development',
-                    preview_url: `http://localhost:${port}/api/preview/${machineId}?machine_id=${machineId}`
+                    preview_url: `https://${process.env.FLY_APP_NAME}.fly.dev/?machine_id=${machineId}`
                 }
             });
 
@@ -379,7 +294,10 @@ app.post('/api/modify', async (req, res) => {
             sendEvent({ type: 'progress', stage: 'FLY_PUSHING', message: `Syncing ${mod.path} to preview...` });
 
             if (machineId) {
-                await flyMachineService.syncFile(machineId, mod.path, mod.content);
+                const result = await syncOrchestrator.syncFileWithRetry(
+                    machineId, mod.path, mod.content, baseFiles.map(f => f.filePath || f.path), themeId
+                );
+                if (result.fixedContent) mod.content = result.fixedContent;
                 try {
                     await flyMachineService.execCommand(machineId, [
                         "bash", "-c",

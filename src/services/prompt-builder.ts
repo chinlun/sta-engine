@@ -190,7 +190,8 @@ Every .liquid file in sections/ MUST include a valid {% schema %} JSON block at 
 
 ## FILE PATH FORMAT
 - Always use relative paths starting with a folder name (e.g., "sections/hero.liquid", NOT "/sections/hero.liquid")
-- Section filenames use hyphens (e.g., "image-banner.liquid", NOT "image_banner.liquid")
+- **Standard Sections**: YOU MUST use exactly \`sections/header.liquid\` and \`sections/footer.liquid\` for the site header and footer. DO NOT use names like \`main-header.liquid\` or \`fancy-footer.liquid\`.
+- **Naming Convention**: All other section filenames MUST use kebab-case (e.g., \`featured-products.liquid\`, NOT \`featuredProducts.liquid\` or \`featured_products.liquid\`).
 
 ## SHOPIFY SCHEMA INTEGRITY RULES (STRICT)
 - **Valid Types ONLY**: You MUST use valid Shopify schema types.

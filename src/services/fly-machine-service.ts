@@ -9,7 +9,8 @@ import('strip-ansi').then(m => {
     stripAnsi = m.default;
 });
 
-export interface LogError {
+export interface LogEntry {
+    type: 'success' | 'error' | 'warning' | 'info' | 'log' | 'block';
     message: string;
     timestamp: string;
     instance: string;
@@ -18,7 +19,7 @@ export interface LogError {
 // Active log monitors by machineId
 const activeMonitors = new Map<string, {
     process: any,
-    listeners: Set<(error: LogError) => void>,
+    listeners: Set<(entry: LogEntry) => void>,
     isStopped: boolean
 }>();
 
@@ -372,13 +373,13 @@ export const flyMachineService = {
      * Monitors logs for a specific machine and detects Shopify CLI errors.
      * Implements auto-reconnect and ANSI scrubbing.
      */
-    monitorLogs(machineId: string, onValidationError: (error: LogError) => void): () => void {
+    monitorLogs(machineId: string, onLog: (entry: LogEntry) => void): () => void {
         const existing = activeMonitors.get(machineId);
         if (existing) {
             logger.info(`[LogChecker] 🔗 Reusing existing log monitor for ${machineId}`);
-            existing.listeners.add(onValidationError);
+            existing.listeners.add(onLog);
             return () => {
-                existing.listeners.delete(onValidationError);
+                existing.listeners.delete(onLog);
             };
         }
 
@@ -394,10 +395,10 @@ export const flyMachineService = {
 
         const monitorState = {
             process: null as any,
-            listeners: new Set<(error: LogError) => void>(),
+            listeners: new Set<(entry: LogEntry) => void>(),
             isStopped: false
         };
-        monitorState.listeners.add(onValidationError);
+        monitorState.listeners.add(onLog);
         activeMonitors.set(machineId, monitorState);
 
         let logBuffer = "";
@@ -439,10 +440,16 @@ export const flyMachineService = {
                         let line = rawLine.trim();
                         if (stripAnsi) line = stripAnsi(line);
 
-                        // Fly log format: TIMESTAMP ID REGION [LEVEL] MESSAGE
-                        // Extract everything after the [LEVEL] block
-                        const flyMatch = line.match(/^.*\[\w+\]\s*(.*)$/);
+                        // Fly log format: TIMESTAMP (app|runner)[ID] REGION [LEVEL] MESSAGE
+                        // We use a non-greedy match to skip the instance ID [brackets] and target the log level [brackets]
+                        const flyMatch = line.match(/^.*?(?:app|runner)\[[a-f0-9]+\]\s+\w+\s+\[\w+\]\s*(.*)$/i);
                         let message = flyMatch ? flyMatch[1].trim() : line;
+
+                        // Fallback: If we still have a Fly log prefix in our "message", try to find the JSON start
+                        if (!message.startsWith('{') && message.includes('{"timestamp"')) {
+                            const jsonMatch = message.match(/{".*}$/);
+                            if (jsonMatch) message = jsonMatch[0];
+                        }
 
                         if (!message) continue;
                         logger.debug(`[LogMonitor] ${message}`);
@@ -455,14 +462,16 @@ export const flyMachineService = {
                                     const isError = ['error', 'failure', 'fail', 'rejected'].includes(String(inner.type).toLowerCase());
                                     if (isError) {
                                         logger.error(`[LogChecker] 🚨 FLATTENED ERROR DETECTED ON ${machineId}: ${inner.message}`);
-                                        monitorState.listeners.forEach(listener => listener({
-                                            message: inner.message,
-                                            timestamp: inner.timestamp || new Date().toISOString(),
-                                            instance: machineId
-                                        }));
                                     } else {
                                         logger.info(`[LogMonitor] [ShopifyCLI] ${inner.message}`);
                                     }
+
+                                    monitorState.listeners.forEach(listener => listener({
+                                        type: inner.type || (isError ? 'error' : 'log'),
+                                        message: inner.message,
+                                        timestamp: inner.timestamp || new Date().toISOString(),
+                                        instance: machineId
+                                    }));
                                     continue;
                                 }
                             } catch (e) { /* Fall through to patterns */ }
@@ -483,6 +492,7 @@ export const flyMachineService = {
                                     const fullMessage = currentErrorGroup.join("\n").trim();
                                     logger.error(`[LogChecker] 🚨 REMOTE ERROR DETECTED ON ${machineId}:\n${fullMessage}`);
                                     monitorState.listeners.forEach(listener => listener({
+                                        type: 'error',
                                         message: fullMessage,
                                         timestamp: new Date().toISOString(),
                                         instance: machineId
@@ -498,6 +508,15 @@ export const flyMachineService = {
                             if (errorSignatures.some(sig => message.includes(sig)) && !message.includes("error reporting")) {
                                 logger.error(`[LogChecker] 🚨 SINGLE-LINE ERROR DETECTED ON ${machineId}: ${message}`);
                                 monitorState.listeners.forEach(listener => listener({
+                                    type: 'error',
+                                    message: message,
+                                    timestamp: new Date().toISOString(),
+                                    instance: machineId
+                                }));
+                            } else if (message.includes("Synced »")) {
+                                // Explicitly broadcast sync success logs
+                                monitorState.listeners.forEach(listener => listener({
+                                    type: 'log',
                                     message: message,
                                     timestamp: new Date().toISOString(),
                                     instance: machineId
@@ -523,7 +542,7 @@ export const flyMachineService = {
         return () => {
             // Unsubscribe listener
             if (monitorState) {
-                monitorState.listeners.delete(onValidationError);
+                monitorState.listeners.delete(onLog);
                 logger.info(`[LogChecker] Unsubscribed listener for ${machineId}. Active listeners: ${monitorState.listeners.size}`);
             }
         };

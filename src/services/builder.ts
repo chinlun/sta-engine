@@ -44,6 +44,24 @@ export function normalizeMod(raw: any): { filePath: string | null; action: strin
         }
     }
 
+    // Post-process: Enforce kebab-case for sections (except header/footer)
+    if (filePath && filePath.startsWith('sections/') && filePath.endsWith('.liquid')) {
+        const parts = filePath.split('/');
+        const filename = parts.pop()!;
+        const baseName = filename.replace('.liquid', '');
+        
+        // Reserved names stay as is
+        if (!['header', 'footer'].includes(baseName)) {
+            const kebabBase = baseName
+                .replace(/([a-z])([A-Z])/g, '$1-$2') // CamelCase -> kebab-case
+                .replace(/[\s_]+/g, '-')            // spaces/underscores -> hyphens
+                .toLowerCase()
+                .replace(/^-+|-+$/g, '');           // trim leading/trailing hyphens
+            
+            filePath = `sections/${kebabBase}.liquid`;
+        }
+    }
+
     return { filePath, action, content };
 }
 
