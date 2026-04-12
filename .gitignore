@@ -3,3 +3,4 @@ dist
 .env
 *.zip
 .DS_Store
+firebase-service-account.json

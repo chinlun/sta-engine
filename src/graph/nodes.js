@@ -1,6 +1,6 @@
 const { z } = require("zod");
 const { generateObject, streamObject, streamText } = require("ai");
-const { gemini31Pro, gemini3Flash } = require("../lib/ai");
+const { google31ProSticky, google3FlashSticky } = require("../lib/ai");
 const { validateAndRepair } = require("../services/builder");
 const { IntegrityManager } = require("../services/integrity-manager");
 const { logger } = require("../lib/logger");
@@ -8,18 +8,141 @@ const fs = require('fs');
 const path = require('path');
 const { uploadThemeState, getThemeState } = require("../services/r2-service");
 
-// --- DESIGN SYSTEM SOURCE OF TRUTH ---
-let designSystemContent = "";
-let componentSpecContent = "";
-try {
-    const designPath = path.join(__dirname, "../../docs/design-system/the-minimalist/DESIGN.md");
-    designSystemContent = fs.readFileSync(designPath, "utf8");
-
-    const componentPath = path.join(__dirname, "../../docs/design-system/the-minimalist/component.md");
-    componentSpecContent = fs.readFileSync(componentPath, "utf8");
-} catch (e) {
-    logger.warn(`Design specification not found: ${e.message}`);
+/**
+ * Helper to sleep with exponential backoff and jitter
+ */
+async function sleepWithJitter(attempt) {
+    const baseDelay = Math.pow(2, attempt) * 3000;
+    const jitter = Math.random() * 2000;
+    const totalDelay = baseDelay + jitter;
+    logger.debug(`[Graph] Sleeping for ${Math.round(totalDelay)}ms before next attempt...`);
+    return new Promise(resolve => setTimeout(resolve, totalDelay));
 }
+
+// --- CONTEXT BANK: Adaptive Documentation Pruning ---
+class ContextBank {
+    constructor() {
+        this.docs = {};
+        this.basePath = path.join(__dirname, "../../docs");
+        this.loadAll();
+    }
+
+    loadAll() {
+        const files = [
+            { id: 'design', path: 'design-system/the-minimalist/DESIGN.md' },
+            { id: 'component', path: 'design-system/the-minimalist/component.md' },
+            { id: 'cheat_sheet', path: 'liquid-cheat-sheet.md' },
+            { id: 'liquid_ref', path: 'reference/shopify-liquid-reference.md' },
+            { id: 'architecture', path: 'reference/shopify-os2-architecture.md' },
+            { id: 'schema', path: 'reference/shopify-schema-settings.md' },
+            { id: 'file_map', path: 'reference/skeleton-file-map.md' }
+        ];
+
+        files.forEach(f => {
+            try {
+                const fullPath = path.join(this.basePath, f.path);
+                const content = fs.readFileSync(fullPath, "utf8");
+                this.docs[f.id] = this.partitionMarkdown(content);
+            } catch (e) {
+                logger.warn(`Failed to load doc ${f.id}: ${e.message}`);
+                this.docs[f.id] = { _full: "" };
+            }
+        });
+    }
+
+    partitionMarkdown(content) {
+        const sections = { _full: content };
+        const lines = content.split('\n');
+        let currentHeader = null;
+        let currentContent = [];
+
+        lines.forEach(line => {
+            const match = line.match(/^##?\s+(.+)/);
+            if (match) {
+                if (currentHeader) {
+                    sections[currentHeader] = currentContent.join('\n').trim();
+                }
+                currentHeader = match[1].trim();
+                currentContent = [];
+            } else if (currentHeader) {
+                currentContent.push(line);
+            }
+        });
+
+        if (currentHeader) {
+            sections[currentHeader] = currentContent.join('\n').trim();
+        }
+
+        return sections;
+    }
+
+    /**
+     * returns a pruned context string tailored for a specific node and component.
+     */
+    getPrunedContext(nodeName, targetComponent = null) {
+        let parts = [];
+
+        if (nodeName === 'designer') {
+            const design = this.docs['design'] || {};
+            parts.push("## DESIGN SYSTEM (VIBE & TOKENS)");
+            parts.push(design['1. The North Star'] || "");
+            parts.push(design['2. Colors & Surface Logic'] || "");
+            parts.push(design['3. Typography'] || "");
+        }
+
+        if (nodeName === 'planner') {
+            const arch = this.docs['architecture'] || {};
+            parts.push("## SHOPIFY OS 2.0 ARCHITECTURE");
+            parts.push(arch['1. Theme File Hierarchy'] || "");
+            parts.push(arch['2. JSON Template Structure (Critical)'] || "");
+
+            const comp = this.docs['component'] || {};
+            parts.push("## COMPONENT BLUEPRINTS");
+            parts.push(comp['_full'] || ""); // Planner needs the full overview of what's possible
+        }
+
+        if (nodeName === 'coder') {
+            // 1. Minimal Design Rules
+            const design = this.docs['design'] || {};
+            parts.push("## DESIGN RULES\n" + (design['4. Elevation & Depth'] || "") + "\n" + (design['6. Do\'s and Don\'ts'] || ""));
+
+            // 2. Targeted Component Spec
+            const comp = this.docs['component'] || {};
+            if (targetComponent) {
+                // Find section matching component type (e.g. "Hero Section", "Product Section")
+                const sectionKey = Object.keys(comp).find(k => k.toLowerCase().includes(targetComponent.type?.toLowerCase()));
+                if (sectionKey) {
+                    parts.push(`## COMPONENT SPEC: ${sectionKey}\n${comp[sectionKey]}`);
+                }
+            }
+
+            // 3. Technical Guardrails (The missing piece)
+            const cheat = this.docs['cheat_sheet'] || {};
+            parts.push("## LIQUID GUARDRAILS");
+            parts.push(cheat['3. Liquid Syntax & Section Guardrails'] || "");
+            parts.push(cheat['4. CSS & Styling Standards'] || "");
+
+            const schema = this.docs['schema'] || {};
+            parts.push("## VALID SCHEMA TYPES");
+            parts.push(schema['2. Valid Input Setting Types (Complete & Official)'] || "");
+
+            const liquidRef = this.docs['liquid_ref'] || {};
+            parts.push("## CRITICAL TAG RULES");
+            parts.push(liquidRef['1. Critical Liquid Tag Rules'] || "");
+        }
+
+        if (nodeName === 'assembler') {
+            parts.push("## THEME ARCHITECTURE\n" + (this.docs['architecture']?._full || ""));
+            parts.push("## SKELETON FILE MAP\n" + (this.docs['file_map']?._full || ""));
+        }
+
+        const finalContext = parts.filter(p => p.trim().length > 0).join('\n\n');
+        logger.info(`[ContextBank] Generated context for ${nodeName}. Size: ${finalContext.length} chars.`);
+        return finalContext;
+    }
+}
+
+const contextBank = new ContextBank();
 
 // --- BLUEPRINTS MANIFEST ---
 let blueprintsManifest = [];
@@ -28,6 +151,52 @@ try {
     blueprintsManifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
 } catch (e) {
     logger.warn(`Blueprints manifest not found: ${e.message}`);
+}
+
+/**
+ * Helper to determine model and adaptive instructions based on fallback state and retry counts.
+ */
+function getLLMConfig(state, attempt = 1) {
+    let adaptiveInstructions = "";
+
+    // 1. Fallback Mode Instructions
+    if (state.isFallback) {
+        adaptiveInstructions += `
+[ADAPTIVE INSTRUCTION MODE: ACTIVE]
+You are operating in high-efficiency fallback mode.
+- BE EXTREMELY EXPLICIT in your reasoning and architectural plan.
+- DO NOT SKIP any code sections or take shortcuts in Liquid/CSS generation.
+- ENSURE all JSON keys are strictly followed without hallucination.
+- Prioritize structural integrity and standard Shopify compliance for every file.
+`;
+    }
+
+    // 2. Retry Adaptation (Truncation/Parse failure mitigation)
+    if (attempt > 1) {
+        adaptiveInstructions += `
+[RETRY ADAPTATION: ACTIVE (Attempt ${attempt})]
+The previous attempt failed, likely due to output length or formatting.
+- BE CONCISE while maintaining high quality.
+- AVOID long comments or excessive descriptive text.
+- ENSURE the final JSON block is complete and valid.
+`;
+    }
+
+    return {
+        model: state.isFallback ? google3FlashSticky : google31ProSticky,
+        adaptiveInstructions: adaptiveInstructions.trim()
+    };
+}
+
+/**
+ * Helper to detect if an error is a timeout, service-overloaded, or generation failure.
+ * All of these indicate that the current model/service is unstable and should potentially trigger a fallback.
+ */
+function isResilienceError(error) {
+    if (!error) return false;
+    // Blanket coverage: Any error in the generation pipeline should trigger a retry/fallback.
+    // This includes network errors, parsing errors, safety filters, and opaque API failures.
+    return true;
 }
 
 /**
@@ -115,6 +284,40 @@ function extractJsonFromText(text) {
 }
 
 /**
+ * Normalizes a component name to strictly follow Shopify and project rules.
+ * @param {string} name Raw name
+ * @param {string} type Component type (header, footer, section, etc.)
+ * @param {boolean} fullPath If true, returns 'sections/name.liquid'. If false, returns just 'name'.
+ */
+function normalizeFilename(name, type, fullPath = false) {
+    const t = (type || '').toLowerCase();
+
+    // 1. Standardize the base name (kebab-case)
+    let baseName = name
+        .replace(/^sections\//, '')
+        .replace(/^layout\//, '')
+        .replace(/^snippets\//, '')
+        .replace(/\.liquid$/, '')
+        .replace(/\.json$/, '')
+        .replace(/([a-z])([A-Z])/g, '$1-$2')
+        .replace(/[^a-z0-9]+/gi, '-')
+        .toLowerCase()
+        .replace(/^-+|-+$/g, '');
+
+    // 2. Strict type-based normalization for globals. 
+    // We only force 'header' if the type is explicitly 'header'.
+    if (t === 'header') baseName = 'header';
+    if (t === 'footer') baseName = 'footer';
+
+    if (!fullPath) return baseName;
+
+    // 3. Map to Shopify Category Prefix
+    if (t === 'header' || t === 'footer') return `sections/${baseName}.liquid`;
+    if (t === 'layout') return `layout/${baseName}.liquid`;
+    return `sections/${baseName}.liquid`;
+}
+
+/**
  * --- NODE 1: Classifier ---
  */
 async function classifierNode(state, config) {
@@ -131,8 +334,13 @@ async function classifierNode(state, config) {
     while (attempt < maxAttempts) {
         attempt++;
         try {
+            if (attempt > 1) {
+                logger.warn(`[Graph] Classifier retrying (Attempt ${attempt}/${maxAttempts})...`);
+            }
+
             const { partialObjectStream, object } = await streamObject({
-                model: gemini3Flash,
+                model: google3FlashSticky,
+                maxRetries: 0,
                 mode: 'json',
                 system: "You are an expert Shopify architect. Analyze the user's prompt to determine their store's SCALE and CATALOG TYPE. Return ONLY valid JSON.",
                 prompt: `Classify the following theme generation prompt in JSON format: "${userPrompt}"`,
@@ -143,6 +351,7 @@ async function classifierNode(state, config) {
                 maxTokens: 4096, // Classifier is small
             });
 
+            object.catch(() => {}); // Prevent unhandled promise rejection if stream throws
             let previousLength = 0;
             for await (const partial of partialObjectStream) {
                 if (partial.archetypeDescription && partial.archetypeDescription.length > previousLength) {
@@ -155,9 +364,12 @@ async function classifierNode(state, config) {
             finalObject = await object;
             break;
         } catch (error) {
-            if (error.name === 'AI_NoObjectGeneratedError' || error.name === 'AI_JSONParseError') {
-                logger.warn(`[Graph] Classifier silent truncation, Retrying (${attempt}/${maxAttempts})...`);
+            logger.error(`[Graph] Classifier error (Attempt ${attempt}/${maxAttempts}): ${error.message}`);
+
+            if (isResilienceError(error)) {
                 if (attempt >= maxAttempts) throw error;
+                await sleepWithJitter(attempt);
+                continue;
             } else {
                 throw error;
             }
@@ -184,48 +396,61 @@ async function designerNode(state, config) {
     const sendEvent = config.configurable?.sendEvent;
     if (sendEvent) sendEvent({ type: 'progress', stage: 'designer', message: 'Crafting your design system...', component: 'Design Strategy' });
 
+    let localIsFallback = state.isFallback;
     let attempt = 0;
     const maxAttempts = 10;
     let lastError = null;
+    let finalObject;
 
     while (attempt < maxAttempts) {
         attempt++;
+        const { adaptiveInstructions } = getLLMConfig({ ...state, isFallback: localIsFallback }, attempt);
+        const model = google3FlashSticky; // Force Flash for Design Node
+
         try {
             if (lastError) {
-                logger.warn(`[Graph] Designer retrying after error: ${lastError.message}`);
+                logger.warn(`[Graph] Designer retrying (Attempt ${attempt}/${maxAttempts}) after error: ${lastError.message}`);
             }
 
+            const prunedContext = contextBank.getPrunedContext('designer');
+
             const { partialObjectStream, object } = await streamObject({
-                model: gemini31Pro,
+                model,
+                maxRetries: 0,
                 mode: 'json',
                 system: `You are the Lead Designer Agent. Your goal is to select a curated, high-end color palette and design tokens. Return ONLY valid JSON.
                 
+${adaptiveInstructions}
+
+${prunedContext}
+
 AESTHETIC RULES:
 1. "Sophisticated" & Premium: Avoid basic colors. Use HSL-tailored, harmonious palettes.
 2. Editorial Design: Prioritize typography and white space. No rounded corners (0px).`,
                 prompt: `User Prompt: ${userPrompt}\n\nSelect design tokens in JSON format based on the prompt.`,
                 schema: z.object({
                     reasoning: z.string().describe("Your thought process. MUST BE FIRST."),
-                    design_tokens: z.object({
-                        colors: z.object({
-                            primary: z.string(),
-                            secondary: z.string(),
-                            background: z.string(),
-                            surface: z.string(),
-                            text: z.string()
-                        }),
-                        typography: z.object({
-                            heading_font: z.string(),
-                            body_font: z.string(),
-                            scale: z.enum(["minimal", "standard", "bold"])
-                        }),
-                        spacing: z.string(),
-                        elevation: z.string()
+                    palette: z.object({
+                        primary: z.string(),
+                        secondary: z.string(),
+                        accent: z.string(),
+                        background: z.string(),
+                        text: z.string(),
+                    }),
+                    typography: z.object({
+                        heading_font: z.string(),
+                        body_font: z.string(),
+                        base_size: z.string(),
+                    }),
+                    ui: z.object({
+                        border_radius: z.string(),
+                        button_style: z.enum(["pill", "sharp", "soft"]),
                     })
                 }),
                 maxTokens: 4096,
             });
 
+            object.catch(() => {});
             let previousLength = 0;
             for await (const partial of partialObjectStream) {
                 if (partial.reasoning && partial.reasoning.length > previousLength) {
@@ -234,25 +459,34 @@ AESTHETIC RULES:
                     previousLength = partial.reasoning.length;
                 }
             }
+            finalObject = await object;
+            break; // Success!
+        } catch (error) {
+            logger.error(`[Graph] Designer error (Attempt ${attempt}/${maxAttempts}): ${error.message}`);
+            lastError = error;
 
-            const finalObject = await object;
-
-            if (!finalObject || !finalObject.design_tokens) {
-                throw new Error("Failed to extract valid JSON from designer stream");
+            if (isResilienceError(error) && !localIsFallback) {
+                logger.error(`[Graph] 🚨 Sticky Fallback Triggered in designerNode.`);
+                localIsFallback = true;
+                await sleepWithJitter(attempt);
+                continue;
             }
 
-            const duration = Date.now() - startTime;
-            logger.info(`[Graph] ✅ Node: designerNode complete (${duration}ms)`);
-            return {
-                designTokens: finalObject.design_tokens,
-                reasoning: { node: 'designer', text: finalObject.reasoning }
-            };
-        } catch (error) {
-            lastError = error;
-            logger.warn(`[Graph] Designer error, Retrying (${attempt}/${maxAttempts})... Error: ${error.message}`);
             if (attempt >= maxAttempts) throw error;
+            await sleepWithJitter(attempt);
         }
     }
+
+    logger.debug({ node: 'designer', rawOutput: finalObject }, 'LLM response');
+
+    const duration = Date.now() - startTime;
+    logger.info(`[Graph] ✅ Node: designerNode complete (${duration}ms)`);
+
+    return {
+        designTokens: finalObject,
+        reasoning: { node: 'designer', text: finalObject.reasoning },
+        isFallback: localIsFallback
+    };
 }
 
 /**
@@ -266,6 +500,7 @@ async function plannerNode(state, config) {
     const sendEvent = config.configurable?.sendEvent;
     if (sendEvent) sendEvent({ type: 'progress', stage: 'planner', message: 'Architecting your storefront...', component: 'Architectural Planning' });
 
+    let localIsFallback = state.isFallback;
     let attempt = 0;
     const maxAttempts = 10;
     let lastError = null;
@@ -274,23 +509,25 @@ async function plannerNode(state, config) {
 
     while (attempt < maxAttempts) {
         attempt++;
+        const { model, adaptiveInstructions } = getLLMConfig({ ...state, isFallback: localIsFallback }, attempt);
+
         try {
-            const messages = [
-                {
-                    role: 'user', content: [
-                        { type: 'text', text: `User Prompt: ${userPrompt}\nCatalog Size: ${catalogSize}\nDesign Tokens: ${JSON.stringify(designTokens)}` }
-                    ]
-                }
-            ];
             if (lastError) {
-                messages[0].content.push({ type: 'text', text: `CRITICAL: Your previous response failed to parse. REASON: ${lastError.message}. Ensure you return valid JSON strictly according to the schema.` });
+                logger.warn(`[Graph] Planner retrying (Attempt ${attempt}/${maxAttempts}) after error: ${lastError.message}`);
             }
 
+            const prunedContext = contextBank.getPrunedContext('planner');
+
             const { partialObjectStream, object } = await streamObject({
-                model: gemini31Pro,
+                model,
+                maxRetries: 0,
                 mode: 'json',
                 system: `You are the Lead Shopify Architect. Based on the selected design tokens, break down the home page into a list of components. Return ONLY valid JSON.
                 
+${adaptiveInstructions}
+
+${prunedContext}
+
 BLUEPRINTS:
 ${manifestSummary}
 
@@ -314,6 +551,7 @@ RULES:
                 maxTokens: 8192,
             });
 
+            object.catch(() => {});
             let previousLength = 0;
             for await (const partial of partialObjectStream) {
                 if (partial.reasoning && partial.reasoning.length > previousLength) {
@@ -334,16 +572,33 @@ RULES:
                 logger.info(`[Graph] Selected Hero Blueprint: ${finalObject.blueprint_id}`);
             }
 
+            // NORMALIZE AT SOURCE: Force all names to FULL PATH identifiers immediately.
+            // This ensures the state and events use the exact same key.
+            const normalizedComponents = finalObject.components.map(c => ({
+                ...c,
+                name: normalizeFilename(c.name, c.type, true)
+            }));
+
             logger.info(`[Graph] ✅ Node: plannerNode complete (${duration}ms)`);
             return {
-                components: finalObject.components,
+                components: normalizedComponents,
                 selectedBlueprintId: finalObject.blueprint_id,
-                reasoning: { node: 'planner', text: finalObject.reasoning }
+                reasoning: { node: 'planner', text: finalObject.reasoning },
+                isFallback: localIsFallback
             };
         } catch (error) {
+            logger.error(`[Graph] Planner error (Attempt ${attempt}/${maxAttempts}): ${error.message}`);
             lastError = error;
-            logger.warn(`[Graph] Planner error, Retrying (${attempt}/${maxAttempts})... Error: ${error.message}`);
+
+            if (isResilienceError(error) && !localIsFallback) {
+                logger.error(`[Graph] 🚨 Sticky Fallback Triggered in plannerNode.`);
+                localIsFallback = true;
+                await sleepWithJitter(attempt);
+                continue;
+            }
+
             if (attempt >= maxAttempts) throw error;
+            await sleepWithJitter(attempt);
         }
     }
 }
@@ -369,7 +624,8 @@ async function contentWriterNode(state, config) {
         attempt++;
         try {
             const { partialObjectStream, object } = await streamObject({
-                model: gemini3Flash,
+                model: google3FlashSticky,
+                maxRetries: 0,
                 mode: 'json',
                 system: `You are a High-End Editorial Copywriter. Return ONLY valid JSON.
                 
@@ -392,6 +648,7 @@ TONE OF VOICE: "Sophisticated"
                 maxTokens: 16384,
             });
 
+            object.catch(() => {});
             let previousLength = 0;
             for await (const partial of partialObjectStream) {
                 if (partial.reasoning && partial.reasoning.length > previousLength) {
@@ -408,9 +665,12 @@ TONE OF VOICE: "Sophisticated"
             }
             break; // Success!
         } catch (error) {
-            if (error.name === 'AI_NoObjectGeneratedError' || error.name === 'AI_JSONParseError' || error.message.includes('extract valid JSON')) {
-                logger.warn(`[Graph] Content Writer error, Retrying (${attempt}/${maxAttempts})...`);
+            logger.error(`[Graph] ContentWriter error (Attempt ${attempt}/${maxAttempts}): ${error.message}`);
+
+            if (isResilienceError(error)) {
                 if (attempt >= maxAttempts) throw error;
+                await sleepWithJitter(attempt);
+                continue;
             } else {
                 throw error;
             }
@@ -442,7 +702,7 @@ async function structuralNode(state, config) {
     logger.info("[Graph] Node: structuralNode (Deterministic)");
     const { designTokens } = state;
     const sendEvent = config.configurable?.sendEvent;
-    if (sendEvent) sendEvent({ type: 'progress', stage: 'structural', message: 'Building global layout shell...', component: 'Layout Shell' });
+    if (sendEvent) sendEvent({ type: 'progress', stage: 'structural', message: 'Building global layout shell...', component: 'layout/theme.liquid' });
 
     // 1. Generate base.css with design tokens
     const c = designTokens.colors || {};
@@ -561,31 +821,19 @@ async function coderNode(state, config) {
     } = state;
     const sendEvent = config.configurable?.sendEvent;
 
+    let localIsFallback = state.isFallback;
+    // Component Identification: In the state, components[i].name is ALREADY a full path.
     const targetComponent = components[currentComponentIndex];
-    const componentNameExt = targetComponent.name.endsWith('.liquid') || targetComponent.name.endsWith('.json') ? targetComponent.name : `${targetComponent.name}.liquid`;
-    if (sendEvent) sendEvent({ type: 'progress', stage: 'coder', message: `Generating ${targetComponent.name}...`, component: componentNameExt });
-    logger.info(`[Graph] Node: coderNode (Component: ${targetComponent.name} | ${currentComponentIndex + 1}/${components.length})`);
+    const componentNameFull = targetComponent.name;
+
+    if (sendEvent) sendEvent({ type: 'progress', stage: 'coder', message: `Generating ${componentNameFull}...`, component: componentNameFull });
+    logger.info(`[Graph] Node: coderNode (Component: ${componentNameFull} | ${currentComponentIndex + 1}/${components.length})`);
 
     const errors = [...(tsErrors || [])];
-    const messageContent = [];
 
-    // 1. Errors first
-    if (errors.length > 0) {
-        logger.info(`[Graph] 🚨 Coder Node is processing ${errors.length} validation errors.`);
-        messageContent.push({
-            type: 'text',
-            text: `### CRITICAL: FIX THESE ERRORS FROM PREVIOUS ATTEMPT:\n${errors.join("\n")}\n\nYou MUST fix these errors in the code.`
-        });
-    }
-
-    // 2. Core Instructions (Blind to Input)
-    messageContent.push({
-        type: 'text',
-        text: `You are building a single component for a Shopify theme.\nDesign Tokens: ${JSON.stringify(designTokens)}\nGlobal Layout Shell Context (Truncated): ${layoutShell ? layoutShell.substring(0, 3000) : "Not Provided"}\n\nComponent to Build:\nName: ${targetComponent.name}\nType: ${targetComponent.type}\nLayout Directive: ${targetComponent.layout_directive}\nSophisticated Content: ${JSON.stringify(sectionContent[targetComponent.name] || {})} `
-    });
-
-    // 2.5 Blueprint Injection (if applicable)
+    // Blueprint Check
     const isHero = (targetComponent.layout_directive && targetComponent.layout_directive.toLowerCase().includes('hero')) || targetComponent.name.toLowerCase().includes('hero');
+    let blueprintDoc = "";
     if (isHero && selectedBlueprintId) {
         const blueprint = blueprintsManifest.find(bp => bp.blueprint_id === selectedBlueprintId);
         if (blueprint) {
@@ -594,9 +842,7 @@ async function coderNode(state, config) {
                 const desktopHtml = fs.readFileSync(path.join(blueprintsDir, blueprint.paths.desktop), 'utf8');
                 const mobileHtml = fs.readFileSync(path.join(blueprintsDir, blueprint.paths.mobile), 'utf8');
 
-                messageContent.push({
-                    type: 'text',
-                    text: `### STRUCTURAL BLUEPRINT (HERO)
+                blueprintDoc = `### STRUCTURAL BLUEPRINT (HERO)
 Use the following Desktop and Mobile HTML structures purely as **reference and inspiration** to create a completely customized section for the user based on their prompt. 
 Do NOT copy this HTML exactly as is.
 
@@ -610,14 +856,11 @@ DESKTOP STRUCTURE REFERENCE:
 ${getStructuralSkeleton(desktopHtml)}
 
 MOBILE STRUCTURE REFERENCE:
-${getStructuralSkeleton(mobileHtml)}`
-                });
+${getStructuralSkeleton(mobileHtml)}`;
                 logger.info(`[Graph] Injected Hero Blueprint (${selectedBlueprintId}) into code generation context.`);
             } catch (err) {
                 logger.warn(`[Graph] Failed to load blueprint HTML for ${selectedBlueprintId}, falling back to standard generation: ${err.message}`);
             }
-        } else {
-            logger.warn(`[Graph] Blueprint ${selectedBlueprintId} not found in manifest, gracefully falling back to standard generation.`);
         }
     }
 
@@ -628,36 +871,44 @@ ${getStructuralSkeleton(mobileHtml)}`
 
     while (attempt < maxAttempts) {
         attempt++;
+        const { model, adaptiveInstructions } = getLLMConfig({ ...state, isFallback: localIsFallback }, attempt);
+
         try {
+            if (attempt > 1) {
+                logger.warn(`[Graph] Coder retrying (Attempt ${attempt}/${maxAttempts}) due to previous failure.`);
+            }
+
+            const shellSummary = layoutShell ? getStructuralSkeleton(layoutShell) : "Not Provided";
+
             const fullPrompt = [
                 errors.length > 0 ? `### CRITICAL: FIX THESE ERRORS FROM PREVIOUS ATTEMPT:\n${errors.join("\n")}\n\nYou MUST fix these errors in the code.` : "",
                 `You are building a single component for a Shopify theme.
 Design Tokens: ${JSON.stringify(designTokens)}
-Global Layout Shell Context (Truncated): ${layoutShell ? layoutShell.substring(0, 3000) : "Not Provided"}
+Global Layout Shell Context (Structural Skeleton): 
+${shellSummary}
 
 Component to Build:
 Name: ${targetComponent.name}
 Type: ${targetComponent.type}
 Layout Directive: ${targetComponent.layout_directive}
 Sophisticated Content: ${JSON.stringify(sectionContent[targetComponent.name] || {})} `,
-                isHero && selectedBlueprintId ? `### STRUCTURAL BLUEPRINT REFERENCE\nGenerate a Shopify section inspired by the Hero Blueprint ${selectedBlueprintId}.` : "",
+                blueprintDoc,
                 "\n\nGenerate the component code in JSON format."
             ].filter(Boolean).join("\n\n");
 
             const { partialObjectStream, object } = await streamObject({
-                model: gemini31Pro,
+                model,
+                maxRetries: 0,
                 mode: 'json',
                 system: `# MISSION: GENERATE HIGH-END SHOPIFY SECTION (VANILLA CSS SPEC)
 Goal: Prioritize architectural, editorial beauty using STANDARD CSS (No Tailwind). Return ONLY valid JSON.
 - QUALITY OVER SPEED: Do not take shortcuts. Prioritize high-fidelity, editorial design that feels premium and custom.
 
-## 1. DESIGN SYSTEM SOURCE OF TRUTH (Aesthetic)
-${designSystemContent}
+${adaptiveInstructions}
 
-## 2. COMPONENT SYSTEM SOURCE OF TRUTH (Structure)
-${componentSpecContent}
+${contextBank.getPrunedContext('coder', targetComponent)}
 
-## 3. THE ARCHITECTURAL RULES
+## THE ARCHITECTURAL RULES
 You are a Senior Frontend Engineer. Build a stunning, bespoke editorial eCommerce section.
 - STYLING: EXCLUSIVELY use Vanilla CSS inside a <style> tag within the section. Use the CSS variables provided in :root (--color-primary, --font-heading, etc.).
 - NO TAILWIND: Do NOT use Tailwind utility classes (py-10, flex, etc.) in the HTML. Use standard CSS classes.
@@ -675,6 +926,7 @@ You are a Senior Frontend Engineer. Build a stunning, bespoke editorial eCommerc
                 maxTokens: 32768,
             });
 
+            object.catch(() => {});
             let previousLength = 0;
             let partCount = 0;
             let lastLogTime = Date.now();
@@ -688,7 +940,7 @@ You are a Senior Frontend Engineer. Build a stunning, bespoke editorial eCommerc
 
                 if (partial.thoughtProcess && partial.thoughtProcess.length > previousLength) {
                     const delta = partial.thoughtProcess.substring(previousLength);
-                    if (sendEvent) sendEvent({ type: 'thinking', component: componentNameExt, node: 'Coding', text: delta });
+                    if (sendEvent) sendEvent({ type: 'thinking', component: componentNameFull, node: 'Coding', text: delta });
                     previousLength = partial.thoughtProcess.length;
                 }
             }
@@ -700,12 +952,17 @@ You are a Senior Frontend Engineer. Build a stunning, bespoke editorial eCommerc
             }
             break; // Success!
         } catch (error) {
-            if (error.name === 'AI_NoObjectGeneratedError' || error.name === 'AI_JSONParseError' || error.message.includes('extract valid JSON')) {
-                logger.warn(`[Graph] Coder error, Retrying (${attempt}/${maxAttempts})...`);
-                if (attempt >= maxAttempts) throw error;
-            } else {
-                throw error;
+            logger.error(`[Graph] Coder error (Attempt ${attempt}/${maxAttempts}): ${error.message}`);
+
+            if (isResilienceError(error) && !localIsFallback) {
+                logger.error(`[Graph] 🚨 Sticky Fallback Triggered in coderNode.`);
+                localIsFallback = true;
+                await sleepWithJitter(attempt);
+                continue;
             }
+
+            if (attempt >= maxAttempts) throw error;
+            await sleepWithJitter(attempt);
         }
     }
 
@@ -714,9 +971,7 @@ You are a Senior Frontend Engineer. Build a stunning, bespoke editorial eCommerc
     const duration = Date.now() - startTime;
     logger.info(`[Graph] ✅ Node: coderNode complete (${duration}ms)`);
 
-    // Ensure clean filename without duplicate .liquid extensions
-    const cleanName = targetComponent.name.replace('.liquid', '');
-    const cleanFilePath = `sections/${cleanName}.liquid`;
+    const cleanFilePath = componentNameFull;
     if (finalObject.files && finalObject.files[0]) {
         finalObject.files[0].path = cleanFilePath;
     }
@@ -741,7 +996,8 @@ You are a Senior Frontend Engineer. Build a stunning, bespoke editorial eCommerc
     return {
         currentComponentFiles: finalObject.files,
         tsErrors: [],
-        reasoning: { node: 'coder', text: `Generated ${targetComponent.name} section.` }
+        reasoning: { node: 'coder', text: `Generated ${targetComponent.name} section.` },
+        isFallback: localIsFallback // Persist fallback state
     };
 }
 
@@ -755,10 +1011,10 @@ async function tsQcNode(state, config) {
     const sendEvent = config.configurable?.sendEvent;
     const errors = [];
 
-    const targetCompName = components[currentComponentIndex].name;
-    const componentNameExt = targetCompName.endsWith('.liquid') || targetCompName.endsWith('.json') ? targetCompName : `${targetCompName}.liquid`;
+    const targetComp = components[currentComponentIndex];
+    const componentNameFull = targetComp.name;
 
-    if (sendEvent) sendEvent({ type: 'progress', stage: 'COMPONENT_LINTING', message: `Linting component ${targetCompName}...`, component: componentNameExt });
+    if (sendEvent) sendEvent({ type: 'progress', stage: 'COMPONENT_LINTING', message: `Linting component ${componentNameFull}...`, component: componentNameFull });
 
     const mods = (currentComponentFiles || []).map(f => ({
         filePath: f.path,
@@ -803,14 +1059,12 @@ async function tsQcNode(state, config) {
     const duration = Date.now() - startTime;
     if (errors.length > 0) {
         logger.error(`[Graph] ❌ TS QC produced ${errors.length} errors:\n${errors.join('\n')}`);
-        if (sendEvent) sendEvent({ type: 'thinking', component: componentNameExt, node: 'Linting', text: `Found ${errors.length} issues.\nCorrecting syntax...` });
-        if (sendEvent) sendEvent({ type: 'progress', stage: 'AI_CORRECTING', message: `Self-healing component ${targetCompName}...`, component: componentNameExt });
+        if (sendEvent) sendEvent({ type: 'progress', stage: 'AI_CORRECTING', message: `Self-healing component ${targetComp.name}...`, component: componentNameFull });
         logger.info(`[Graph] ❌ Node: tsQcNode complete (${duration}ms)`);
         return { tsErrors: errors };
     } else {
-        logger.info(`[Graph] ✅ TS QC passed for ${targetCompName}.`);
-        if (sendEvent) sendEvent({ type: 'thinking', component: componentNameExt, node: 'Linting', text: `Lint passed. Ready to inject.` });
-        if (sendEvent) sendEvent({ type: 'progress', stage: 'ts_qc', message: `✅ Syntax check passed.`, component: componentNameExt });
+        logger.info(`[Graph] ✅ TS QC passed for ${targetComp.name}.`);
+        if (sendEvent) sendEvent({ type: 'progress', stage: 'ts_qc', message: `✅ Syntax check passed.`, component: componentNameFull });
         logger.info(`[Graph] ✅ Node: tsQcNode complete (${duration}ms)`);
         // If passed, we append these files to the main generatedFiles array and increment the index
         return {
@@ -858,7 +1112,7 @@ async function assemblerNode(state, config) {
     };
 
     for (const comp of pageSections) {
-        const sectionId = comp.name.replace('.liquid', '');
+        const sectionId = normalizeFilename(comp.name, comp.type, false);
         indexJson.sections[sectionId] = {
             type: sectionId
         };
@@ -978,7 +1232,7 @@ async function agenticQcNode(state, config) {
         attempt++;
         try {
             const { fullStream, text } = await streamText({
-                model: gemini31Pro,
+                model: google31ProSticky,
                 system: `You are a Visual QC Auditor for a High-End Editorial Shopify theme.
 
 ## 1. DESIGN SYSTEM SOURCE OF TRUTH (Aesthetic)

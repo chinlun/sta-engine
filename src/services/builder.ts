@@ -176,7 +176,7 @@ export function validateAndRepair(plan: ThemePlan | BuildThemeToolParams): Valid
                     const defaultSchema = `\n\n{% schema %}\n{\n  "name": "${sectionName}",\n  "class": "section",\n  "settings": [\n    { "type": "color_scheme", "id": "color_scheme", "label": "Color scheme", "default": "scheme-1" }\n  ],\n  "presets": [{ "name": "${sectionName}" }]\n}\n{% endschema %}`;
                     updateModContent(mod, mod.content + defaultSchema);
                     result.repairs.push(`Auto-injected schema into "${mod.filePath}"`);
-                    console.log(`[Validator] 🛠️ Injected schema: ${mod.filePath}`);
+                    logger.info(`[Validator] 🛠️ Injected schema: ${mod.filePath}`);
                 }
 
                 // AI Hallucination: product_picker -> product
@@ -240,7 +240,7 @@ export function validateAndRepair(plan: ThemePlan | BuildThemeToolParams): Valid
             if (liquidConflict) {
                 liquidConflict.action = 'delete';
                 result.repairs.push(`Auto-deleted "templates/index.liquid" to avoid index name collision`);
-                console.log(`[Validator] 🛠️ Resolved index conflict (deleting .liquid)`);
+                logger.info(`[Validator] 🛠️ Resolved index conflict (deleting .liquid)`);
             }
         }
 
@@ -365,7 +365,7 @@ export function validateAndRepair(plan: ThemePlan | BuildThemeToolParams): Valid
     }
 
     if (result.repairs.length > 0) {
-        console.log(`[Validator] ✅ Applied ${result.repairs.length} auto-repairs.`);
+        logger.info(`[Validator] ✅ Applied ${result.repairs.length} auto-repairs.`);
     }
 
     enforceShopifyLimits(normalizedMods, result, plan);
@@ -609,7 +609,7 @@ function repairShopifySchema(mod: any): number {
             delete parsed.default;
             schemaJson = JSON.stringify(parsed, null, 2);
             repairCount++;
-            console.log(`[Validator] 🛠️ Fixed schema conflict (default vs presets) in ${mod.filePath}`);
+            logger.info(`[Validator] 🛠️ Fixed schema conflict (default vs presets) in ${mod.filePath}`);
         }
     } catch (e) { }
 
@@ -653,7 +653,7 @@ function repairLiquidSyntax(mod: any): number {
 
 export const buildTheme = async (plan: ThemePlan): Promise<Buffer> => {
     const modCount = plan.modifications?.length || 0;
-    console.log("[Builder] Building theme with", modCount, "modifications");
+    logger.info(`[Builder] Building theme with ${modCount} modifications`);
 
     // Load the base theme
     const baseTheme = process.env.BASE_THEME_FILE || 'dawn-15.4.1.zip';
@@ -672,13 +672,13 @@ export const buildTheme = async (plan: ThemePlan): Promise<Buffer> => {
         const firstEntry = entries[0].entryName;
         if (firstEntry.endsWith('/') && entries.every(e => e.entryName.startsWith(firstEntry))) {
             rootPrefix = firstEntry;
-            console.log(`[Builder] Detected zip root folder: ${rootPrefix}`);
+            logger.info(`[Builder] Detected zip root folder: ${rootPrefix}`);
         }
     }
 
     // Apply global settings directly to the base settings_data.json
     if (plan.globalSettings) {
-        console.log("[Builder] Applying global settings to config/settings_data.json:", plan.globalSettings);
+        logger.info(`[Builder] Applying global settings to config/settings_data.json: ${JSON.stringify(plan.globalSettings)}`);
         try {
             const settingsPath = rootPrefix + 'config/settings_data.json';
             const settingsEntry = zip.getEntry(settingsPath);
@@ -724,17 +724,17 @@ export const buildTheme = async (plan: ThemePlan): Promise<Buffer> => {
                 // Remove AI-generated settings_data.json if present to prevent it from overwriting our patched version
                 const modIdx = plan.modifications?.findIndex(m => m.filePath === 'config/settings_data.json' || m.filePath === 'settings_data.json');
                 if (modIdx !== undefined && modIdx >= 0 && plan.modifications) {
-                    console.warn(`[Builder] Intercepted AI-generated settings_data.json. Replacing it with cleanly patched version.`);
+                    logger.warn(`[Builder] Intercepted AI-generated settings_data.json. Replacing it with cleanly patched version.`);
                     plan.modifications.splice(modIdx, 1); // remove from array
                 }
 
                 // Write patched JSON back to the zip
                 zip.updateFile(settingsPath, Buffer.from(JSON.stringify(settingsJson, null, 2), 'utf8'));
             } else {
-                console.warn(`[Builder] Could not find config/settings_data.json in base theme zip.`);
+                logger.warn(`[Builder] Could not find config/settings_data.json in base theme zip.`);
             }
         } catch (error) {
-            console.error("[Builder] Failed to apply global settings:", error);
+            logger.error(`[Builder] Failed to apply global settings: ${error}`);
         }
     }
 
@@ -744,16 +744,16 @@ export const buildTheme = async (plan: ThemePlan): Promise<Buffer> => {
         const { filePath, action, content } = normalizeMod(rawMod);
 
         if (!filePath) {
-            console.warn('[Builder] Skipping modification — could not resolve filePath from keys:', Object.keys(rawMod));
+            logger.warn(`[Builder] Skipping modification — could not resolve filePath from keys: ${Object.keys(rawMod).join(', ')}`);
             continue;
         }
 
         const fullPath = rootPrefix + filePath.replace(/^\//, '');
         if (action === 'create' || action === 'update') {
-            console.log(`[Builder] ${action.toUpperCase()} ${fullPath} (${content.length} chars)`);
+            logger.info(`[Builder] ${action.toUpperCase()} ${fullPath} (${content.length} chars)`);
             zip.addFile(fullPath, Buffer.from(content, "utf8"));
         } else if (action === 'delete') {
-            console.log(`[Builder] DELETE ${fullPath}`);
+            logger.info(`[Builder] DELETE ${fullPath}`);
             zip.deleteFile(fullPath);
         }
     }

@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import AdmZip from 'adm-zip';
+import { logger } from '../lib/logger';
 
 // Cache for reference files (loaded once at startup)
 let referenceCache: Map<string, string> | null = null;
@@ -26,9 +27,9 @@ function loadReferenceFiles(): Map<string, string> {
   const dsDir = path.join(docsDir, 'design-system');
   loadMdFilesRecursive(dsDir, referenceCache, 'ds:');
 
-  console.log(`[PromptBuilder] Loaded ${referenceCache.size} reference files:`);
+  logger.info(`[PromptBuilder] Loaded ${referenceCache.size} reference files:`);
   for (const [name, content] of referenceCache) {
-    console.log(`  - ${name} (${content.length} chars)`);
+    logger.info(`  - ${name} (${content.length} chars)`);
   }
 
   return referenceCache;

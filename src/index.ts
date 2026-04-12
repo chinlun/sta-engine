@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import { z } from 'zod';
 import { uploadToR2, uploadThemeState, getThemeState } from './services/r2-service';
 import { ensureThemeSlot, uploadThemeToShopify, waitForThemeReady, publishTheme } from './services/shopify-service';
 import { createMagicPreviewHandler } from './services/preview-service';
@@ -8,10 +9,9 @@ import { gateValidate } from './services/validator-service';
 import { buildSystemPrompt, extractFileFromBaseTheme } from './services/prompt-builder';
 import { BuildThemeToolSchema, BuildThemeToolParams, ThemePlan } from './schema';
 import dotenv from 'dotenv';
-import { streamText, tool, generateText } from 'ai';
-import { google } from '@ai-sdk/google';
+import { streamText, tool } from 'ai';
 import { themeWorkflow, modifierWorkflow } from './graph';
-import { customGoogle } from './lib/ai';
+import { gemini3Flash } from './lib/ai';
 import previewRoutes from './routes/preview-routes';
 import { flyMachineService } from './services/fly-machine-service';
 import { syncOrchestrator } from './services/sync-orchestrator';
@@ -19,6 +19,18 @@ import { IntegrityManager, ValidationError } from './services/integrity-manager'
 import path from 'path';
 import fs from 'fs';
 import { logger } from './lib/logger';
+
+// --- Save & Resume Services ---
+import { 
+    initFirestore, 
+    createProject, 
+    updateProject, 
+    getProject, 
+    listProjects, 
+    deleteProject,
+    Project
+} from './services/firestore-service';
+import { projectFeedAccumulator } from './services/project-feed-accumulator';
 
 
 dotenv.config();
@@ -34,6 +46,16 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use('/api/preview', previewRoutes);
 
+// Global Request Logger
+app.use((req, res, next) => {
+    const start = Date.now();
+    res.on('finish', () => {
+        const duration = Date.now() - start;
+        logger.info(`[API] ${req.method} ${req.originalUrl} - ${res.statusCode} (${duration}ms)`);
+    });
+    next();
+});
+
 function buildCurativePrompt(errorMessage: string): string {
     const context = fs.readFileSync(path.join(process.cwd(), 'docs/liquid-cheat-sheet.md'), 'utf-8');
     return `Your previous output failed validation with this error: [${errorMessage}]. 
@@ -46,55 +68,195 @@ IMPORTANT:
 Please provide ONLY the missing or corrected files to fix the theme integrity.${context}`;
 }
 
+// --- PROJECT MANAGEMENT ENDPOINTS ---
+
+app.get('/api/projects', async (req, res) => {
+    const userId = (req.query.userId as string) || "anonymous-user"; // MVP: localStorage UUID
+    try {
+        const projects = await listProjects(userId);
+        res.json(projects);
+    } catch (error: any) {
+        logger.error(`[API] Failed to list projects: ${error.message}`);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get('/api/projects/:id', async (req, res) => {
+    try {
+        const project = await getProject(req.params.id);
+        if (!project) return res.status(404).json({ error: "Project not found" });
+        res.json(project);
+    } catch (error: any) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.delete('/api/projects/:id', async (req, res) => {
+    try {
+        await deleteProject(req.params.id);
+        res.json({ success: true });
+    } catch (error: any) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get('/api/projects/:id/live', (req, res) => {
+    const projectId = req.params.id;
+    
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
+
+    // Catch up existing feed items
+    const feed = projectFeedAccumulator.get(projectId);
+    feed.forEach(item => {
+        res.write(`data: ${JSON.stringify(item)}\n\n`);
+    });
+
+    // Note: To keep the connection alive for new events, 
+    // we'd need a PubSub or shared event emitter in a multi-pod environment.
+    // For now, if the user reconnects, they at least get the full caught-up feed.
+});
+
+// --- DISCOVERY PHASE (POST /api/chat) ---
+
+app.post('/api/chat', async (req, res) => {
+    const { messages, userId: reqUserId } = req.body;
+    let projectId: string = req.body.projectId;
+    const userId = (reqUserId as string) || "anonymous-user";
+
+    try {
+        if (!projectId) {
+            projectId = await createProject({
+                userId,
+                title: messages[0]?.content?.substring(0, 50) || "New Theme Project",
+                phase: 'discovery',
+                designTokens: {},
+                feed: messages
+            });
+        }
+
+        const project = await getProject(projectId);
+        if (!project) throw new Error("Project not found");
+
+        let wasBuildTriggered = false;
+
+        const result = await streamText({
+            model: gemini3Flash,
+            system: `You are a helpful Shopify AI assistant. Your goal is to help the user build their store.
+            For now, you MUST ask for the NAME OF THE SHOP if you don't have it.
+            Once you have the name and a general sense of the business, call the 'start_build' tool.
+            Be concise and professional.`,
+            messages,
+            tools: {
+                start_build: tool({
+                    description: 'Call this when you have the shop name and enough context to build.',
+                    inputSchema: z.object({
+                        storeName: z.string().describe('The name of the shop'),
+                        summary: z.string().describe('Brief summary of the business requirements gathered')
+                    }),
+                    execute: async ({ storeName, summary }) => {
+                        if (!projectId) throw new Error("Project not found in context");
+                        wasBuildTriggered = true;
+                        // Prepare transition to building phase
+                        logger.info(`[Discovery] Preparing phase transition to building for project ${projectId}`);
+                        // We transition to building phase
+                        await updateProject(projectId, { 
+                            title: storeName,
+                            phase: 'building',
+                            requirements: summary
+                        });
+                        
+                        // We return a "trigger" event that tells the frontend to start listening to the build SSE
+                        return { status: 'BUILD_STARTED', projectId };
+                    }
+                })
+            }
+        });
+
+        // We don't use SSE for the simple chat response to keep it simple, 
+        // but we return the projectId so the frontend can track it.
+        logger.info(`[Chat] 🤖 AI is generating response for project: ${projectId}...`);
+        const { text, toolResults: toolResultsPromise } = result;
+        const textValue = await text;
+        const toolResults = (await toolResultsPromise) || [];
+        
+        const finalPhase = wasBuildTriggered ? 'building' : 'discovery';
+        const finalText = (textValue || !wasBuildTriggered) ? textValue : "Great! I'll start building your Shopify theme now. Please wait a moment...";
+
+        logger.info(`[Chat] ✅ AI Response: "${finalText?.substring(0, 50)}..." [Build Triggered: ${wasBuildTriggered}]`);
+        
+        // Append assistant message to feed
+        const assistantMessage = { role: 'assistant', content: finalText || "Analyzing..." };
+        const updatedFeed = [...messages, assistantMessage];
+        
+        await updateProject(projectId, { feed: updatedFeed });
+
+        res.json({ 
+            projectId, 
+            text: finalText, 
+            phase: finalPhase,
+            toolResults 
+        });
+
+    } catch (error: any) {
+        logger.error(`[Chat] Error: ${error.message}`);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 app.post('/api/build', async (req, res) => {
-    const { messages } = req.body;
+    const { messages, projectId } = req.body;
     const requestId = `req-${Date.now()}`;
     const startTime = Date.now();
 
-    console.log(`[BuildRequest] 📥 Received /api/build request: ${requestId}`);
-    logger.info(`[${requestId}] 📨 New build request received`);
-
+    logger.info(`[BuildRequest] 📥 Received /api/build request: ${requestId} for project ${projectId}`);
+    
     // Set SSE headers
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     res.flushHeaders();
 
-    const sendEvent = (data: object) => {
-        res.write(`data: ${JSON.stringify(data)}\n\n`);
+    // Wrapper to both stream SSE AND accumulate in memory
+    const sendEvent = (data: any) => {
+        if (projectId) projectFeedAccumulator.append(projectId, data);
+        if (!res.writableEnded) {
+            res.write(`data: ${JSON.stringify(data)}\n\n`);
+        }
     };
 
     try {
-        let { messages, machineId, themeId, referenceHtml, referenceImageBase64 } = req.body;
+        let { machineId, themeId, referenceHtml, referenceImageBase64 } = req.body;
         const targetThemeId = themeId || machineId || `theme-${Date.now()}`;
-        logger.info(`[/api/build] 📥 Received build request (ID=${targetThemeId}, HTML=${!!referenceHtml}, Image=${!!referenceImageBase64})`);
+        
+        // Load stored requirements and existing feed from discovery phase
+        const project = await getProject(projectId);
+        const requirements = project?.requirements || '';
 
-        // --- Auto-Discovery for Tri-Modal context if missing from request ---
-        // (Removed: We now rely exclusively on the user prompt/request data for palette and style)
-
-        let designBrief = req.body.designBrief;
-        const userPrompt = messages[messages.length - 1]?.content || "";
-
-        // If it's a tablet-focused prompt, auto-load the strict JSON blueprint
-        if (!designBrief && userPrompt.toLowerCase().includes('tablet')) {
-            const blueprintPath = path.join(process.cwd(), 'docs/design-system/single-page-app/tablet_collection_blueprint.json');
-            if (fs.existsSync(blueprintPath)) {
-                logger.info(`[Build] 📜 Injecting strict JSON blueprint for Tablet: ${blueprintPath}`);
-                designBrief = JSON.parse(fs.readFileSync(blueprintPath, 'utf8'));
-            }
+        if (projectId) {
+            // We initialize the accumulator with both the existing firestore feed 
+            // AND any new messages from the request body.
+            projectFeedAccumulator.create(projectId, project?.feed || []);
+            projectFeedAccumulator.create(projectId, messages || []);
+            
+            // Send initial projectId event so frontend knows we're active
+            sendEvent({ type: 'project', projectId });
         }
 
-        sendEvent({ type: 'progress', stage: 'context', message: 'Loading theme context & reference docs...' });
-        const currentIndexJson = extractFileFromBaseTheme('templates/index.json');
-        const currentSettingsData = extractFileFromBaseTheme('config/settings_data.json');
+        let designBrief = req.body.designBrief;
+        
+        // Aggregate ALL user messages so the designer sees the full context
+        const allUserMessages = (messages || [])
+            .filter((m: any) => m.role === 'user' || m.kind === 'user_message')
+            .map((m: any) => m.content)
+            .join('\n');
+        const userPrompt = requirements 
+            ? `## Discovery Requirements\n${requirements}\n\n## User Messages\n${allUserMessages}`
+            : allUserMessages;
 
-        const systemPrompt = buildSystemPrompt(currentIndexJson, currentSettingsData);
-        let currentMessages = [...messages];
-        let globalSettings = {};
-        let modifications: any[] = [];
-        let retryCount = 0;
-        const maxRetries = 2;
-        let buildSuccessful = false;
+        sendEvent({ type: 'progress', stage: 'context', message: 'Initializing store context...' });
         const inputs = {
             userPrompt,
             tsErrors: [],
@@ -102,14 +264,21 @@ app.post('/api/build', async (req, res) => {
             generatedFiles: [],
             referenceHtml,
             referenceImageBase64,
-            designBrief, // Pass through the injected/explicit blueprint
+            designBrief,
             themeId: targetThemeId
         };
 
         const stream = await themeWorkflow.stream(inputs, {
-            recursionLimit: 100, // Increased for complex self-healing
+            recursionLimit: 100,
             configurable: {
-                sendEvent: (e: any) => sendEvent(e)
+                sendEvent: async (e: any) => {
+                    sendEvent(e);
+                    // Milestone flushes: Ensure every block of progress is saved during critical assembly/sync
+                    const persistenceStages = ['structural', 'coder', 'assembler', 'validating', 'CLI_BOOTING', 'FLY_PUSHING', 'SAVING_STATE'];
+                    if (projectId && (persistenceStages.includes(e.stage) || e.type === 'tool_result')) {
+                        await projectFeedAccumulator.flush(projectId);
+                    }
+                }
             }
         });
 
@@ -122,7 +291,6 @@ app.post('/api/build', async (req, res) => {
             const prevGeneratedFiles = finalState?.generatedFiles || [];
             finalState = { ...finalState, ...output };
 
-            // Replicate LangGraph's array appending reducer for generatedFiles
             if (output.generatedFiles) {
                 const merged = [...prevGeneratedFiles];
                 for (const newFile of output.generatedFiles) {
@@ -132,18 +300,16 @@ app.post('/api/build', async (req, res) => {
                 }
                 finalState.generatedFiles = merged;
             }
-
-
         }
 
         if (finalState && finalState.generatedFiles && finalState.generatedFiles.length > 0) {
-            modifications = finalState.generatedFiles.map((f: any) => ({
+            const modifications = finalState.generatedFiles.map((f: any) => ({
                 filePath: f.path,
                 action: 'update',
                 content: f.content
             }));
 
-            globalSettings = finalState.designTokens || {};
+            const globalSettings = finalState.designTokens || {};
 
             sendEvent({ type: 'progress', stage: 'validating', message: 'Final assembly and sync...' });
 
@@ -158,7 +324,6 @@ app.post('/api/build', async (req, res) => {
                     sendEvent({ type: 'progress', stage: 'CLI_BOOTING', message: 'No preview machine found. Provisioning new one...' });
                     try {
                         machineId = await flyMachineService.createMachine(storeUrl, themeToken);
-                        logger.info(`[Build] 🤖 Auto-provisioned Machine: ${machineId}`);
                         await flyMachineService.waitForMachine(machineId);
                     } catch (e: any) {
                         logger.error(`[Build] ❌ Auto-provisioning failed: ${e.message}`);
@@ -168,16 +333,12 @@ app.post('/api/build', async (req, res) => {
             }
 
             if (machineId && modifications.length) {
-                // 1. Wait for CLI readiness (Signal driven)
-                sendEvent({ type: 'progress', stage: 'CLI_BOOTING', message: 'Waiting for Shopify CLI to prepare preview...' });
+                sendEvent({ type: 'progress', stage: 'CLI_BOOTING', message: 'Waiting for Shopify CLI and ordering files...' });
                 await syncOrchestrator.waitForCLIReady(machineId);
-                sendEvent({ type: 'progress', stage: 'CLI_READY', message: 'Shopify CLI is ready. Starting sync...' });
-
-                // 2. Order files: .liquid first, then .json, with templates/index.json absolutely last
+                
                 const orderedMods = syncOrchestrator.orderFilesForSync(modifications);
                 const availableFiles = orderedMods.map(m => m.filePath);
 
-                // 3. Sequential per-file sync-and-verify loop
                 for (let i = 0; i < orderedMods.length; i++) {
                     const mod = orderedMods[i];
                     sendEvent({ type: 'progress', stage: 'FLY_PUSHING', message: `📤 [${i + 1}/${orderedMods.length}] ${mod.filePath}` });
@@ -186,11 +347,7 @@ app.post('/api/build', async (req, res) => {
                         machineId, mod.filePath, mod.content, availableFiles, targetThemeId
                     );
 
-                    if (!result.success) {
-                        logger.error(`[Sync] ❌ Failed to sync ${mod.filePath} after multiple attempts and AI repairs.`);
-                        sendEvent({ type: 'progress', stage: 'SYNC_ERROR', message: `⚠️ ${mod.filePath} failed sync` });
-                    } else if (result.fixedContent) {
-                        // Keep our local state in sync with any AI repairs
+                    if (result.fixedContent) {
                         mod.content = result.fixedContent;
                         const origIdx = modifications.findIndex((m: any) => m.filePath === mod.filePath);
                         if (origIdx >= 0) modifications[origIdx].content = result.fixedContent;
@@ -198,10 +355,7 @@ app.post('/api/build', async (req, res) => {
                 }
 
                 try {
-                    await flyMachineService.execCommand(machineId, [
-                        "bash", "-c",
-                        "wget -qO- --post-data='' http://127.0.0.1:9295/notify?source=engine || curl -s -X POST http://127.0.0.1:9295/notify?source=engine || echo 'Signaler not available'"
-                    ]);
+                    await flyMachineService.execCommand(machineId, ["bash", "-c", "wget -qO- --post-data='' http://127.0.0.1:9295/notify?source=engine || curl -s -X POST http://127.0.0.1:9295/notify?source=engine || echo 'Signaler not available'"]);
                 } catch (e) { }
             }
 
@@ -214,19 +368,29 @@ app.post('/api/build', async (req, res) => {
                 }
             });
 
-            try {
-                const targetThemeId = req.body.themeId || machineId;
-                if (targetThemeId && modifications.length > 0) {
-                    sendEvent({ type: 'progress', stage: 'SAVING_STATE', message: 'Saving session state...' });
-                    await uploadThemeState(targetThemeId, modifications);
-                }
-            } catch (e) {
-                logger.warn(`[Sync] Failed to upload theme state: ${e}`);
+            // Final R2 sync
+            const targetThemeIdForR2 = themeId || machineId;
+            if (targetThemeIdForR2 && modifications.length > 0) {
+                sendEvent({ type: 'progress', stage: 'SAVING_STATE', message: 'Saving theme state to R2...' });
+                await uploadThemeState(targetThemeIdForR2, modifications);
+            }
+
+            if (projectId) {
+                await updateProject(projectId, { 
+                    phase: 'editing', 
+                    themeId: targetThemeIdForR2, 
+                    machineId,
+                    designTokens: globalSettings 
+                });
             }
 
             sendEvent({ type: 'progress', stage: 'SUCCESS', message: 'Theme successfully built and synced!' });
             sendEvent({ type: 'done' });
-            logger.info(`[${requestId}] ✅ LangGraph Build successful`);
+            
+            if (projectId) {
+                await projectFeedAccumulator.flush(projectId);
+                projectFeedAccumulator.destroy(projectId);
+            }
         } else {
             throw new Error("LangGraph finished without generating files.");
         }
@@ -239,23 +403,46 @@ app.post('/api/build', async (req, res) => {
 });
 
 app.post('/api/modify', async (req, res) => {
-    const { messages, machineId, themeId: reqThemeId } = req.body;
+    const { messages, machineId, themeId: reqThemeId, projectId } = req.body;
     const themeId = reqThemeId || machineId;
     const requestId = `mod-${Date.now()}`;
 
-    console.log(`[ModifyRequest] 📥 Received /api/modify request: ${requestId} for theme ${themeId}`);
-    logger.info(`[${requestId}] 📨 New modify request received`);
+    logger.info(`[ModifyRequest] 📥 Received /api/modify request: ${requestId} for theme ${themeId} (Project: ${projectId})`);
 
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     res.flushHeaders();
 
-    const sendEvent = (data: any) => res.write(`data: ${JSON.stringify(data)}\n\n`);
+    const sendEvent = (data: any) => {
+        if (projectId) projectFeedAccumulator.append(projectId, data);
+        if (!res.writableEnded) {
+            res.write(`data: ${JSON.stringify(data)}\n\n`);
+        }
+    };
 
     try {
         if (!themeId) throw new Error("themeId or machineId is required for modification");
         const userPrompt = messages[messages.length - 1]?.content || "";
+
+        // Load Project Context
+        let designTokens = {};
+        let editHistory: any[] = [];
+        if (projectId) {
+            const project = await getProject(projectId);
+            if (project) {
+                designTokens = project.designTokens || {};
+                // Filter feed for just user/assistant messages for the AI context
+                editHistory = (project.feed || [])
+                    .filter(m => m.role === 'user' || m.role === 'assistant' || m.kind === 'user_message' || m.kind === 'assistant_message')
+                    .map(m => ({ 
+                        role: m.role || (m.kind === 'user_message' ? 'user' : 'assistant'), 
+                        content: m.content 
+                    }));
+                
+                projectFeedAccumulator.create(projectId, project.feed || []);
+            }
+        }
 
         sendEvent({ type: 'progress', stage: 'LOADING_STATE', message: 'Retrieving theme state from R2...' });
         const baseFiles = await getThemeState(themeId);
@@ -267,6 +454,8 @@ app.post('/api/modify', async (req, res) => {
             userPrompt,
             themeId,
             baseFiles,
+            designTokens,
+            editHistory,
             tsErrors: []
         }, {
             recursionLimit: 50,
@@ -299,10 +488,7 @@ app.post('/api/modify', async (req, res) => {
                 );
                 if (result.fixedContent) mod.content = result.fixedContent;
                 try {
-                    await flyMachineService.execCommand(machineId, [
-                        "bash", "-c",
-                        "wget -qO- --post-data='' http://127.0.0.1:9295/notify?source=engine || curl -s -X POST http://127.0.0.1:9295/notify?source=engine || echo 'Signaler not available'"
-                    ]);
+                    await flyMachineService.execCommand(machineId, ["bash", "-c", "wget -qO- --post-data='' http://127.0.0.1:9295/notify?source=engine || curl -s -X POST http://127.0.0.1:9295/notify?source=engine || echo 'Signaler not available'"]);
                 } catch (e) { }
             }
 
@@ -315,6 +501,17 @@ app.post('/api/modify', async (req, res) => {
                 updatedBaseFiles.push({ filePath: mod.path, content: mod.content, action: 'update', path: mod.path });
             }
             await uploadThemeState(themeId, updatedBaseFiles);
+
+            if (projectId) {
+                // Add the user message and assistant final response to the project feed
+                const userMsg = { kind: 'user_message', role: 'user', content: userPrompt };
+                const assistMsg = { kind: 'assistant_message', role: 'assistant', content: `Modified ${mod.path} based on your request.` };
+                projectFeedAccumulator.append(projectId, userMsg);
+                projectFeedAccumulator.append(projectId, assistMsg);
+                
+                await projectFeedAccumulator.flush(projectId);
+                projectFeedAccumulator.destroy(projectId);
+            }
 
             sendEvent({ type: 'progress', stage: 'SUCCESS', message: 'Modification successfully deployed!' });
             sendEvent({ type: 'done' });

@@ -1,4 +1,5 @@
 import path from 'path';
+import { logger } from '../lib/logger';
 
 export class ValidationError extends Error {
     constructor(public filePath: string, public reason: string) {
@@ -145,7 +146,7 @@ Please update the template to use a valid block type or update the section schem
             }
         } catch (e: any) {
             if (e instanceof ValidationError) throw e;
-            console.error(`[IntegrityManager] JSON Parse Error during template verification: ${e.message}`);
+            logger.error(`[IntegrityManager] JSON Parse Error during template verification: ${e.message}`);
         }
     }
 

@@ -29,6 +29,14 @@ function extractJsonFromText(text) {
 const ThemeModificationState = Annotation.Root({
     userPrompt: Annotation(),
     themeId: Annotation(),
+    editHistory: Annotation({              // NEW: prior conversation turns
+        reducer: (x, y) => y,
+        default: () => []
+    }),
+    designTokens: Annotation({             // NEW: design DNA for consistency
+        reducer: (x, y) => y,
+        default: () => ({})
+    }),
     baseFiles: Annotation({
         reducer: (x, y) => y,
         default: () => []
@@ -73,10 +81,14 @@ async function intentAnalyzerNode(state, config) {
 
     if (sendEvent) sendEvent({ type: 'progress', stage: 'intent', message: 'Analyzing modification intent...' });
 
+    const editHistoryText = state.editHistory && state.editHistory.length > 0
+        ? `Edit History:\n${state.editHistory.map(m => `- ${m.role === 'user' ? 'User' : 'AI'}: ${m.content}`).join('\n')}`
+        : "No prior edit history.";
+
     const { object } = await generateObject({
         model: gemini3Flash,
         system: "You are a Shopify architect identifying which section file an edit applies to. Determine the exact path of the file that needs changing.",
-        prompt: `User Modification Request: "${userPrompt}"\n\n${sectionMapText}\n\nGlobal layout modifications apply to "layout/theme.liquid". CSS variables apply to "assets/base.css".`,
+        prompt: `Conversation Context:\n${editHistoryText}\n\nLatest User Modification Request: "${userPrompt}"\n\n${sectionMapText}\n\nGlobal layout modifications apply to "layout/theme.liquid". CSS variables apply to "assets/base.css".`,
         schema: z.object({
             targetFilePath: z.string().describe("The full path of the Shopify file to modify, e.g. sections/header.liquid"),
             reasoning: z.string()
@@ -122,9 +134,13 @@ async function modifierNode(state, config) {
         });
     }
 
+    const editHistoryText = state.editHistory && state.editHistory.length > 0
+        ? `Conversation History:\n${state.editHistory.map(m => `- ${m.role === 'user' ? 'User' : 'AI'}: ${m.content}`).join('\n')}`
+        : "No prior history.";
+
     messageContent.push({
         type: 'text',
-        text: `Target File: ${targetFile}\n\nOriginal Content:\n\`\`\`liquid\n${originalFile.content}\n\`\`\`\n\nUser Request: ${userPrompt}\n\nApply the changes strictly to this file while maintaining standard Shopify/Vanilla CSS architectural rules. Return the FULL patched file.`
+        text: `Design Tokens (Design DNA): ${JSON.stringify(state.designTokens || {})}\n\n${editHistoryText}\n\nTarget File: ${targetFile}\n\nOriginal Content:\n\`\`\`liquid\n${originalFile.content}\n\`\`\`\n\nUser Request: ${userPrompt}\n\nApply the changes strictly to this file while maintaining standard Shopify/Vanilla CSS architectural rules and keeping aesthetic consistency with the Design DNA. Return the FULL patched file.`
     });
 
     if (sendEvent) sendEvent({ type: 'progress', stage: 'modifying', message: `Modifying ${targetFile}...` });
@@ -165,8 +181,9 @@ Schema:
 
                 if (delta) {
                     streamBuffer += delta;
-                    if (sendEvent && (part.type === 'text-delta' || part.type === 'reasoning' || part.type === 'thought')) {
-                        sendEvent({ type: 'thinking', node: 'modifier', text: delta });
+                    if (sendEvent && part.type === 'text-delta') {
+                        const delta = part.textDelta;
+                        if (sendEvent) sendEvent({ type: 'thinking', node: 'modifier', text: delta, component: 'Theme Modification' });
                     }
 
                     if (streamBuffer.length > 50 || streamBuffer.includes('\n')) {

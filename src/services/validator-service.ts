@@ -1,3 +1,4 @@
+import { logger } from '../lib/logger';
 import { generateText } from 'ai';
 import { google } from '@ai-sdk/google';
 import { normalizeMod } from './builder';
@@ -70,7 +71,7 @@ ${summaryLines.join('\n')}`;
         });
 
         const response = result.text.trim();
-        console.log(`[GateValidator] Response: ${response}`);
+        logger.info(`[GateValidator] Response: ${response}`);
 
         if (response.startsWith('PASS')) {
             return { passed: true, issues: [] };
@@ -82,7 +83,7 @@ ${summaryLines.join('\n')}`;
 
         return { passed: false, issues };
     } catch (error) {
-        console.error('[GateValidator] Error during validation:', error);
+        logger.error(`[GateValidator] Error during validation: ${error}`);
         // If the gate validator itself fails, let the build through
         // (better to deploy than to block on a validator error)
         return { passed: true, issues: [] };

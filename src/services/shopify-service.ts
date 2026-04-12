@@ -1,3 +1,5 @@
+import { logger } from '../lib/logger';
+
 /**
  * Checks the current theme count on the managed dev store.
  * If the 20-theme limit is reached, deletes the oldest "unpublished" theme.
@@ -11,7 +13,7 @@ export const ensureThemeSlot = async (): Promise<void> => {
         throw new Error("Missing Shopify credentials in .env");
     }
 
-    console.log(`[Shopify] Checking theme count on ${SHOPIFY_STORE_DOMAIN}...`);
+    logger.info(`[Shopify] Checking theme count on ${SHOPIFY_STORE_DOMAIN}...`);
 
     const response = await fetch(`https://${SHOPIFY_STORE_DOMAIN}/admin/api/2024-01/themes.json`, {
         headers: { 'X-Shopify-Access-Token': SHOPIFY_ACCESS_TOKEN },
@@ -24,7 +26,7 @@ export const ensureThemeSlot = async (): Promise<void> => {
     const data = await response.json();
     const themes = data.themes as Array<{ id: number; name: string; role: string; created_at: string }>;
 
-    console.log(`[Shopify] Current theme count: ${themes.length}/20`);
+    logger.info(`[Shopify] Current theme count: ${themes.length}/20`);
 
     if (themes.length >= 20) {
         // Find the oldest unpublished theme
@@ -37,7 +39,7 @@ export const ensureThemeSlot = async (): Promise<void> => {
         }
 
         const oldest = unpublished[0];
-        console.log(`[Shopify] Deleting oldest unpublished theme: "${oldest.name}" (ID: ${oldest.id})`);
+        logger.info(`[Shopify] Deleting oldest unpublished theme: "${oldest.name}" (ID: ${oldest.id})`);
 
         const deleteResponse = await fetch(
             `https://${SHOPIFY_STORE_DOMAIN}/admin/api/2024-01/themes/${oldest.id}.json`,
@@ -52,7 +54,7 @@ export const ensureThemeSlot = async (): Promise<void> => {
             throw new Error(`Failed to delete theme ${oldest.id}: ${deleteResponse.status} — ${errText}`);
         }
 
-        console.log(`[Shopify] Deleted theme ${oldest.id}, slot freed.`);
+        logger.info(`[Shopify] Deleted theme ${oldest.id}, slot freed.`);
     }
 };
 
@@ -64,7 +66,7 @@ export const uploadThemeToShopify = async (themeName: string, zipUrl: string) =>
         throw new Error("Missing Shopify credentials in .env");
     }
 
-    console.log(`[Shopify] Uploading theme "${themeName}" from ${zipUrl} to ${SHOPIFY_STORE_DOMAIN}`);
+    logger.info(`[Shopify] Uploading theme "${themeName}" from ${zipUrl} to ${SHOPIFY_STORE_DOMAIN}`);
 
     const themePayload = {
         theme: {
@@ -86,7 +88,7 @@ export const uploadThemeToShopify = async (themeName: string, zipUrl: string) =>
 
         if (!response.ok) {
             const errorText = await response.text();
-            console.error("Shopify API Error:", errorText);
+            logger.error(`Shopify API Error: ${errorText}`);
             throw new Error(`Shopify API failed: ${response.status} ${response.statusText}`);
         }
 
@@ -98,7 +100,7 @@ export const uploadThemeToShopify = async (themeName: string, zipUrl: string) =>
             preview_url: `https://${SHOPIFY_STORE_DOMAIN}/?preview_theme_id=${data.theme.id}`
         };
     } catch (error) {
-        console.error("Error creating theme in Shopify:", error);
+        logger.error(`Error creating theme in Shopify: ${error}`);
         throw error;
     }
 };
@@ -145,7 +147,7 @@ export const waitForThemeReady = async (
             const processing = theme.processing;
             const previewable = theme.previewable;
 
-            console.log(`[Shopify] Theme ${themeId} — processing: ${processing}, previewable: ${previewable} (attempt ${attempt})`);
+            logger.info(`[Shopify] Theme ${themeId} — processing: ${processing}, previewable: ${previewable} (attempt ${attempt})`);
 
             if (!processing && previewable) {
                 onProgress?.('Theme is ready for preview!');
@@ -154,7 +156,7 @@ export const waitForThemeReady = async (
 
             onProgress?.(`Waiting for Shopify to process theme... (${Math.round((Date.now() - startTime) / 1000)}s)`);
         } catch (error) {
-            console.error(`[Shopify] Error checking theme status:`, error);
+            logger.error(`[Shopify] Error checking theme status: ${error}`);
         }
 
         await new Promise(resolve => setTimeout(resolve, intervalMs));
@@ -175,7 +177,7 @@ export const publishTheme = async (themeId: number | string): Promise<void> => {
         throw new Error("Missing Shopify credentials in .env");
     }
 
-    console.log(`[Shopify] Publishing theme ${themeId} as main/live...`);
+    logger.info(`[Shopify] Publishing theme ${themeId} as main/live...`);
 
     const response = await fetch(
         `https://${SHOPIFY_STORE_DOMAIN}/admin/api/2024-01/themes/${themeId}.json`,
@@ -196,5 +198,5 @@ export const publishTheme = async (themeId: number | string): Promise<void> => {
         throw new Error(`Failed to publish theme ${themeId}: ${response.status} — ${errText}`);
     }
 
-    console.log(`[Shopify] Theme ${themeId} is now the live theme.`);
+    logger.info(`[Shopify] Theme ${themeId} is now the live theme.`);
 };

@@ -57,6 +57,10 @@ const ThemeGenerationState = Annotation.Root({
         reducer: (x, y) => ({ ...(x || {}), ...y }),
         default: () => ({}),
     }),
+    isFallback: Annotation({
+        reducer: (x, y) => x || y,
+        default: () => false,
+    }),
 });
 
 module.exports = { ThemeGenerationState };
