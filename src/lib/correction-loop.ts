@@ -14,10 +14,9 @@ export interface ErrorContext {
  * AI models often wrap code in ```liquid or ```json blocks.
  */
 function stripCodeFences(text: string): string {
-    // Match ```lang\n...\n``` or ```\n...\n```
-    const fenceRegex = /^```[a-z]*\n?([\s\S]*?)\n?```$/;
-    const match = text.trim().match(fenceRegex);
-    return match ? match[1] : text;
+    const fenceRegex = /```[a-z]*\n?([\s\S]*?)\n?```/;
+    const match = text.match(fenceRegex);
+    return match ? match[1] : text.trim();
 }
 
 /**
@@ -58,6 +57,7 @@ ${isLiquid ? `- This is a Liquid template file. It MUST contain valid Liquid syn
 - Schema "name" must be ≤25 characters.
 - Do NOT use "product_picker" type. Use "product" instead.
 - Schema must NOT have both "default" and "presets".
+- Schema settings of type "url", "image_picker", "product", "collection" etc. must have a string default (like "") or no default at all. NEVER use booleans (true/false) as defaults for these types.
 - Do NOT use invalid Liquid filters or pipes in {% if %} tags.` : ''}
 ${isJson ? `- This is a JSON config file. It MUST be valid JSON.
 - For settings_schema.json: theme_info must have EITHER "theme_support_email" OR "theme_support_url", NOT both.

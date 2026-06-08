@@ -87,7 +87,7 @@ export class SyncOrchestrator {
             // Wait for signal for this attempt
             const attemptResult = await Promise.race([
                 resultPromise,
-                new Promise<SyncResult>((r) => setTimeout(() => r({ success: false, error: 'Timeout' }), 20000))
+                new Promise<SyncResult>((r) => setTimeout(() => r({ success: false, error: 'Timeout' }), 90000))
             ]);
 
             stopMonitor();
@@ -230,8 +230,50 @@ export class SyncOrchestrator {
                 } catch (e) { }
             }
         }
+        // --- 5. Regex/JSON: Invalid setting default type ---
+        if (!handled && reason.includes("default must be a string")) {
+            const settingMatch = reason.match(/setting with id=['"]?([^'"\s]+)['"]?/i);
+            const settingId = settingMatch ? settingMatch[1] : null;
+            if (settingId) {
+                const schemaRegex = /\{%\s*schema\s*%\}([\s\S]*?)\{%\s*endschema\s*%\}/;
+                const schemaMatch = newContent.match(schemaRegex);
+                if (schemaMatch) {
+                    try {
+                        const schema = JSON.parse(schemaMatch[1]);
+                        let changed = false;
+                        const fixSettingDefault = (settings: any[]) => {
+                            let subChanged = false;
+                            for (const setting of settings) {
+                                if (setting.id === settingId) {
+                                    if (typeof setting.default !== 'string') {
+                                        setting.default = "";
+                                        subChanged = true;
+                                    }
+                                }
+                            }
+                            return subChanged;
+                        };
+                        if (schema.settings && Array.isArray(schema.settings)) {
+                            if (fixSettingDefault(schema.settings)) changed = true;
+                        }
+                        if (schema.blocks && Array.isArray(schema.blocks)) {
+                            for (const block of schema.blocks) {
+                                if (block.settings && Array.isArray(block.settings)) {
+                                    if (fixSettingDefault(block.settings)) changed = true;
+                                }
+                            }
+                        }
+                        if (changed) {
+                            newContent = newContent.replace(schemaMatch[1], `\n${JSON.stringify(schema, null, 2)}\n`);
+                            logger.info(`[Sync] ✅ [Regex] Fixed invalid default for setting "${settingId}" in "${filePath}"`);
+                            handled = true;
+                        }
+                    } catch (e) { }
+                }
+            }
+        }
 
-        // --- 5. LLM Fallback ---
+        // --- 6. LLM Fallback ---
         if (!handled) {
             logger.info(`[Sync] 🤖 Falling back to LLM for "${filePath}"...`);
             const aiResult = await executeCorrectionLoop(
