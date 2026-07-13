@@ -317,7 +317,9 @@ workflow.addConditionalEdges(
         [END]: END
     }
 );
-
-const modifierWorkflow = workflow.compile();
+const { getCheckpointer } = require("../services/postgres-service");
+const checkpointer = getCheckpointer();
+const modifierWorkflow = workflow.compile({ checkpointer });
 
 module.exports = { modifierWorkflow };
+

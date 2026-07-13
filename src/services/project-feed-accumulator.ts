@@ -1,10 +1,10 @@
-import { updateProject, Project } from "./firestore-service";
+import { updateProject, Project } from "./postgres-service";
 import { logger } from "../lib/logger";
 
 /**
  * In-memory store for active project feeds.
  * This allows us to accumulate feed items (thinking, progress, messages)
- * and flush them to Firestore at specific milestones to optimize writes.
+ * and flush them to Postgres at specific milestones to optimize writes.
  */
 class ProjectFeedAccumulator {
     private feeds: Map<string, any[]> = new Map();
@@ -47,7 +47,7 @@ class ProjectFeedAccumulator {
             // Drop non-serializable entries
             const cleanItem = JSON.parse(JSON.stringify(item));
 
-            // LOGIC: Consolidate "thinking" events to avoid massive feed bloat in Firestore
+            // LOGIC: Consolidate "thinking" events to avoid massive feed bloat in Postgres
             if (cleanItem.type === 'thinking' && cleanItem.component) {
                 // Search backwards for the most recent thinking block for this specific node/component
                 for (let i = feed.length - 1; i >= 0; i--) {
@@ -82,7 +82,7 @@ class ProjectFeedAccumulator {
     }
 
     /**
-     * Flushes the current in-memory feed to Firestore.
+     * Flushes the current in-memory feed to Postgres.
      */
     async flush(projectId: string) {
         const feed = this.feeds.get(projectId);
@@ -93,7 +93,7 @@ class ProjectFeedAccumulator {
 
         try {
             await updateProject(projectId, { feed });
-            logger.debug(`[Accumulator] Flushed ${feed.length} items to Firestore for project: ${projectId}`);
+            logger.debug(`[Accumulator] Flushed ${feed.length} items to Postgres for project: ${projectId}`);
         } catch (error) {
             logger.error(`[Accumulator] Failed to flush project ${projectId}: ${error}`);
         }

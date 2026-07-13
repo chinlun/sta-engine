@@ -22,14 +22,15 @@ import { logger } from './lib/logger';
 
 // --- Save & Resume Services ---
 import { 
-    initFirestore, 
+    initPostgres,
+    getCheckpointer,
     createProject, 
     updateProject, 
     getProject, 
     listProjects, 
     deleteProject,
     Project
-} from './services/firestore-service';
+} from './services/postgres-service';
 import { projectFeedAccumulator } from './services/project-feed-accumulator';
 
 
@@ -271,6 +272,7 @@ app.post('/api/build', async (req, res) => {
         const stream = await themeWorkflow.stream(inputs, {
             recursionLimit: 100,
             configurable: {
+                thread_id: projectId,
                 sendEvent: async (e: any) => {
                     sendEvent(e);
                     // Milestone flushes: Ensure every block of progress is saved during critical assembly/sync
@@ -459,7 +461,10 @@ app.post('/api/modify', async (req, res) => {
             tsErrors: []
         }, {
             recursionLimit: 50,
-            configurable: { sendEvent: (e: any) => sendEvent(e) }
+            configurable: { 
+                thread_id: projectId || themeId,
+                sendEvent: (e: any) => sendEvent(e) 
+            }
         });
 
         let finalState: any = null;
@@ -528,6 +533,14 @@ app.post('/api/modify', async (req, res) => {
 app.get('/health', (req, res) => res.send('OK'));
 app.get('/api/preview/:themeId', createMagicPreviewHandler());
 
-const server = app.listen(port, () => {
-    logger.info(`sta-engine listening on port ${port}`);
+const server = app.listen(port, async () => {
+    try {
+        await initPostgres();
+        const checkpointer = getCheckpointer();
+        await checkpointer.setup();
+        logger.info(`sta-engine listening on port ${port} and database initialized`);
+    } catch (err) {
+        logger.error(`Failed to initialize database: ${err}`);
+        process.exit(1);
+    }
 });
