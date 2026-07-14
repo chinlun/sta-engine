@@ -82,4 +82,15 @@ We eschew traditional shadows in favor of **Tonal Layering** and **Ambient Light
 *   **Don't** use rounded corners. Everything is 0px (`rounded-none`) to maintain a sharp, architectural edge.
 *   **Don't** use pure black (#000000). Always use `on-background` (#2D3435) for text to keep the "ink on paper" softness.
 *   **Don't** use standard "Sale" red. Use the sophisticated `error_container` (#FE8983) or `tertiary` (#486272) for subtle callouts.
-*   **Don't** use dividers or 1px lines to separate content. Let the space and tonal shifts do the work.```
+*   **Don't** use dividers or 1px lines to separate content. Let the space and tonal shifts do the work.
+
+---
+
+## 7. Hero Quality Framework
+Every generated Hero component must satisfy the following five quality pillars:
+
+1. **Photo / Video Quality**: High-resolution, contextual assets only. If video is used, it must loop seamlessly without audio and have mobile/desktop optimized versions.
+2. **Font Type Selection**: Strict pairing matching the editorial style. High contrast between display serif (headings) and high-readability sans-serif (body text).
+3. **Font Size Scaling**: Use responsive font scales (e.g. `clamp()` or fluid typography) to ensure readability across all viewports.
+4. **Button Styling**: Distinct primary and secondary visual states (e.g., solid fill vs. outline) with micro-interactions (e.g., 300ms color fades, subtle translations) that adhere to the design system.
+5. **Content Density**: Maintain a clean information hierarchy. Prevent content overlapping or overcrowding by leveraging white space and structural margin constraints.```

@@ -12,8 +12,27 @@
 ---
 
 ## 2. Navigation (TopNavBar)
-- **Nesting:** `Header > Nav Container > [Logo (Left/Center) | Links (Center) | Icons (Right)]`
-- **Spacing:** `py-6`, `gap-8` for desktop links, `gap-4` for mobile icons.
+- **Nesting:** `Header > Nav Container > [Logo (Left/Center/Right) | Links (Center) | Icons (Right)]`
+- **Dimensions & Spacing:**
+  - Height: Between `50px` and `80px` (with `60px` as the common standard).
+  - Spacing: `py-6`, `gap-8` for desktop links, `gap-4` for mobile icons.
+- **Placement & Width:**
+  - Placed at the top (topmost or after an announcement bar). Full-width or boxed (with square or rounded corners, optionally layered on top of the header).
+- **Background & Scroll Behavior:**
+  - Options: Solid color, transparent, or transparent transitioning to solid on scroll.
+  - Scroll behavior: On scroll-up or on scroll-down, transition from absolute/transparent to a fixed background color (fading in or sliding in).
+- **Desktop Content & Layout Options:**
+  - **Menu Options:** Inline direct links or burger trigger to open a SubNav or MegaMenu.
+  - **SubNav Behavior:** Reveals on hover or click. Contains category headlines and nested menu items.
+  - **MegaMenu Behavior:** Slides in from the top, left, or right. Contains a main menu (Level 1 + Level 2 revealing on click or hover with sublists), focus cards (e.g., product or category image + design highlights), and auxiliary submenus.
+  - **Cart Drawer/Slide:** Triggered by an icon or text link. Slides in from top, right, or left, or opens a cart page. Drawer contents: header/headline, item lists (product title, image, SKU, quantity, price, add/remove buttons), total cost, voucher field, and a direct checkout CTA.
+  - **Search:** Optional left/right placement. Search loop icon or search text button. Click triggers slide-in (left, top, right) with search results either sliding down below the search bar or routing to a results page.
+  - **Account Access:** Optional placement. On-click opens login popup, login slide-in (left/right/top), or dedicated login page.
+  - **Favorites:** Optional placement. Links directly to a new page.
+- **Mobile Content & Layout:**
+  - Centered or aligned logo.
+  - Burger menu button (left or right placement).
+  - Quick-access icons (Account, Favorites, Search, Cart).
 - **Responsive:**
   - Desktop: Horizontal flex with inline navigation links.
   - Mobile: Flex-between with hamburger menu trigger and icon-only actions.
@@ -22,10 +41,27 @@
 
 ## 3. Hero Section (index.json)
 - **Nesting:** `Section > Relative Container > [Image (Full-bleed) | Overlay Content Box]`
-- **Spacing:** `py-24` (desktop), `py-12` (mobile). Content box `p-12`.
+- **Dimensions & Spacing:**
+  - Width: Full-width or boxed (with round/square corners).
+  - Height: Full screen height (100vh) or fixed height.
+  - Spacing: `py-24` (desktop), `py-12` (mobile). Content box `p-12`.
+- **Placement & Layout:**
+  - Placed after header/navigation or top layer (with transparent header overlay and scroll background fade).
+  - Presentation: Single hero image/video or multiple slides with slide/fade-in-out transitions.
+- **Background:** Color, gradient, responsive desktop/mobile picture, or looping video.
+- **Content Elements:**
+  - Optional Pre-headline, authoritative primary Headline, content description text.
+  - Button One (custom style, label, action link).
+  - Button Two (custom style, label, action link).
+  - Scroll-to-next-section helper anchor.
+  - If color/gradient background: grid layout showing boxed pictures, category highlights, or feature callout buttons.
+- **Content Positioning (9-Box Grid):**
+  - Content can be aligned inside one of 9 virtual boxes on desktop and mobile respectively:
+    - Horizontal: Left | Center | Right
+    - Vertical: Top | Center | Bottom
 - **Responsive:**
-  - Desktop: 12-col grid overlay, often 1/2 or 1/3 width content placement.
-  - Mobile: Stacked layout; image top, content below with `gap-6`.
+  - Desktop: 12-col grid overlay, utilizing asymmetric content placements (often 1/2 or 1/3 width content placement).
+  - Mobile: Stacked layout or centered/aligned overlay.
 
 ---
 
