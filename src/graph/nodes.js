@@ -19,7 +19,6 @@ async function sleepWithJitter(attempt) {
     return new Promise(resolve => setTimeout(resolve, totalDelay));
 }
 
-// --- CONTEXT BANK: Adaptive Documentation Pruning ---
 class ContextBank {
     constructor() {
         this.docs = {};
@@ -29,8 +28,6 @@ class ContextBank {
 
     loadAll() {
         const files = [
-            { id: 'design', path: 'design-system/the-minimalist/DESIGN.md' },
-            { id: 'component', path: 'design-system/the-minimalist/component.md' },
             { id: 'cheat_sheet', path: 'liquid-cheat-sheet.md' },
             { id: 'liquid_ref', path: 'reference/shopify-liquid-reference.md' },
             { id: 'architecture', path: 'reference/shopify-os2-architecture.md' },
@@ -76,18 +73,59 @@ class ContextBank {
         return sections;
     }
 
+    getDesignDoc(designSystem, type) {
+        const cacheKey = `${designSystem}:${type}`;
+        if (this.docs[cacheKey]) {
+            return this.docs[cacheKey];
+        }
+
+        const fileName = type === 'design' ? 'DESIGN.md' : 'component.md';
+        const relPath = `design-system/${designSystem}/${fileName}`;
+        const fullPath = path.join(this.basePath, relPath);
+
+        if (fs.existsSync(fullPath)) {
+            try {
+                const content = fs.readFileSync(fullPath, "utf8");
+                this.docs[cacheKey] = this.partitionMarkdown(content);
+                return this.docs[cacheKey];
+            } catch (e) {
+                logger.warn(`Failed to load doc ${cacheKey}: ${e.message}`);
+            }
+        }
+
+        if (type === 'component' && designSystem !== 'the-minimalist') {
+            return this.getDesignDoc('the-minimalist', 'component');
+        }
+
+        this.docs[cacheKey] = { _full: "" };
+        return this.docs[cacheKey];
+    }
+    findSection(doc, possibleNames) {
+        if (!doc) return "";
+        for (const name of possibleNames) {
+            if (doc[name]) return doc[name];
+            const key = Object.keys(doc).find(k => k.toLowerCase() === name.toLowerCase());
+            if (key) return doc[key];
+        }
+        for (const name of possibleNames) {
+            const key = Object.keys(doc).find(k => k.toLowerCase().includes(name.toLowerCase()) || name.toLowerCase().includes(k.toLowerCase()));
+            if (key) return doc[key];
+        }
+        return "";
+    }
+
     /**
      * returns a pruned context string tailored for a specific node and component.
      */
-    getPrunedContext(nodeName, targetComponent = null) {
+    getPrunedContext(nodeName, targetComponent = null, selectedDesignSystem = 'the-minimalist') {
         let parts = [];
 
         if (nodeName === 'designer') {
-            const design = this.docs['design'] || {};
+            const design = this.getDesignDoc(selectedDesignSystem, 'design');
             parts.push("## DESIGN SYSTEM (VIBE & TOKENS)");
-            parts.push(design['1. The North Star'] || "");
-            parts.push(design['2. Colors & Surface Logic'] || "");
-            parts.push(design['3. Typography'] || "");
+            parts.push(this.findSection(design, ['1. The North Star', 'Overview']) || design._full || "");
+            parts.push(this.findSection(design, ['2. Colors & Surface Logic', 'Colors', 'Color Palette & Roles', 'Palette']));
+            parts.push(this.findSection(design, ['3. Typography', 'Typography', 'Typography Rules']));
         }
 
         if (nodeName === 'planner') {
@@ -96,27 +134,25 @@ class ContextBank {
             parts.push(arch['1. Theme File Hierarchy'] || "");
             parts.push(arch['2. JSON Template Structure (Critical)'] || "");
 
-            const comp = this.docs['component'] || {};
+            const comp = this.getDesignDoc(selectedDesignSystem, 'component');
             parts.push("## COMPONENT BLUEPRINTS");
-            parts.push(comp['_full'] || ""); // Planner needs the full overview of what's possible
+            parts.push(comp['_full'] || "");
         }
 
         if (nodeName === 'coder') {
-            // 1. Minimal Design Rules
-            const design = this.docs['design'] || {};
-            parts.push("## DESIGN RULES\n" + (design['4. Elevation & Depth'] || "") + "\n" + (design['6. Do\'s and Don\'ts'] || ""));
+            const design = this.getDesignDoc(selectedDesignSystem, 'design');
+            const elevation = this.findSection(design, ['4. Elevation & Depth', 'Depth & Elevation', 'Elevation']);
+            const rules = this.findSection(design, ['6. Do\'s and Don\'ts', 'Do\'s and Don\'ts', 'Do\'s & Don\'ts']);
+            parts.push("## DESIGN RULES\n" + (elevation || "") + "\n" + (rules || ""));
 
-            // 2. Targeted Component Spec
-            const comp = this.docs['component'] || {};
+            const comp = this.getDesignDoc(selectedDesignSystem, 'component');
             if (targetComponent) {
-                // Find section matching component type (e.g. "Hero Section", "Product Section")
                 const sectionKey = Object.keys(comp).find(k => k.toLowerCase().includes(targetComponent.type?.toLowerCase()));
                 if (sectionKey) {
                     parts.push(`## COMPONENT SPEC: ${sectionKey}\n${comp[sectionKey]}`);
                 }
             }
 
-            // 3. Technical Guardrails (The missing piece)
             const cheat = this.docs['cheat_sheet'] || {};
             parts.push("## LIQUID GUARDRAILS");
             parts.push(cheat['3. Liquid Syntax & Section Guardrails'] || "");
@@ -137,10 +173,9 @@ class ContextBank {
         }
 
         const finalContext = parts.filter(p => p.trim().length > 0).join('\n\n');
-        logger.info(`[ContextBank] Generated context for ${nodeName}. Size: ${finalContext.length} chars.`);
+        logger.info(`[ContextBank] Generated context for ${nodeName} (${selectedDesignSystem}). Size: ${finalContext.length} chars.`);
         return finalContext;
-    }
-}
+    }}
 
 const contextBank = new ContextBank();
 
@@ -327,6 +362,15 @@ async function classifierNode(state, config) {
     const sendEvent = config.configurable?.sendEvent;
     if (sendEvent) sendEvent({ type: 'progress', stage: 'classifier', message: 'Analyzing your store concept...', component: 'Store Discovery' });
 
+    const designSystemsDir = path.join(__dirname, "../../docs/design-system");
+    const designSystems = fs.readdirSync(designSystemsDir).filter(f => {
+        try {
+            return fs.statSync(path.join(designSystemsDir, f)).isDirectory() && f !== '.DS_Store';
+        } catch (e) {
+            return false;
+        }
+    });
+
     let attempt = 0;
     const maxAttempts = 10;
     let finalObject;
@@ -342,16 +386,24 @@ async function classifierNode(state, config) {
                 model: google3FlashSticky,
                 maxRetries: 0,
                 mode: 'json',
-                system: "You are an expert Shopify architect. Analyze the user's prompt to determine their store's SCALE and CATALOG TYPE. Return ONLY valid JSON.",
+                system: `You are an expert Shopify architect. Analyze the user's prompt to determine their store's SCALE, CATALOG TYPE, and the best-fitting BRAND DESIGN SYSTEM from the available design systems.
+Available Design Systems:
+${designSystems.map(ds => `- ${ds}`).join('\n')}
+
+Rules for selecting Design System:
+- Match the vibe of the prompt to one of the brand names (e.g. 'ollama' or 'warp' for terminals/geeks, 'claude' for humanist/warm editorial/bookish, 'vercel' or 'linear.app' for sleek tech monochrome, 'stripe' for gradient-rich high-tech, 'nike' or 'bugatti' for sports/luxury/bold, etc.).
+- Default to 'the-minimalist' if no clear match.
+- Return ONLY valid JSON.`,
                 prompt: `Classify the following theme generation prompt in JSON format: "${userPrompt}"`,
                 schema: z.object({
                     archetypeDescription: z.string(),
-                    catalogSize: z.enum(["single_product", "boutique", "enterprise"])
+                    catalogSize: z.enum(["single_product", "boutique", "enterprise"]),
+                    selectedDesignSystem: z.string().describe("The name of the design system folder that best fits the vibe of the user prompt. Must be one of the available design systems listed in the system instructions.")
                 }),
-                maxTokens: 4096, // Classifier is small
+                maxTokens: 4096,
             });
 
-            object.catch(() => {}); // Prevent unhandled promise rejection if stream throws
+            object.catch(() => {});
             let previousLength = 0;
             for await (const partial of partialObjectStream) {
                 if (partial.archetypeDescription && partial.archetypeDescription.length > previousLength) {
@@ -375,13 +427,22 @@ async function classifierNode(state, config) {
             }
         }
     }
+
+    let selectedDS = finalObject.selectedDesignSystem;
+    if (!designSystems.includes(selectedDS)) {
+        selectedDS = 'the-minimalist';
+    }
+
     logger.debug({ node: 'classifier', rawOutput: finalObject }, 'LLM response');
 
     const duration = Date.now() - startTime;
-    logger.info(`[Graph] ✅ Node: classifierNode complete (${duration}ms)`);
+    logger.info(`[Graph] ✅ Node: classifierNode complete (${duration}ms). Selected design system: ${selectedDS}`);
+    console.log(`\n🎨 [STA-Engine] Dynamic Design System Selected: ${selectedDS.toUpperCase()}\n`);
+
     return {
         catalogSize: finalObject.catalogSize,
-        reasoning: { node: 'classifier', text: "Classified catalog scale." }
+        selectedDesignSystem: selectedDS,
+        reasoning: { node: 'classifier', text: `Classified catalog scale and selected design system: ${selectedDS}.` }
     };
 }
 
@@ -392,7 +453,7 @@ async function classifierNode(state, config) {
 async function designerNode(state, config) {
     const startTime = Date.now();
     logger.info("[Graph] Node: designerNode");
-    const { userPrompt, referenceImageBase64 } = state;
+    const { userPrompt, referenceImageBase64, selectedDesignSystem } = state;
     const sendEvent = config.configurable?.sendEvent;
     if (sendEvent) sendEvent({ type: 'progress', stage: 'designer', message: 'Crafting your design system...', component: 'Design Strategy' });
 
@@ -412,7 +473,7 @@ async function designerNode(state, config) {
                 logger.warn(`[Graph] Designer retrying (Attempt ${attempt}/${maxAttempts}) after error: ${lastError.message}`);
             }
 
-            const prunedContext = contextBank.getPrunedContext('designer');
+            const prunedContext = contextBank.getPrunedContext('designer', null, selectedDesignSystem);
 
             const { partialObjectStream, object } = await streamObject({
                 model,
@@ -496,7 +557,7 @@ AESTHETIC RULES:
 async function plannerNode(state, config) {
     const startTime = Date.now();
     logger.info("[Graph] Node: plannerNode");
-    const { userPrompt, designTokens, catalogSize } = state;
+    const { userPrompt, designTokens, catalogSize, selectedDesignSystem } = state;
     const sendEvent = config.configurable?.sendEvent;
     if (sendEvent) sendEvent({ type: 'progress', stage: 'planner', message: 'Architecting your storefront...', component: 'Architectural Planning' });
 
@@ -516,7 +577,7 @@ async function plannerNode(state, config) {
                 logger.warn(`[Graph] Planner retrying (Attempt ${attempt}/${maxAttempts}) after error: ${lastError.message}`);
             }
 
-            const prunedContext = contextBank.getPrunedContext('planner');
+            const prunedContext = contextBank.getPrunedContext('planner', null, selectedDesignSystem);
 
             const { partialObjectStream, object } = await streamObject({
                 model,
@@ -759,14 +820,24 @@ main {
   {{ content_for_header }}
 
   {{ 'base.css' | asset_url | stylesheet_tag }}
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+        const observer = new MutationObserver(() => {
+          lucide.createIcons();
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+      }
+    });
+  </script>
 </head>
 <body class="gradient">
   {% section 'header' %}
-
   <main id="MainContent" class="content-for-layout focus-none" role="main" tabindex="-1">
     {{ content_for_layout }}
   </main>
-
   {% section 'footer' %}
 </body>
 </html>
@@ -817,7 +888,9 @@ async function coderNode(state, config) {
         sectionContent,
         layoutShell,
         tsErrors,
-        selectedBlueprintId
+        selectedBlueprintId,
+        selectedDesignSystem,
+        shopName
     } = state;
     const sendEvent = config.configurable?.sendEvent;
 
@@ -879,10 +952,10 @@ ${getStructuralSkeleton(mobileHtml)}`;
             }
 
             const shellSummary = layoutShell ? getStructuralSkeleton(layoutShell) : "Not Provided";
-
             const fullPrompt = [
                 errors.length > 0 ? `### CRITICAL: FIX THESE ERRORS FROM PREVIOUS ATTEMPT:\n${errors.join("\n")}\n\nYou MUST fix these errors in the code.` : "",
                 `You are building a single component for a Shopify theme.
+Store/Brand Name: ${shopName || 'Shopify Store'}
 Design Tokens: ${JSON.stringify(designTokens)}
 Global Layout Shell Context (Structural Skeleton): 
 ${shellSummary}
@@ -906,13 +979,26 @@ Goal: Prioritize architectural, editorial beauty using STANDARD CSS (No Tailwind
 
 ${adaptiveInstructions}
 
-${contextBank.getPrunedContext('coder', targetComponent)}
+${contextBank.getPrunedContext('coder', targetComponent, selectedDesignSystem)}
 
 ## THE ARCHITECTURAL RULES
 You are a Senior Frontend Engineer. Build a stunning, bespoke editorial eCommerce section.
 - STYLING: EXCLUSIVELY use Vanilla CSS inside a <style> tag within the section. Use the CSS variables provided in :root (--color-primary, --font-heading, etc.).
 - NO TAILWIND: Do NOT use Tailwind utility classes (py-10, flex, etc.) in the HTML. Use standard CSS classes.
+- SHOP NAME: The name of the merchant's store is "${shopName || 'Shopify Store'}". When generating the header, footer, logo section, or copyright notices, always set the default value for the logo text or shop name setting in the schema settings to exactly "${shopName || 'Shopify Store'}" (rather than using generic placeholder text). In Liquid, use \`{{ section.settings.logo_text | default: shop.name }}\` or similar settings to allow customizability while defaulting to the configured shop name.
 - CONTENT: Use the provided "Sophisticated" content exactly. Do NOT hallucinate generic copy.
+- IMAGES: Always provide high-quality Unsplash image URLs (e.g., 'https://images.unsplash.com/photo-...') as the default values for image settings in both your Liquid schemas and section presets, so the store displays beautiful product/lifestyle photos immediately.
+- IMAGE FALLBACKS & PRE-VERIFIED IMAGES: Since Shopify \`image_picker\` settings cannot accept default URL values in the schema, you MUST always provide a high-quality Unsplash image URL (using an \`<img>\` tag) inside the \`{% else %}\` block of your Liquid templates when the image setting is blank/unset. NEVER fall back to standard Shopify placeholder SVGs (like \`{{ 'lifestyle-1' | placeholder_svg_tag }}\` or \`{{ 'hero-apparel-1' | placeholder_svg_tag }}\`) because they render as generic gray clipart. Use these guaranteed valid, tested Unsplash image IDs for your fallbacks:
+  * Watches/Luxury: 'photo-1523275335684-37898b6baf30', 'photo-1524592094714-0f0654e20314', 'photo-1542496658-e33a6d0d50f6', 'photo-1547996160-81dfa63595aa', 'photo-1508057198894-247b23fe5ade'
+  * Apparel & Fashion: 'photo-1434389677669-e08b4cac3105', 'photo-1483985988355-763728e1935b', 'photo-1490481651871-ab68de25d43d'
+  * Jewelry & Decors: 'photo-1515562141207-7a88fb7ce338', 'photo-1535632066927-ab7c9ab60908'
+- LUCIDE ICONS INSTALLED: The Lucide Icons library is pre-installed via CDN in theme.liquid and automatically initialized. For social media icons, arrows, search, cart, user accounts, and all other theme icons, ALWAYS use Lucide HTML tags like \`<i data-lucide="instagram"></i>\`, \`<i data-lucide="facebook"></i>\`, \`<i data-lucide="search"></i>\`, \`<i data-lucide="shopping-bag"></i>\`, etc. Do NOT use \`{% render 'icon-...' %}\` (as they do not exist) and do NOT write large inline SVGs.
+- LIQUID SPLIT RULE: When splitting strings in Liquid to generate loop datasets (e.g., for placeholders), NEVER use a comma (',') as the split delimiter. Formatted prices (like '$1,250.00') contain commas which corrupts the split logic. Always use a semicolon (';') or double hashes ('##') as the delimiter.
+- PLACEHOLDERS & FALLBACKS: For sections that rely on dynamic Shopify resources (like collection, product_list, blog, etc.), you MUST always implement a high-fidelity placeholder loop (rendering mock titles, prices, and Unsplash image URLs using the LIQUID SPLIT RULE) in the '{% else %}' block when the resource is blank/unset. NEVER leave a section empty or output unconfigured translation tags (like 'homepage.onboarding.no_content') if the resource is empty. The section must display beautifully in the preview out-of-the-box.
+- MENU STYLING: When styling menus ('<ul>' lists), always ensure the list styling (display: flex; list-style: none; padding: 0; margin: 0;) is applied directly to the '<ul>' element (e.g., '.site-header__nav-list' or '.header__menu'), rather than only on the parent '<nav>' wrapper.
+- GRID RESPONSIVENESS: When building multi-item layouts (such as product grids, collection grids, testimonials, logo lists), NEVER use a hardcoded column count (like 'repeat(3, 1fr)') that doesn't match the maximum item limit (e.g., displaying 4 items in a 3-column grid). Always use a flexible, auto-fitting grid (e.g., 'grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));') or ensure the column count on desktop matches the configured item limit so there are never unbalanced/orphaned items in the grid.
+- CSS HEIGHT & ASPECT RATIO: When absolute-positioning an image inside a container (position: absolute; width: 100%; height: 100%;), the container MUST have a defined height or aspect ratio (e.g. aspect-ratio: 16/9; or aspect-ratio: 4/3;). NEVER override this with aspect-ratio: auto; on desktop unless you specify a min-height or height, otherwise the container collapses to 0px height and the image disappears.
+- HTML ATTRIBUTES: On the '<img>' tag, the HTML 'height' attribute MUST be an integer (e.g. height="800"). NEVER use CSS values like height="auto" inside HTML attributes.
 - TECH STACK: Shopify Liquid + Vanilla JS Web Components (Light DOM) for interactivity.
 - LAYOUT: Use the "Intentional Asymmetry" and "No-Line" rules from the design system.`,
                 prompt: fullPrompt,
@@ -1216,10 +1302,14 @@ async function assemblyQcNode(state, config) {
 async function agenticQcNode(state, config) {
     const startTime = Date.now();
     logger.info("[Graph] Node: agenticQcNode");
-    const { userPrompt, designTokens, generatedFiles } = state;
+    const { userPrompt, designTokens, generatedFiles, selectedDesignSystem } = state;
     const sendEvent = config.configurable?.sendEvent;
     if (sendEvent) sendEvent({ type: 'progress', stage: 'design_qc', message: 'Reviewing visual aesthetics...', component: 'Visual QC' });
 
+    const designDoc = contextBank.getDesignDoc(selectedDesignSystem, 'design');
+    const designSystemContent = designDoc._full || "";
+    const componentDoc = contextBank.getDesignDoc(selectedDesignSystem, 'component');
+    const componentSpecContent = componentDoc._full || "";
     if (state.tsErrors && state.tsErrors.length > 0) {
         return { designErrors: [] };
     }

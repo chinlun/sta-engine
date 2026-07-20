@@ -256,7 +256,6 @@ app.post('/api/build', async (req, res) => {
         const userPrompt = requirements 
             ? `## Discovery Requirements\n${requirements}\n\n## User Messages\n${allUserMessages}`
             : allUserMessages;
-
         sendEvent({ type: 'progress', stage: 'context', message: 'Initializing store context...' });
         const inputs = {
             userPrompt,
@@ -266,7 +265,8 @@ app.post('/api/build', async (req, res) => {
             referenceHtml,
             referenceImageBase64,
             designBrief,
-            themeId: targetThemeId
+            themeId: targetThemeId,
+            shopName: project?.title || 'Shopify Store'
         };
 
         const stream = await themeWorkflow.stream(inputs, {
@@ -330,6 +330,8 @@ app.post('/api/build', async (req, res) => {
                     } catch (e: any) {
                         logger.error(`[Build] ❌ Auto-provisioning failed: ${e.message}`);
                         sendEvent({ type: 'progress', stage: 'SYNC_ERROR', message: 'Failed to provision preview machine.' });
+                        machineId = null;
+                        throw e;
                     }
                 }
             }

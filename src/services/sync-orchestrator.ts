@@ -80,15 +80,19 @@ export class SyncOrchestrator {
                     }
                 }
             });
-
-            // Trigger the sync
-            await flyMachineService.syncFile(machineId, filePath, currentContent);
-
-            // Wait for signal for this attempt
-            const attemptResult = await Promise.race([
-                resultPromise,
-                new Promise<SyncResult>((r) => setTimeout(() => r({ success: false, error: 'Timeout' }), 90000))
-            ]);
+            let attemptResult;
+            try {
+                await flyMachineService.syncFile(machineId, filePath, currentContent);
+                attemptResult = await Promise.race([
+                    resultPromise,
+                    new Promise<SyncResult>((r) => setTimeout(() => r({ success: false, error: 'Timeout' }), 90000))
+                ]);
+            } catch (err: any) {
+                logger.warn(`[SyncOrchestrator] ⚠️ Network sync failed for ${filePath}: ${err.message}. Retrying...`);
+                stopMonitor();
+                await new Promise(r => setTimeout(r, 1000 * attempts));
+                continue;
+            }
 
             stopMonitor();
 

@@ -142,22 +142,26 @@ export const flyMachineService = {
         logger.info(`[Fly API] ⏳ Waiting for machine ${machineId} to start...`);
         let lastState = '';
         for (let i = 0; i < 30; i++) {
-            const response = await fetch(`https://api.machines.dev/v1/apps/${appName}/machines/${machineId}`, {
-                headers: { "Authorization": `Bearer ${apiToken}` }
-            });
+            try {
+                const response = await fetch(`https://api.machines.dev/v1/apps/${appName}/machines/${machineId}`, {
+                    headers: { "Authorization": `Bearer ${apiToken}` }
+                });
 
-            if (response.ok) {
-                const data = await response.json();
-                if (data.state !== lastState) {
-                    logger.info(`[Fly API] ℹ️ Machine ${machineId} state: ${data.state}`);
-                    lastState = data.state;
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.state !== lastState) {
+                        logger.info(`[Fly API] ℹ️ Machine ${machineId} state: ${data.state}`);
+                        lastState = data.state;
+                    }
+                    if (data.state === "started") {
+                        logger.info(`[Fly API] ✅ Machine ${machineId} is fully started`);
+                        return true;
+                    }
+                } else {
+                    logger.warn(`[Fly API] ⚠️ Failed to fetch machine status: ${response.status}`);
                 }
-                if (data.state === "started") {
-                    logger.info(`[Fly API] ✅ Machine ${machineId} is fully started`);
-                    return true;
-                }
-            } else {
-                logger.warn(`[Fly API] ⚠️ Failed to fetch machine status: ${response.status}`);
+            } catch (err: any) {
+                logger.warn(`[Fly API] ⚠️ Network error fetching status for ${machineId}: ${err.message}. Retrying...`);
             }
             await new Promise(resolve => setTimeout(resolve, 2000));
         }

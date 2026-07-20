@@ -10,6 +10,14 @@ const ThemeGenerationState = Annotation.Root({
     designBrief: Annotation(), // Deprecated, replaced by designTokens
     designTokens: Annotation(),
     selectedBlueprintId: Annotation(),
+    selectedDesignSystem: Annotation({
+        reducer: (x, y) => y,
+        default: () => 'the-minimalist',
+    }),
+    shopName: Annotation({
+        reducer: (x, y) => y,
+        default: () => 'Shopify Store',
+    }),
     components: Annotation({
         reducer: (x, y) => [...(x || []), ...y],
         default: () => [],
