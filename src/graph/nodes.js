@@ -18,6 +18,91 @@ async function sleepWithJitter(attempt) {
     logger.debug(`[Graph] Sleeping for ${Math.round(totalDelay)}ms before next attempt...`);
     return new Promise(resolve => setTimeout(resolve, totalDelay));
 }
+async function resolveUnsplashPlaceholders(files, state) {
+    if (!files) return;
+    const shopName = state?.shopName || '';
+    const userPrompt = state?.userPrompt || '';
+    
+    let fallbackTopic = 'product-photography';
+    const textContext = `${shopName} ${userPrompt}`.toLowerCase();
+    if (textContext.includes('toy') || textContext.includes('jellycat') || textContext.includes('plush')) {
+        fallbackTopic = 'plush toy stuffed animal';
+    } else if (textContext.includes('watch') || textContext.includes('jewelry') || textContext.includes('luxury')) {
+        fallbackTopic = 'luxury watch jewelry';
+    } else if (textContext.includes('clothing') || textContext.includes('apparel') || textContext.includes('fashion') || textContext.includes('shirt')) {
+        fallbackTopic = 'fashion apparel clothing';
+    } else if (textContext.includes('furniture') || textContext.includes('decor') || textContext.includes('sofa') || textContext.includes('home')) {
+        fallbackTopic = 'modern home decor furniture';
+    } else if (textContext.includes('coffee') || textContext.includes('cafe') || textContext.includes('mug')) {
+        fallbackTopic = 'coffee shop cafe mug';
+    }
+
+    for (const file of files) {
+        if (!file.content) continue;
+
+        // Clean up common duplicate prefix formatting errors (e.g. https://images.unsplash.com/unsplash://...)
+        file.content = file.content.replace(/https:\/\/images\.unsplash\.com\/unsplash:\/\//g, 'unsplash://');
+        
+        const regex = /unsplash:\/\/([^\s"'`><]+)/g;
+        let match;
+        const queries = new Set();
+        while ((match = regex.exec(file.content)) !== null) {
+            queries.add(match[1]);
+        }
+        
+        if (queries.size === 0) continue;
+        
+        const replacements = {};
+        await Promise.all(Array.from(queries).map(async (rawQuery) => {
+            let cleanQueryKey = rawQuery.replace(/[{}]+/g, '').trim();
+            let query = decodeURIComponent(cleanQueryKey).replace(/[-_]+/g, ' ');
+            
+            const genericKeywords = ['product', 'image', 'keyword', 'placeholder', 'fallback', 'temp', 'dummy', 'default'];
+            const isGeneric = genericKeywords.some(kw => query.toLowerCase() === kw || query.toLowerCase().includes('image keyword') || query.toLowerCase().includes('product image'));
+            if (isGeneric || !query.trim()) {
+                query = fallbackTopic;
+            }
+            
+            try {
+                const url = `https://unsplash.com/napi/search/photos?query=${encodeURIComponent(query)}&per_page=10`;
+                const res = await fetch(url);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.results && data.results.length > 0) {
+                        const freeResults = data.results.filter(r => r.urls && r.urls.raw && r.urls.raw.includes('images.unsplash.com'));
+                        const targetResults = freeResults.length > 0 ? freeResults : data.results;
+                        const randomIndex = Math.floor(Math.random() * Math.min(targetResults.length, 10));
+                        const rawUrl = targetResults[randomIndex].urls.raw;
+                        const cleanUrl = rawUrl.split('?')[0];
+                        replacements[rawQuery] = cleanUrl;
+                        return;
+                    }
+                }
+            } catch (e) {
+                // Ignore error, fallback
+            }
+
+            let defaultId = 'photo-1542838132-92c53300491e';
+            if (fallbackTopic.includes('plush')) defaultId = 'photo-1559251606-c623743a6d76';
+            else if (fallbackTopic.includes('watch')) defaultId = 'photo-1523275335684-37898b6baf30';
+            else if (fallbackTopic.includes('fashion')) defaultId = 'photo-1434389677669-e08b4cac3105';
+
+            replacements[rawQuery] = `https://images.unsplash.com/${defaultId}`;
+        }));
+        
+        for (const [rawQuery, replacementUrl] of Object.entries(replacements)) {
+            const escaped = escapeRegExp(rawQuery);
+            // Replace the placeholder and consume any trailing redundant brackets/tags
+            const placeholderRegex = new RegExp(`unsplash:\/\/${escaped}(?:\\s*(?:product_image_keyword)?\\s*\\}\\})?`, 'g');
+            file.content = file.content.replace(placeholderRegex, replacementUrl);
+        }
+    }
+}
+
+function escapeRegExp(string) {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 
 class ContextBank {
     constructor() {
@@ -820,17 +905,24 @@ main {
   {{ content_for_header }}
 
   {{ 'base.css' | asset_url | stylesheet_tag }}
-  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lucide@latest"></script>
   <script>
-    document.addEventListener("DOMContentLoaded", () => {
+    function initLucide() {
       if (typeof lucide !== 'undefined') {
         lucide.createIcons();
-        const observer = new MutationObserver(() => {
-          lucide.createIcons();
-        });
-        observer.observe(document.body, { childList: true, subtree: true });
       }
-    });
+    }
+    initLucide();
+    document.addEventListener("DOMContentLoaded", initLucide);
+    if (typeof MutationObserver !== 'undefined') {
+      const observer = new MutationObserver(() => {
+        if (document.querySelector('[data-lucide]')) {
+          observer.disconnect();
+          initLucide();
+          observer.observe(document.body, { childList: true, subtree: true });
+        }
+      });
+    }
   </script>
 </head>
 <body class="gradient">
@@ -987,11 +1079,8 @@ You are a Senior Frontend Engineer. Build a stunning, bespoke editorial eCommerc
 - NO TAILWIND: Do NOT use Tailwind utility classes (py-10, flex, etc.) in the HTML. Use standard CSS classes.
 - SHOP NAME: The name of the merchant's store is "${shopName || 'Shopify Store'}". When generating the header, footer, logo section, or copyright notices, always set the default value for the logo text or shop name setting in the schema settings to exactly "${shopName || 'Shopify Store'}" (rather than using generic placeholder text). In Liquid, use \`{{ section.settings.logo_text | default: shop.name }}\` or similar settings to allow customizability while defaulting to the configured shop name.
 - CONTENT: Use the provided "Sophisticated" content exactly. Do NOT hallucinate generic copy.
-- IMAGES: Always provide high-quality Unsplash image URLs (e.g., 'https://images.unsplash.com/photo-...') as the default values for image settings in both your Liquid schemas and section presets, so the store displays beautiful product/lifestyle photos immediately.
-- IMAGE FALLBACKS & PRE-VERIFIED IMAGES: Since Shopify \`image_picker\` settings cannot accept default URL values in the schema, you MUST always provide a high-quality Unsplash image URL (using an \`<img>\` tag) inside the \`{% else %}\` block of your Liquid templates when the image setting is blank/unset. NEVER fall back to standard Shopify placeholder SVGs (like \`{{ 'lifestyle-1' | placeholder_svg_tag }}\` or \`{{ 'hero-apparel-1' | placeholder_svg_tag }}\`) because they render as generic gray clipart. Use these guaranteed valid, tested Unsplash image IDs for your fallbacks:
-  * Watches/Luxury: 'photo-1523275335684-37898b6baf30', 'photo-1524592094714-0f0654e20314', 'photo-1542496658-e33a6d0d50f6', 'photo-1547996160-81dfa63595aa', 'photo-1508057198894-247b23fe5ade'
-  * Apparel & Fashion: 'photo-1434389677669-e08b4cac3105', 'photo-1483985988355-763728e1935b', 'photo-1490481651871-ab68de25d43d'
-  * Jewelry & Decors: 'photo-1515562141207-7a88fb7ce338', 'photo-1535632066927-ab7c9ab60908'
+
+- DYNAMIC IMAGES (UNSPLASH SEARCH): ALWAYS use the dynamic Unsplash query format for your image defaults and fallback URLs (inside <img> tags or schema presets). Use the format \`unsplash://<search-keywords>\` (e.g. \`unsplash://cute-teddy-bear-plush\`, \`unsplash://luxury-watch-lifestyle\`, \`unsplash://organic-coffee-beans\`, \`unsplash://minimalist-living-room\`). The compiler will automatically resolve your keywords to live, relevant, high-resolution Unsplash images matching your topic, preventing broken images regardless of what niche website you generate!
 - LUCIDE ICONS INSTALLED: The Lucide Icons library is pre-installed via CDN in theme.liquid and automatically initialized. For social media icons, arrows, search, cart, user accounts, and all other theme icons, ALWAYS use Lucide HTML tags like \`<i data-lucide="instagram"></i>\`, \`<i data-lucide="facebook"></i>\`, \`<i data-lucide="search"></i>\`, \`<i data-lucide="shopping-bag"></i>\`, etc. Do NOT use \`{% render 'icon-...' %}\` (as they do not exist) and do NOT write large inline SVGs.
 - LIQUID SPLIT RULE: When splitting strings in Liquid to generate loop datasets (e.g., for placeholders), NEVER use a comma (',') as the split delimiter. Formatted prices (like '$1,250.00') contain commas which corrupts the split logic. Always use a semicolon (';') or double hashes ('##') as the delimiter.
 - PLACEHOLDERS & FALLBACKS: For sections that rely on dynamic Shopify resources (like collection, product_list, blog, etc.), you MUST always implement a high-fidelity placeholder loop (rendering mock titles, prices, and Unsplash image URLs using the LIQUID SPLIT RULE) in the '{% else %}' block when the resource is blank/unset. NEVER leave a section empty or output unconfigured translation tags (like 'homepage.onboarding.no_content') if the resource is empty. The section must display beautifully in the preview out-of-the-box.
@@ -999,6 +1088,8 @@ You are a Senior Frontend Engineer. Build a stunning, bespoke editorial eCommerc
 - GRID RESPONSIVENESS: When building multi-item layouts (such as product grids, collection grids, testimonials, logo lists), NEVER use a hardcoded column count (like 'repeat(3, 1fr)') that doesn't match the maximum item limit (e.g., displaying 4 items in a 3-column grid). Always use a flexible, auto-fitting grid (e.g., 'grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));') or ensure the column count on desktop matches the configured item limit so there are never unbalanced/orphaned items in the grid.
 - CSS HEIGHT & ASPECT RATIO: When absolute-positioning an image inside a container (position: absolute; width: 100%; height: 100%;), the container MUST have a defined height or aspect ratio (e.g. aspect-ratio: 16/9; or aspect-ratio: 4/3;). NEVER override this with aspect-ratio: auto; on desktop unless you specify a min-height or height, otherwise the container collapses to 0px height and the image disappears.
 - HTML ATTRIBUTES: On the '<img>' tag, the HTML 'height' attribute MUST be an integer (e.g. height="800"). NEVER use CSS values like height="auto" inside HTML attributes.
+- FORM INPUTS & BUTTONS LAYOUT: When positioning a newsletter signup button absolute inside a relative input field wrapper, always set \`z-index: 2;\` on the absolute button to ensure it is drawn on top and is not covered by the input's background or borders.
+- SOCIAL MEDIA LINK DEFAULTS: When generating social links (in the footer or header), never hide the link/icon when the social link settings (like \`settings.social_instagram_link\`) are blank in the backend. Instead, always use a fallback link (e.g. \`{{ settings.social_instagram_link | default: '#' }}\` or standard URLs like \`https://instagram.com/shopify\`) so that the icons render beautifully in the theme preview immediately.
 - TECH STACK: Shopify Liquid + Vanilla JS Web Components (Light DOM) for interactivity.
 - LAYOUT: Use the "Intentional Asymmetry" and "No-Line" rules from the design system.`,
                 prompt: fullPrompt,
@@ -1051,12 +1142,12 @@ You are a Senior Frontend Engineer. Build a stunning, bespoke editorial eCommerc
             await sleepWithJitter(attempt);
         }
     }
-
     logger.debug({ node: 'coder', rawOutput: finalObject }, 'LLM response');
+
+    await resolveUnsplashPlaceholders(finalObject.files, state);
 
     const duration = Date.now() - startTime;
     logger.info(`[Graph] ✅ Node: coderNode complete (${duration}ms)`);
-
     const cleanFilePath = componentNameFull;
     if (finalObject.files && finalObject.files[0]) {
         finalObject.files[0].path = cleanFilePath;

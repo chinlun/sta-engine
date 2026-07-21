@@ -4,3 +4,4 @@ dist
 *.zip
 .DS_Store
 firebase-service-account.json
+new-idea
