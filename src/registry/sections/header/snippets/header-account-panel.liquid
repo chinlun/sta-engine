@@ -1,0 +1,40 @@
+{%- if section.settings.account_behavior != 'page' and shop.customer_accounts_enabled -%}
+  {%- liquid
+    assign account_panel_style = section.settings.account_behavior
+    if account_panel_style == 'popup'
+      assign account_panel_style = 'modal'
+    else
+      assign account_panel_style = account_panel_style | remove: 'slide_'
+    endif
+  -%}
+  <div
+    id="header-account-{{ section.id }}"
+    class="header-panel header-panel--account header-panel--{{ account_panel_style }}"
+    data-panel-type="account"
+    aria-hidden="true"
+  >
+    <div class="header-panel__inner">
+      <div class="header-panel__header">
+        <h3 class="header-panel__title">Account</h3>
+        <button type="button" class="header-panel__close js-drawer-close" aria-label="Close account panel">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 6l12 12"></path><path d="M18 6l-12 12"></path></svg>
+        </button>
+      </div>
+      <div class="header-panel__body header-account-panel">
+        {%- if customer -%}
+          <p class="header-account-panel__copy">Welcome back, {{ customer.first_name | default: 'customer' }}.</p>
+          <div class="header-account-panel__actions">
+            <a href="{{ routes.account_url }}" class="button button--primary">Go to account</a>
+            <a href="{{ routes.account_logout_url }}" class="button button--secondary">Sign out</a>
+          </div>
+        {%- else -%}
+          <p class="header-account-panel__copy">Sign in to see your orders, saved items, and faster checkout.</p>
+          <div class="header-account-panel__actions">
+            <a href="{{ routes.account_login_url }}" class="button button--primary">Log in</a>
+            <a href="{{ routes.account_register_url }}" class="button button--secondary">Create account</a>
+          </div>
+        {%- endif -%}
+      </div>
+    </div>
+  </div>
+{%- endif -%}

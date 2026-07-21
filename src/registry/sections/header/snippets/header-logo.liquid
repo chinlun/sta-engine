@@ -1,0 +1,24 @@
+{%- liquid
+  assign logo_width = section.settings.logo_width
+  if is_mobile
+    assign logo_width = section.settings.logo_width_mobile
+  endif
+-%}
+
+<a href="{{ routes.root_url }}" class="header-logo" aria-label="{{ shop.name | escape }}">
+  {%- if section.settings.logo_svg_code != blank -%}
+    <span class="header-logo__svg" style="max-width: {{ logo_width }}px;">
+      {{ section.settings.logo_svg_code }}
+    </span>
+  {%- elsif section.settings.logo_image != blank -%}
+    {{ section.settings.logo_image | image_url: width: logo_width | image_tag:
+      class: 'header-logo__image',
+      widths: '120, 180, 240, 320',
+      width: logo_width,
+      loading: 'lazy',
+      alt: shop.name
+    }}
+  {%- else -%}
+    <span class="header-logo__text" style="max-width: {{ logo_width }}px;">{{ shop.name }}</span>
+  {%- endif -%}
+</a>

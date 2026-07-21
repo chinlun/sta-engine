@@ -7,6 +7,7 @@ const { logger } = require("../lib/logger");
 const fs = require('fs');
 const path = require('path');
 const { uploadThemeState, getThemeState } = require("../services/r2-service");
+const { loadHeaderRegistry, assembleHeaderFiles } = require("../registry/header-assembler");
 
 /**
  * Helper to sleep with exponential backoff and jitter
@@ -991,8 +992,123 @@ async function coderNode(state, config) {
     const targetComponent = components[currentComponentIndex];
     const componentNameFull = targetComponent.name;
 
-    if (sendEvent) sendEvent({ type: 'progress', stage: 'coder', message: `Generating ${componentNameFull}...`, component: componentNameFull });
     logger.info(`[Graph] Node: coderNode (Component: ${componentNameFull} | ${currentComponentIndex + 1}/${components.length})`);
+
+    // --- REGISTRY-FIRST BRANCH: HEADER ---
+    if (targetComponent.type === 'header' || componentNameFull === 'sections/header.liquid' || componentNameFull.includes('header')) {
+        logger.info(`[Graph] Executing Registry-First Flow for Header (${componentNameFull})`);
+        try {
+            const headerRegistry = loadHeaderRegistry();
+            let attempt = 0;
+            const maxAttempts = 10;
+            let finalObject;
+
+            while (attempt < maxAttempts) {
+                attempt++;
+                const { model, adaptiveInstructions } = getLLMConfig({ ...state, isFallback: localIsFallback }, attempt);
+
+                try {
+                    const { partialObjectStream, object } = await streamObject({
+                        model,
+                        maxRetries: 0,
+                        mode: 'json',
+                        system: `You are a Shopify theme section assembler. Your default behavior is registry-first, not scratch-first.
+For every section request:
+1. Parse the brief into required capabilities, constraints, content slots, visual requirements, and exclusions.
+2. Inspect the Section Registry before generating implementation code.
+3. Select the registry section and preset that satisfy the brief with the smallest delta.
+4. Configure supported settings, blocks, snippets, and content bindings using the registry contract.
+5. Generate only the delta that the registry cannot already provide.
+6. Never rewrite registry-owned files unless the task explicitly asks for a registry package change.
+7. Preserve manifest schema, snippet boundaries, asset ownership, examples, and tests.
+
+Registry Description: ${headerRegistry.manifest.description}
+Available Select Settings & Allowed Options:
+- placement: ["top", "after_status_bar", "boxed_offset"]
+- width_mode: ["full", "boxed"]
+- boxed_corner_style: ["square", "round"]
+- background_mode: ["solid", "transparent_slide", "transparent_fade"]
+- desktop_menu_position: ["left", "center", "right"]
+- desktop_menu_content: ["items", "burger"]
+- cart_position: ["left", "right", "none"]
+- search_display_desktop: ["none", "left", "right"]
+- search_display_mobile: ["none", "left", "right"]
+- account_display_desktop: ["none", "left", "right"]
+- account_display_mobile: ["none", "left", "right"]
+Other Settings: background_color (hex color), text_color (hex color), enable_sticky_header (boolean), show_status_bar (boolean), status_bar_text (string).
+
+${adaptiveInstructions}
+
+Output MUST follow the JSON schema:
+- rationale: brief explanation of section selection and configuration
+- settings_patch: object mapping schema setting IDs to custom values (e.g. {"background_color": "#000000", "desktop_menu_position": "left", "show_status_bar": true, "status_bar_text": "Welcome to our store"})
+- delta_css: optional string for custom styling hooks if brief requires visual styling not in settings
+- delta_js: optional custom Javascript if brief requires unsupported interactions`,
+                        prompt: `User Prompt & Content for Header:
+Store Name: ${shopName || 'Shopify Store'}
+Design Tokens: ${JSON.stringify(designTokens)}
+Brief Content: ${JSON.stringify(sectionContent[componentNameFull] || sectionContent[targetComponent.name] || {})}`,
+                        schema: z.object({
+                            rationale: z.string().describe("Explanation of configuration choices."),
+                            settings_patch: z.record(z.any()).optional().describe("Key-value settings patch to customize section schema defaults."),
+                            delta_css: z.string().optional().describe("Optional custom CSS override delta."),
+                            delta_js: z.string().optional().describe("Optional custom JS delta.")
+                        }),
+                        maxTokens: 16384,
+                    });
+
+                    object.catch(() => {});
+                    let previousLength = 0;
+                    for await (const partial of partialObjectStream) {
+                        if (partial.rationale && partial.rationale.length > previousLength) {
+                            const delta = partial.rationale.substring(previousLength);
+                            if (sendEvent) sendEvent({ type: 'thinking', component: componentNameFull, node: 'Coding (Registry)', text: delta });
+                            previousLength = partial.rationale.length;
+                        }
+                    }
+
+                    finalObject = await object;
+                    break;
+                } catch (err) {
+                    logger.error(`[Graph] Registry header generation error (Attempt ${attempt}): ${err.message}`);
+                    if (attempt >= maxAttempts) throw err;
+                    await sleepWithJitter(attempt);
+                }
+            }
+
+            const generatedFiles = assembleHeaderFiles(headerRegistry, finalObject, designTokens, shopName);
+            await resolveUnsplashPlaceholders(generatedFiles, state);
+
+            const duration = Date.now() - startTime;
+            logger.info(`[Graph] ✅ Registry-First Header complete (${duration}ms). Generated ${generatedFiles.length} files.`);
+
+            // Incremental R2 Update for all assembled header files
+            const { themeId } = state;
+            if (themeId) {
+                try {
+                    const currentState = await getThemeState(themeId);
+                    const updatedState = [...currentState];
+                    for (const f of generatedFiles) {
+                        const idx = updatedState.findIndex(s => (s.filePath || s.path) === f.path);
+                        const mod = { filePath: f.path, content: f.content, action: 'update', path: f.path };
+                        if (idx >= 0) updatedState[idx] = mod;
+                        else updatedState.push(mod);
+                    }
+                    await uploadThemeState(themeId, updatedState);
+                    logger.info(`[R2] Incremental update saved for Registry Header (${generatedFiles.length} files)`);
+                } catch (e) { logger.warn(`[R2] Failed incremental update for registry header: ${e.message}`); }
+            }
+
+            return {
+                currentComponentFiles: generatedFiles,
+                tsErrors: [],
+                reasoning: { node: 'coder', text: `Assembled Registry Header section with ${generatedFiles.length} files.` },
+                isFallback: localIsFallback
+            };
+        } catch (e) {
+            logger.error(`[Graph] Registry Header assembly failed, falling back to standard coderNode: ${e.message}`);
+        }
+    }
 
     const errors = [...(tsErrors || [])];
 

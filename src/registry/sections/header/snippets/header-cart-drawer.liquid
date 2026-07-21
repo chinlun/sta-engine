@@ -1,0 +1,61 @@
+<div
+  id="header-cart-{{ section.id }}"
+  class="header-panel header-panel--cart header-panel--{{ section.settings.cart_behavior | remove: 'slide_' }}"
+  data-panel-type="cart"
+  aria-hidden="true"
+>
+  <div class="header-panel__inner">
+    <div class="header-panel__header">
+      <h3 class="header-panel__title">{{ section.settings.cart_headline }}</h3>
+      <button type="button" class="header-panel__close js-drawer-close" aria-label="Close cart">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 6l12 12"></path><path d="M18 6l-12 12"></path></svg>
+      </button>
+    </div>
+
+    <div class="header-panel__body">
+      {%- if cart.item_count > 0 -%}
+        <ul class="header-cart-items" role="list">
+          {%- for item in cart.items -%}
+            <li class="header-cart-item">
+              <div class="header-cart-item__media">
+                {%- if item.image != blank -%}
+                  {{ item.image | image_url: width: 120 | image_tag: widths: '80, 120, 160', loading: 'lazy', alt: item.product.title }}
+                {%- endif -%}
+              </div>
+              <div class="header-cart-item__content">
+                <p class="header-cart-item__title">{{ item.product.title }}</p>
+                <p class="header-cart-item__sku">SKU: {{ item.sku | default: 'N/A' }}</p>
+                <div class="header-cart-item__meta">
+                  <span>Qty: {{ item.quantity }}</span>
+                  <span>{{ item.final_line_price | money }}</span>
+                </div>
+              </div>
+            </li>
+          {%- endfor -%}
+        </ul>
+
+        <div class="header-cart-summary">
+          <div class="header-cart-summary__row">
+            <span>Total</span>
+            <strong>{{ cart.total_price | money }}</strong>
+          </div>
+          <label class="header-cart-summary__voucher-label" for="header-cart-voucher-{{ section.id }}">Coupon / voucher</label>
+          <div class="header-cart-summary__voucher">
+            <input id="header-cart-voucher-{{ section.id }}" type="text" placeholder="Add at checkout" disabled>
+            <button type="button" disabled>Apply</button>
+          </div>
+          <p class="header-cart-summary__note">Voucher redemption is typically completed at checkout in Shopify.</p>
+          <div class="header-cart-summary__actions">
+            <a href="{{ routes.cart_url }}" class="button button--secondary">View cart</a>
+            <a href="/checkout" class="button button--primary">Checkout</a>
+          </div>
+        </div>
+      {%- else -%}
+        <div class="header-panel__empty">
+          <p>Your cart is empty.</p>
+          <a href="{{ routes.all_products_collection_url }}" class="button button--primary">Continue shopping</a>
+        </div>
+      {%- endif -%}
+    </div>
+  </div>
+</div>

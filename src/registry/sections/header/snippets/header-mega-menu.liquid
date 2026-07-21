@@ -1,0 +1,67 @@
+{%- liquid
+  assign focus_items_count = 0
+  for block in section.blocks
+    if block.type == 'focus_item' and block.settings.parent_label == link.title
+      assign focus_items_count = focus_items_count | plus: 1
+    endif
+  endfor
+-%}
+
+<div class="header-mega-menu header-mega-menu--{{ section.settings.mega_slide_from }}">
+  <div class="header-mega-menu__grid">
+    <div class="header-mega-menu__nav">
+      <p class="header-mega-menu__eyebrow">Main menu</p>
+      <ul class="header-mega-menu__levels" role="list">
+        {%- for child in link.links -%}
+          <li class="header-mega-menu__level1" data-reveal="{{ section.settings.mega_level2_reveal }}">
+            <a href="{{ child.url }}" class="header-mega-menu__level1-link">{{ child.title }}</a>
+            {%- if child.links != blank -%}
+              <ul class="header-mega-menu__level2" role="list">
+                {%- for grandchild in child.links -%}
+                  <li><a href="{{ grandchild.url }}">{{ grandchild.title }}</a></li>
+                {%- endfor -%}
+              </ul>
+            {%- endif -%}
+          </li>
+        {%- endfor -%}
+      </ul>
+    </div>
+
+    {%- if section.settings.show_focus_items and focus_items_count > 0 -%}
+      <div class="header-mega-menu__focus">
+        <p class="header-mega-menu__eyebrow">Focus items</p>
+        <div class="header-mega-menu__focus-cards">
+          {%- for block in section.blocks -%}
+            {%- if block.type == 'focus_item' and block.settings.parent_label == link.title -%}
+              <a href="{{ block.settings.link | default: link.url }}" class="header-focus-card" {{ block.shopify_attributes }}>
+                {%- if block.settings.image != blank -%}
+                  <div class="header-focus-card__media">
+                    {{ block.settings.image | image_url: width: 520 | image_tag: widths: '240, 360, 520', loading: 'lazy', alt: block.settings.heading }}
+                  </div>
+                {%- endif -%}
+                <div class="header-focus-card__content">
+                  {%- if block.settings.badge != blank -%}
+                    <span class="header-focus-card__badge">{{ block.settings.badge }}</span>
+                  {%- endif -%}
+                  <h4>{{ block.settings.heading }}</h4>
+                  <p>{{ block.settings.text }}</p>
+                </div>
+              </a>
+            {%- endif -%}
+          {%- endfor -%}
+        </div>
+      </div>
+    {%- endif -%}
+
+    {%- if section.settings.mega_aux_menu != blank -%}
+      <div class="header-mega-menu__submenu">
+        <p class="header-mega-menu__eyebrow">Sub menu</p>
+        <ul role="list">
+          {%- for aux_link in linklists[section.settings.mega_aux_menu].links -%}
+            <li><a href="{{ aux_link.url }}">{{ aux_link.title }}</a></li>
+          {%- endfor -%}
+        </ul>
+      </div>
+    {%- endif -%}
+  </div>
+</div>

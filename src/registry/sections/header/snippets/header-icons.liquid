@@ -1,0 +1,94 @@
+{%- liquid
+  assign search_display = section.settings.search_display_desktop
+  assign account_display = section.settings.account_display_desktop
+  assign favorites_display = section.settings.favorites_display_desktop
+  if device == 'mobile'
+    assign search_display = section.settings.search_display_mobile
+    assign account_display = section.settings.account_display_mobile
+    assign favorites_display = section.settings.favorites_display_mobile
+  endif
+-%}
+
+<div class="header-actions-group header-actions-group--{{ device }} header-actions-group--{{ slot }}">
+  {%- if search_display == slot -%}
+    <button
+      type="button"
+      class="header-action-button js-drawer-toggle"
+      data-target="header-search-{{ section.id }}"
+      aria-controls="header-search-{{ section.id }}"
+      aria-expanded="false"
+    >
+      {%- if section.settings.search_trigger_style == 'icon' or section.settings.search_trigger_style == 'both' -%}
+        <span class="header-action-button__icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+        </span>
+      {%- endif -%}
+      {%- if section.settings.search_trigger_style == 'text' or section.settings.search_trigger_style == 'both' -%}
+        <span class="header-action-button__label">Search</span>
+      {%- endif -%}
+    </button>
+  {%- endif -%}
+
+  {%- if account_display == slot and shop.customer_accounts_enabled -%}
+    {%- if section.settings.account_behavior == 'page' -%}
+      <a href="{%- if customer -%}{{ routes.account_url }}{%- else -%}{{ routes.account_login_url }}{%- endif -%}" class="header-action-button">
+        <span class="header-action-button__icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 21a8 8 0 0 0-16 0"></path><circle cx="12" cy="8" r="4"></circle></svg>
+        </span>
+        <span class="visually-hidden">Account</span>
+      </a>
+    {%- else -%}
+      <button
+        type="button"
+        class="header-action-button js-drawer-toggle"
+        data-target="header-account-{{ section.id }}"
+        aria-controls="header-account-{{ section.id }}"
+        aria-expanded="false"
+      >
+        <span class="header-action-button__icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 21a8 8 0 0 0-16 0"></path><circle cx="12" cy="8" r="4"></circle></svg>
+        </span>
+        <span class="visually-hidden">Account</span>
+      </button>
+    {%- endif -%}
+  {%- endif -%}
+
+  {%- if favorites_display == slot and section.settings.favorites_url != blank -%}
+    <a href="{{ section.settings.favorites_url }}" class="header-action-button">
+      <span class="header-action-button__icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 21s-6.7-4.35-9.2-8.15C.6 9.5 2.05 5.5 6.25 4.7c2.1-.4 4.05.45 5.75 2.6 1.7-2.15 3.65-3 5.75-2.6 4.2.8 5.65 4.8 3.45 8.15C18.7 16.65 12 21 12 21z"></path></svg>
+      </span>
+      <span class="visually-hidden">Favorites</span>
+    </a>
+  {%- endif -%}
+
+  {%- if section.settings.cart_position == slot -%}
+    {%- if section.settings.cart_behavior == 'page' -%}
+      <a href="{{ routes.cart_url }}" class="header-action-button header-action-button--cart">
+        <span class="header-action-button__icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h2l2.2 10.5h8.9L20 8H7.2"></path><circle cx="10" cy="19" r="1.5"></circle><circle cx="17" cy="19" r="1.5"></circle></svg>
+        </span>
+        {%- if section.settings.cart_design == 'text' or section.settings.cart_design == 'both' -%}
+          <span class="header-action-button__label">Cart</span>
+        {%- endif -%}
+        <span class="header-cart-count">{{ cart.item_count }}</span>
+      </a>
+    {%- else -%}
+      <button
+        type="button"
+        class="header-action-button header-action-button--cart js-drawer-toggle"
+        data-target="header-cart-{{ section.id }}"
+        aria-controls="header-cart-{{ section.id }}"
+        aria-expanded="false"
+      >
+        <span class="header-action-button__icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h2l2.2 10.5h8.9L20 8H7.2"></path><circle cx="10" cy="19" r="1.5"></circle><circle cx="17" cy="19" r="1.5"></circle></svg>
+        </span>
+        {%- if section.settings.cart_design == 'text' or section.settings.cart_design == 'both' -%}
+          <span class="header-action-button__label">Cart</span>
+        {%- endif -%}
+        <span class="header-cart-count">{{ cart.item_count }}</span>
+      </button>
+    {%- endif -%}
+  {%- endif -%}
+</div>

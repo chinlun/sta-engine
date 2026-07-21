@@ -1,0 +1,28 @@
+<div
+  id="header-search-{{ section.id }}"
+  class="header-panel header-panel--search header-panel--{{ section.settings.search_open_from }}"
+  data-panel-type="search"
+  aria-hidden="true"
+>
+  <div class="header-panel__inner">
+    <div class="header-panel__header">
+      <h3 class="header-panel__title">Search</h3>
+      <button type="button" class="header-panel__close js-drawer-close" aria-label="Close search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 6l12 12"></path><path d="M18 6l-12 12"></path></svg>
+      </button>
+    </div>
+
+    <form class="header-search-form js-header-search-form" action="{{ routes.search_url }}" method="get" role="search" data-results-mode="{{ section.settings.search_results_mode }}">
+      <label class="visually-hidden" for="header-search-input-{{ section.id }}">Search</label>
+      <div class="header-search-form__row">
+        <input id="header-search-input-{{ section.id }}" class="header-search-form__input js-header-search-input" type="search" name="q" placeholder="Search products, collections, and pages" autocomplete="off">
+        <button class="header-search-form__submit" type="submit">Search</button>
+      </div>
+      {%- if section.settings.search_results_mode == 'dropdown' -%}
+        <div class="header-search-results js-header-search-results" hidden>
+          <div class="header-search-results__inner"></div>
+        </div>
+      {%- endif -%}
+    </form>
+  </div>
+</div>

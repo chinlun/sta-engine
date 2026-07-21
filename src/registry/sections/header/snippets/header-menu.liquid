@@ -1,0 +1,94 @@
+{%- if is_mobile -%}
+  <button
+    type="button"
+    class="header-burger-button js-drawer-toggle"
+    data-target="header-mobile-menu-{{ section.id }}"
+    aria-controls="header-mobile-menu-{{ section.id }}"
+    aria-expanded="false"
+  >
+    <span class="visually-hidden">Open menu</span>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h18"></path><path d="M3 12h18"></path><path d="M3 18h18"></path></svg>
+  </button>
+
+  <div
+    id="header-mobile-menu-{{ section.id }}"
+    class="header-panel header-panel--mobile-nav header-panel--{{ section.settings.mobile_nav_reveal }}"
+    data-panel-type="mobile-nav"
+    aria-hidden="true"
+  >
+    <div class="header-panel__inner">
+      <div class="header-panel__header">
+        <h3 class="header-panel__title">Menu</h3>
+        <button type="button" class="header-panel__close js-drawer-close" aria-label="Close menu">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 6l12 12"></path><path d="M18 6l-12 12"></path></svg>
+        </button>
+      </div>
+      <div class="header-panel__body">
+        <ul class="header-mobile-nav" role="list">
+          {%- for link in linklists[menu].links -%}
+            <li class="header-mobile-nav__item">
+              <a href="{{ link.url }}" class="header-mobile-nav__link">{{ link.title }}</a>
+              {%- if link.links != blank -%}
+                <ul class="header-mobile-nav__sublist" role="list">
+                  {%- for child in link.links -%}
+                    <li>
+                      <a href="{{ child.url }}">{{ child.title }}</a>
+                      {%- if child.links != blank -%}
+                        <ul role="list">
+                          {%- for grandchild in child.links -%}
+                            <li><a href="{{ grandchild.url }}">{{ grandchild.title }}</a></li>
+                          {%- endfor -%}
+                        </ul>
+                      {%- endif -%}
+                    </li>
+                  {%- endfor -%}
+                </ul>
+              {%- endif -%}
+            </li>
+          {%- endfor -%}
+        </ul>
+      </div>
+    </div>
+  </div>
+{%- else -%}
+  {%- if section.settings.desktop_menu_content == 'burger' -%}
+    <button
+      type="button"
+      class="header-burger-button js-drawer-toggle"
+      data-target="header-mobile-menu-{{ section.id }}"
+      aria-controls="header-mobile-menu-{{ section.id }}"
+      aria-expanded="false"
+    >
+      <span class="visually-hidden">Open navigation</span>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h18"></path><path d="M3 12h18"></path><path d="M3 18h18"></path></svg>
+    </button>
+  {%- else -%}
+    <nav class="header-nav" aria-label="Primary navigation">
+      <ul class="header-nav__list" role="list">
+        {%- for link in linklists[menu].links -%}
+          {%- assign has_children = false -%}
+          {%- if link.links != blank -%}
+            {%- assign has_children = true -%}
+          {%- endif -%}
+          <li class="header-nav__item{% if has_children %} has-children{% endif %}"{% if has_children %} data-trigger="{{ section.settings.subnav_behavior }}"{% endif %}>
+            <a href="{{ link.url }}" class="header-nav__link{% if link.current %} is-active{% endif %}">{{ link.title }}</a>
+            {%- if has_children and section.settings.menu_dropdown_type == 'subnav' -%}
+              <div class="header-subnav">
+                <p class="header-subnav__headline">{{ section.settings.subnav_headline }}</p>
+                <ul class="header-subnav__list" role="list">
+                  {%- for child in link.links -%}
+                    <li>
+                      <a href="{{ child.url }}">{{ child.title }}</a>
+                    </li>
+                  {%- endfor -%}
+                </ul>
+              </div>
+            {%- elsif has_children and section.settings.menu_dropdown_type == 'mega' -%}
+              {% render 'header-mega-menu', section: section, link: link %}
+            {%- endif -%}
+          </li>
+        {%- endfor -%}
+      </ul>
+    </nav>
+  {%- endif -%}
+{%- endif -%}

@@ -1,0 +1,25 @@
+{
+  "name": "Ultimate Header Registry",
+  "handle": "header-ultimate",
+  "version": "1.2.0",
+  "description": "The most comprehensive Shopify OS 2.0 header registry. Supports full/boxed layouts, sticky/transparent behaviors, mega menus, slide-in drawers for cart/search/account, and granular mobile controls.",
+  "category": "Layout",
+  "files": {
+    "section": "section.liquid",
+    "styles": "styles.css",
+    "script": "script.js",
+    "snippets": [
+      "snippets/header-logo.liquid",
+      "snippets/header-menu.liquid",
+      "snippets/header-search.liquid",
+      "snippets/header-icons.liquid",
+      "snippets/header-cart-drawer.liquid",
+      "snippets/header-mega-menu.liquid",
+      "snippets/header-account-panel.liquid"
+    ],
+    "presets": [
+      "presets/default.json"
+    ]
+  },
+  "schema_version": "2.0"
+}
