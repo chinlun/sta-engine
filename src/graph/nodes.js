@@ -8,6 +8,9 @@ const fs = require('fs');
 const path = require('path');
 const { uploadThemeState, getThemeState } = require("../services/r2-service");
 const { loadHeaderRegistry, assembleHeaderFiles } = require("../registry/header-assembler");
+const { extractBriefSignals } = require("../services/signal-extractor");
+const { mapSignalsToSchema, sanitizeBusinessFacts } = require("../services/schema-mapper");
+const { validateGeneratedTheme } = require("../services/post-gen-validator");
 
 /**
  * Helper to sleep with exponential backoff and jitter
@@ -56,7 +59,13 @@ async function resolveUnsplashPlaceholders(files, state) {
         const replacements = {};
         await Promise.all(Array.from(queries).map(async (rawQuery) => {
             let cleanQueryKey = rawQuery.replace(/[{}]+/g, '').trim();
-            let query = decodeURIComponent(cleanQueryKey).replace(/[-_]+/g, ' ');
+            let query = cleanQueryKey;
+            try {
+                query = decodeURIComponent(cleanQueryKey);
+            } catch (e) {
+                logger.warn(`[Unsplash] Failed to decode query key '${cleanQueryKey}': ${e.message}`);
+            }
+            query = query.replace(/[-_]+/g, ' ');
             
             const genericKeywords = ['product', 'image', 'keyword', 'placeholder', 'fallback', 'temp', 'dummy', 'default'];
             const isGeneric = genericKeywords.some(kw => query.toLowerCase() === kw || query.toLowerCase().includes('image keyword') || query.toLowerCase().includes('product image'));
@@ -626,11 +635,23 @@ AESTHETIC RULES:
 
     logger.debug({ node: 'designer', rawOutput: finalObject }, 'LLM response');
 
+    // Run Stage A & Stage B Intelligence Workflow
+    let extractedSignals = null;
+    let mappedSchema = null;
+    try {
+        extractedSignals = await extractBriefSignals(userPrompt);
+        mappedSchema = mapSignalsToSchema(extractedSignals, state.shopName);
+    } catch (err) {
+        logger.warn(`[Graph] Intelligence workflow error in designerNode: ${err.message}`);
+    }
+
     const duration = Date.now() - startTime;
     logger.info(`[Graph] ✅ Node: designerNode complete (${duration}ms)`);
 
     return {
         designTokens: finalObject,
+        extractedSignals,
+        mappedSchema,
         reasoning: { node: 'designer', text: finalObject.reasoning },
         isFallback: localIsFallback
     };
@@ -885,7 +906,28 @@ main {
 }
     `.trim();
 
-    // 2. Generate theme.liquid (Fixed Store-Compliant Template)
+    // 2. Generate theme-brand.css for isolated brand delta overrides
+    const mapped = state.mappedSchema;
+    const colorSchemes = mapped?.color_schemes || {};
+    const typography = mapped?.typography || {};
+    const layout = mapped?.layout || {};
+
+    const brandCss = `
+/* Isolated Brand Delta Overrides (assets/theme-brand.css) */
+:root {
+  --color-primary: ${colorSchemes.primary || c.primary || '#000000'};
+  --color-secondary: ${colorSchemes.secondary || c.secondary || '#999999'};
+  --color-background: ${colorSchemes.background || c.background || '#ffffff'};
+  --color-surface: ${colorSchemes.surface || c.surface || '#f4f4f4'};
+  --color-text: ${colorSchemes.text || c.text || '#111111'};
+  --font-heading: '${typography.heading_font || 'Playfair Display'}', serif;
+  --font-body: '${typography.body_font || 'Inter'}', sans-serif;
+  --container-max-width: ${layout.container_width || 1280}px;
+  --border-radius-base: ${layout.corner_radius || 4}px;
+}
+`.trim();
+
+    // 3. Generate theme.liquid (Fixed Store-Compliant Template with isolated asset links)
     const themeLiquid = `
 <!doctype html>
 <html class="no-js" lang="{{ request.locale.iso_code }}">
@@ -906,6 +948,7 @@ main {
   {{ content_for_header }}
 
   {{ 'base.css' | asset_url | stylesheet_tag }}
+  {{ 'theme-brand.css' | asset_url | stylesheet_tag }}
   <script src="https://cdn.jsdelivr.net/npm/lucide@latest"></script>
   <script>
     function initLucide() {
@@ -938,7 +981,8 @@ main {
 
     const files = [
         { path: 'layout/theme.liquid', content: themeLiquid },
-        { path: 'assets/base.css', content: baseCss }
+        { path: 'assets/base.css', content: baseCss },
+        { path: 'assets/theme-brand.css', content: brandCss }
     ];
 
     const duration = Date.now() - startTime;
@@ -1191,7 +1235,7 @@ ${contextBank.getPrunedContext('coder', targetComponent, selectedDesignSystem)}
 
 ## THE ARCHITECTURAL RULES
 You are a Senior Frontend Engineer. Build a stunning, bespoke editorial eCommerce section.
-- STYLING: EXCLUSIVELY use Vanilla CSS inside a <style> tag within the section. Use the CSS variables provided in :root (--color-primary, --font-heading, etc.).
+- ASSET ISOLATION (NO INLINE CSS/JS): NEVER write <style>, {%- style -%}, or <script> tags inside .liquid section files. Custom styles must be placed in CSS asset files or leverage CSS variables in assets/theme-brand.css.
 - NO TAILWIND: Do NOT use Tailwind utility classes (py-10, flex, etc.) in the HTML. Use standard CSS classes.
 - SHOP NAME: The name of the merchant's store is "${shopName || 'Shopify Store'}". When generating the header, footer, logo section, or copyright notices, always set the default value for the logo text or shop name setting in the schema settings to exactly "${shopName || 'Shopify Store'}" (rather than using generic placeholder text). In Liquid, use \`{{ section.settings.logo_text | default: shop.name }}\` or similar settings to allow customizability while defaulting to the configured shop name.
 - CONTENT: Use the provided "Sophisticated" content exactly. Do NOT hallucinate generic copy.
@@ -1259,6 +1303,51 @@ You are a Senior Frontend Engineer. Build a stunning, bespoke editorial eCommerc
         }
     }
     logger.debug({ node: 'coder', rawOutput: finalObject }, 'LLM response');
+
+    // Auto Asset Extraction Guardrail: Extract inline <style>, {%- style -%}, and <script> from generated liquid files into asset files
+    const additionalFiles = [];
+    for (const file of (finalObject.files || [])) {
+        if (file.path && file.path.endsWith('.liquid')) {
+            const sectionBasename = path.basename(file.path, '.liquid');
+            let extractedCss = "";
+            let extractedJs = "";
+
+            file.content = file.content.replace(/\{(?:%-|%)\s*style\s*(?:-%|%)\}([\s\S]*?)\{(?:%-|%)\s*endstyle\s*(?:-%|%)\}/gi, (_, css) => {
+                extractedCss += css + "\n";
+                return "";
+            });
+
+            file.content = file.content.replace(/<style[\s>][\s\S]*?<\/style>/gi, (match) => {
+                const css = match.replace(/<style[\s>]*?>/i, '').replace(/<\/style>/i, '');
+                extractedCss += css + "\n";
+                return "";
+            });
+
+            file.content = file.content.replace(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi, (_, js) => {
+                extractedJs += js + "\n";
+                return "";
+            });
+
+            if (extractedCss.trim()) {
+                const cssPath = `assets/section-${sectionBasename}.css`;
+                const assetTag = `{{ 'section-${sectionBasename}.css' | asset_url | stylesheet_tag }}\n`;
+                if (!file.content.includes(assetTag.trim())) {
+                    file.content = assetTag + file.content.trim();
+                }
+                additionalFiles.push({ path: cssPath, content: extractedCss.trim() });
+            }
+
+            if (extractedJs.trim()) {
+                const jsPath = `assets/section-${sectionBasename}.js`;
+                const scriptTag = `<script src="{{ 'section-${sectionBasename}.js' | asset_url }}" defer="defer"></script>\n`;
+                if (!file.content.includes(scriptTag.trim())) {
+                    file.content = scriptTag + file.content.trim();
+                }
+                additionalFiles.push({ path: jsPath, content: extractedJs.trim() });
+            }
+        }
+    }
+    finalObject.files.push(...additionalFiles);
 
     await resolveUnsplashPlaceholders(finalObject.files, state);
 
@@ -1483,9 +1572,11 @@ async function assemblyQcNode(state, config) {
 
         IntegrityManager.validate(mods);
 
-        // Gate B: Assembly Level Check (Note: This is intensive, usually run on final sync, but we can mock or run here if local)
-        // For Gate B, we typically want cross-reference checks.
-        // We will run this on the temporary build directory if needed.
+        // Post-Generation Validation Suite (7 Verification Checks)
+        const valReport = validateGeneratedTheme(state.generatedFiles || []);
+        if (!valReport.passed) {
+            errors.push(...valReport.errors.map(e => `[PostGen Validation Error] ${e}`));
+        }
     } catch (e) {
         errors.push(`[Integrity Error] ${e.message || String(e)}`);
     }

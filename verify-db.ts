@@ -5,7 +5,7 @@ dotenv.config();
 
 async function test() {
     console.log("🧪 Testing Postgres Database Service...");
-    
+
     // Check if env vars are present
     if (!process.env.DATABASE_URL) {
         console.warn("⚠️ Missing DATABASE_URL. Skipping Postgres test.");
@@ -14,7 +14,7 @@ async function test() {
 
     try {
         await initPostgres();
-        
+
         const checkpointer = getCheckpointer();
         await checkpointer.setup();
         console.log("✅ PostgresSaver checkpointer tables initialized.");

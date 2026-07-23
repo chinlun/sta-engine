@@ -154,37 +154,42 @@ function assembleHeaderFiles(registry, configPatch, designTokens = {}, shopName 
         logger.warn(`[HeaderRegistry] Failed to update schema JSON: ${err.message}`);
     }
 
-    // 2. Append CSS and JS to section.liquid
-    const combinedStyles = `
-<style>
-${stylesCss}
-${deltaCss}
-</style>
-`.trim();
-
-    const combinedScript = `
-<script>
-${scriptJs}
-${deltaJs}
-</script>
-`.trim();
-
-    // Insert styles and script before {% schema %}
-    const schemaIdx = customizedSectionLiquid.indexOf('{% schema %}');
-    if (schemaIdx !== -1) {
-        customizedSectionLiquid = 
-            customizedSectionLiquid.slice(0, schemaIdx) +
-            '\n\n' + combinedStyles + '\n\n' + combinedScript + '\n\n' +
-            customizedSectionLiquid.slice(schemaIdx);
-    } else {
-        customizedSectionLiquid += '\n\n' + combinedStyles + '\n\n' + combinedScript;
+    // 2. Asset Isolation: Prepend asset tags into section.liquid (No inline <style> or <script> blocks)
+    const assetTags = `{{ 'section-header.css' | asset_url | stylesheet_tag }}\n<script src="{{ 'section-header.js' | asset_url }}" defer="defer"></script>\n`;
+    if (!customizedSectionLiquid.includes("section-header.css")) {
+        customizedSectionLiquid = assetTags + '\n' + customizedSectionLiquid;
     }
 
-    // 3. Assemble all files
+    // 3. Populate header-group.json config without empty {} objects
+    const headerGroupJson = {
+        name: "Header Group",
+        type: "header",
+        sections: {
+            header: {
+                type: "header",
+                settings: Object.keys(sanitizedSettings).length > 0 ? sanitizedSettings : { background_color: defaultBg, text_color: defaultText }
+            }
+        },
+        order: ["header"]
+    };
+
+    // 4. Assemble all files with asset isolation
     const resultFiles = [
         {
             path: 'sections/header.liquid',
             content: customizedSectionLiquid
+        },
+        {
+            path: 'assets/section-header.css',
+            content: `${stylesCss}\n${deltaCss}`.trim()
+        },
+        {
+            path: 'assets/section-header.js',
+            content: `${scriptJs}\n${deltaJs}`.trim()
+        },
+        {
+            path: 'sections/header-group.json',
+            content: JSON.stringify(headerGroupJson, null, 2)
         }
     ];
 

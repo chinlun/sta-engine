@@ -88,9 +88,9 @@ async function intentAnalyzerNode(state, config) {
     const { object } = await generateObject({
         model: gemini3Flash,
         system: "You are a Shopify architect identifying which section file an edit applies to. Determine the exact path of the file that needs changing.",
-        prompt: `Conversation Context:\n${editHistoryText}\n\nLatest User Modification Request: "${userPrompt}"\n\n${sectionMapText}\n\nGlobal layout modifications apply to "layout/theme.liquid". CSS variables apply to "assets/base.css".`,
+        prompt: `Conversation Context:\n${editHistoryText}\n\nLatest User Modification Request: "${userPrompt}"\n\n${sectionMapText}\n\nGlobal layout modifications apply to "layout/theme.liquid". Brand design tokens, colors, and font overrides apply strictly to "assets/theme-brand.css". Header settings apply to "sections/header-group.json".`,
         schema: z.object({
-            targetFilePath: z.string().describe("The full path of the Shopify file to modify, e.g. sections/header.liquid"),
+            targetFilePath: z.string().describe("The full path of the Shopify file to modify, e.g. assets/theme-brand.css or sections/header.liquid"),
             reasoning: z.string()
         }),
         maxTokens: 1024,
@@ -108,7 +108,7 @@ async function intentAnalyzerNode(state, config) {
 
 /**
  * NODE 2: Modifier
- * Applies the user's request to the specific file.
+ * Applies the user's request to the specific file using Surgical Refinement Loop.
  */
 async function modifierNode(state, config) {
     const startTime = Date.now();
@@ -140,7 +140,7 @@ async function modifierNode(state, config) {
 
     messageContent.push({
         type: 'text',
-        text: `Design Tokens (Design DNA): ${JSON.stringify(state.designTokens || {})}\n\n${editHistoryText}\n\nTarget File: ${targetFile}\n\nOriginal Content:\n\`\`\`liquid\n${originalFile.content}\n\`\`\`\n\nUser Request: ${userPrompt}\n\nApply the changes strictly to this file while maintaining standard Shopify/Vanilla CSS architectural rules and keeping aesthetic consistency with the Design DNA. Return the FULL patched file.`
+        text: `Design Tokens (Design DNA): ${JSON.stringify(state.designTokens || {})}\n\n${editHistoryText}\n\nTarget File: ${targetFile}\n\nOriginal Content:\n\`\`\`liquid\n${originalFile.content}\n\`\`\`\n\nUser Request: ${userPrompt}\n\nSurgical Refinement Rules:\n1. Apply changes strictly to ${targetFile} without re-generating base registry files.\n2. Isolate brand overrides into assets/theme-brand.css.\n3. Do NOT inline <style> or <script> tags in Liquid section files.\n4. Every setting change must cite brief evidence with a confidence score. If low confidence, use safe defaults.\n5. Replace unverified business facts with [REPLACE_WITH_*] placeholders.\n\nReturn the FULL patched file.`
     });
 
     if (sendEvent) sendEvent({ type: 'progress', stage: 'modifying', message: `Modifying ${targetFile}...` });
