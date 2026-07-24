@@ -47,6 +47,30 @@ async function resolveUnsplashPlaceholders(files, state) {
         // Clean up common duplicate prefix formatting errors (e.g. https://images.unsplash.com/unsplash://...)
         file.content = file.content.replace(/https:\/\/images\.unsplash\.com\/unsplash:\/\//g, 'unsplash://');
         
+        // Auto Image Array Padding Guardrail:
+        // Fix LLM patterns where placeholder_products has N items (e.g. 6 items) but placeholder_images only has 1 URL.
+        const productsMatch = file.content.match(/assign\s+placeholder_products\s*=\s*["']([^"']+)["']/);
+        if (productsMatch && productsMatch[1]) {
+            const productNames = productsMatch[1].split(';');
+            const count = productNames.length;
+            const imagesMatch = file.content.match(/(assign\s+placeholder_images\s*=\s*["'])([^"']+)(["'])/);
+            if (imagesMatch && imagesMatch[2]) {
+                const currentImages = imagesMatch[2].split(';');
+                if (currentImages.length < count) {
+                    const paddedImages = [];
+                    for (let i = 0; i < count; i++) {
+                        if (currentImages[i] && currentImages[i].trim() && !currentImages[i].includes('unsplash://')) {
+                            paddedImages.push(currentImages[i].trim());
+                        } else {
+                            const slug = productNames[i].toLowerCase().replace(/[^a-z0-9]+/g, '-');
+                            paddedImages.push(`unsplash://${slug}`);
+                        }
+                    }
+                    file.content = file.content.replace(imagesMatch[0], `${imagesMatch[1]}${paddedImages.join(';')}${imagesMatch[3]}`);
+                }
+            }
+        }
+
         const regex = /unsplash:\/\/([^\s"'`><]+)/g;
         let match;
         const queries = new Set();
@@ -1328,13 +1352,31 @@ You are a Senior Frontend Engineer. Build a stunning, bespoke editorial eCommerc
                 return "";
             });
 
-            if (extractedCss.trim()) {
+            // Guarantee section CSS styling: if CSS was extracted or needs fallback styling
+            let sectionCssToBundle = extractedCss.trim();
+            if (!sectionCssToBundle && !file.content.includes('stylesheet_tag')) {
+                sectionCssToBundle = `
+.${sectionBasename} { padding: 60px 0; }
+.${sectionBasename}__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 30px; margin-top: 30px; }
+.product-card { display: flex; flex-direction: column; gap: 12px; }
+.product-card__image-wrapper { width: 100%; aspect-ratio: 1 / 1; overflow: hidden; background-color: var(--color-surface, #f4f4f4); }
+.product-card__image { width: 100%; height: 100%; object-fit: cover; }
+`.trim();
+            }
+
+            if (sectionCssToBundle) {
                 const cssPath = `assets/section-${sectionBasename}.css`;
                 const assetTag = `{{ 'section-${sectionBasename}.css' | asset_url | stylesheet_tag }}\n`;
                 if (!file.content.includes(assetTag.trim())) {
                     file.content = assetTag + file.content.trim();
                 }
-                additionalFiles.push({ path: cssPath, content: extractedCss.trim() });
+                additionalFiles.push({ path: cssPath, content: sectionCssToBundle });
+
+                // Also bundle into assets/theme-brand.css so section CSS is guaranteed to load globally
+                const existingBrandCss = (state.generatedFiles || []).find(f => f.path === 'assets/theme-brand.css');
+                const brandContent = existingBrandCss ? existingBrandCss.content : ":root {}";
+                const updatedBrandContent = `${brandContent}\n\n/* --- Section: ${sectionBasename} --- */\n${sectionCssToBundle}`;
+                additionalFiles.push({ path: 'assets/theme-brand.css', content: updatedBrandContent });
             }
 
             if (extractedJs.trim()) {

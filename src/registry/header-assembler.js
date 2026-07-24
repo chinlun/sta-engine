@@ -86,6 +86,9 @@ function assembleHeaderFiles(registry, configPatch, designTokens = {}, shopName 
 
     // Apply settings patch to schema defaults where matched
     const mergedSettings = {
+        placement: "top",
+        width_mode: "full",
+        boxed_corner_style: "square",
         background_color: defaultBg,
         scroll_background_color: defaultBg,
         text_color: defaultText,
