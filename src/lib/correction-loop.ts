@@ -53,7 +53,8 @@ ${sectionsList ? `AVAILABLE SECTIONS: ${sectionsList}\n` : ''}
 
 RULES:
 ${isLiquid ? `- This is a Liquid template file. It MUST contain valid Liquid syntax.
-- Section files MUST have a {% schema %} block with valid JSON inside.
+- Ensure all string parameters in Liquid filters (e.g. split: ',', split: '"') have properly balanced single or double quotes.
+- Section files MUST retain their {% schema %} and {% endschema %} blocks with valid JSON inside.
 - Schema "name" must be ≤25 characters.
 - Do NOT use "product_picker" type. Use "product" instead.
 - Schema must NOT have both "default" and "presets".

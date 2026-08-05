@@ -662,6 +662,37 @@ function repairLiquidSyntax(mod: any): number {
         });
     }
 
+    // Repair 2: Malformed or unclosed quote in split / filter arguments
+    // Pattern e.g.: | split: '" or | split: '
+    const malformedSplitRegex = /(\|\s*split:\s*)(['"])([^'"]*?)(?=\s*-?%\}|\s*\}\})/g;
+    if (malformedSplitRegex.test(content)) {
+        content = content.replace(malformedSplitRegex, (match: string, prefix: string, quote: string, val: string) => {
+            if (!val.endsWith(quote)) {
+                repairCount++;
+                // If quote is unmatched (e.g. split: '" ), replace with valid split: ',' or close the quote
+                return `${prefix}${quote}${val}${quote}`;
+            }
+            return match;
+        });
+    }
+
+    // Repair 3: General unclosed quotes in Liquid tags before tag end (%} or }})
+    const unclosedTagQuoteRegex = /(\{%[\s\S]*?%\}|\{\{[\s\S]*?\}\})/g;
+    content = content.replace(unclosedTagQuoteRegex, (tagMatch: string) => {
+        // If single quote count inside tag is odd
+        const singleQuotes = (tagMatch.match(/'/g) || []).length;
+        const doubleQuotes = (tagMatch.match(/"/g) || []).length;
+        if (singleQuotes % 2 !== 0 && tagMatch.includes("|")) {
+            // Fix unclosed single quote right before %} or }}
+            const fixedTag = tagMatch.replace(/(['"])([^'"]*?)(\s*-?%\}|\s*\}\})$/, "$1$2$1$3");
+            if (fixedTag !== tagMatch) {
+                repairCount++;
+                return fixedTag;
+            }
+        }
+        return tagMatch;
+    });
+
     if (repairCount > 0) {
         updateModContent(mod, content);
     }

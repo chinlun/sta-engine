@@ -53,9 +53,10 @@ export class SyncOrchestrator {
             let resolveResult: (res: SyncResult) => void;
             const resultPromise = new Promise<SyncResult>((res) => { resolveResult = res; });
 
+            const baseName = path.basename(filePath);
             const stopMonitor = flyMachineService.monitorLogs(machineId, async (entry: LogEntry) => {
                 // 1. Success Detection
-                const isSuccess = entry.message.includes('Synced »') && entry.message.includes(filePath);
+                const isSuccess = entry.message.includes('Synced »') && (entry.message.includes(filePath) || entry.message.includes(baseName));
                 if (isSuccess) {
                     logger.info(`[SyncOrchestrator] ✅ Verified sync for ${filePath}`);
                     stopMonitor();
@@ -63,8 +64,12 @@ export class SyncOrchestrator {
                     return;
                 }
 
-                // 2. Error Detection (must contain file path)
-                const isError = entry.type === 'error' && entry.message.includes(filePath);
+                // 2. Error Detection (must match file path or base name, or contain liquid syntax error)
+                const isError = entry.type === 'error' && (
+                    entry.message.includes(filePath) || 
+                    entry.message.includes(baseName) || 
+                    entry.message.toLowerCase().includes('liquid syntax error')
+                );
                 if (isError) {
                     logger.warn(`[SyncOrchestrator] ⚠️ Error detected for ${filePath}: ${entry.message}`);
                     stopMonitor();
@@ -274,6 +279,21 @@ export class SyncOrchestrator {
                         }
                     } catch (e) { }
                 }
+            }
+        }
+
+        // --- 5.5. Regex: Liquid syntax & quote errors ---
+        if (!handled && (reason.toLowerCase().includes("liquid syntax error") || reason.includes("Unexpected character"))) {
+            const malformedSplitRegex = /(\|\s*split:\s*)(['"])([^'"]*?)(?=\s*-?%\}|\s*\}\})/g;
+            if (malformedSplitRegex.test(newContent)) {
+                newContent = newContent.replace(malformedSplitRegex, (match: string, prefix: string, quote: string, val: string) => {
+                    if (!val.endsWith(quote)) {
+                        return `${prefix}${quote}${val}${quote}`;
+                    }
+                    return match;
+                });
+                logger.info(`[Sync] ✅ [Regex] Auto-balanced quotes in Liquid filter for "${filePath}"`);
+                handled = true;
             }
         }
 
