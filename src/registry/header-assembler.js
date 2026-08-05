@@ -84,8 +84,10 @@ function assembleHeaderFiles(registry, configPatch, designTokens = {}, shopName 
         logger.warn(`[HeaderRegistry] Failed to parse schema JSON for validation: ${err.message}`);
     }
 
-    // Apply settings patch to schema defaults where matched
+    // Apply settings patch on top of registry default.json preset and schema defaults
+    const presetSettings = registry?.defaultPreset?.settings || {};
     const mergedSettings = {
+        ...presetSettings,
         placement: "top",
         width_mode: "full",
         boxed_corner_style: "square",

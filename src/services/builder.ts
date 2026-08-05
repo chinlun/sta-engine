@@ -225,6 +225,12 @@ export function validateAndRepair(plan: ThemePlan | BuildThemeToolParams): Valid
                     } catch (e) { }
                 }
 
+                // AI Schema repairs (url default stripping, product_picker fix, preset conflicts)
+                const schemaRepairCount = repairShopifySchema(mod);
+                if (schemaRepairCount > 0) {
+                    result.repairs.push(`Auto-repaired ${schemaRepairCount} schema violations in "${mod.filePath}"`);
+                }
+
                 // AI Liquid syntax: modulo pipe in if-tag
                 const syntaxRepairCount = repairLiquidSyntax(mod);
                 if (syntaxRepairCount > 0) {
@@ -518,20 +524,35 @@ function repairShopifySchema(mod: any): number {
     schemaJson = schemaJson.replace(/"type":\s*"product_picker"/g, '"type": "product"');
     repairCount++;
 
-    // Repair 2: Remove "default" entirely for "type": "url" if it contains an anchor link (#)
-    // Case A: "type": "url" comes BEFORE "default"
-    const urlDefaultRegexA = /("type":\s*"url"[\s\S]*?),\s*"default":\s*"#[^"]*?"/g;
-    if (urlDefaultRegexA.test(schemaJson)) {
-        schemaJson = schemaJson.replace(urlDefaultRegexA, '$1');
-        repairCount++;
-    }
+    // Repair 2: Remove "default" property from all settings of type "url" (Shopify rejects default values on url picker settings)
+    try {
+        const parsed = JSON.parse(schemaJson);
+        let urlRepaired = false;
 
-    // Case B: "default" comes BEFORE "type": "url"
-    const urlDefaultRegexB = /"default":\s*"#[^"]*?",\s*([\s\S]*?"type":\s*"url")/g;
-    if (urlDefaultRegexB.test(schemaJson)) {
-        schemaJson = schemaJson.replace(urlDefaultRegexB, '$1');
-        repairCount++;
-    }
+        const cleanUrlSettings = (settingsArr: any[]) => {
+            if (Array.isArray(settingsArr)) {
+                for (const s of settingsArr) {
+                    if (s && s.type === 'url' && s.default !== undefined) {
+                        delete s.default;
+                        urlRepaired = true;
+                    }
+                }
+            }
+        };
+
+        if (parsed.settings) cleanUrlSettings(parsed.settings);
+        if (parsed.blocks && Array.isArray(parsed.blocks)) {
+            for (const b of parsed.blocks) {
+                if (b && b.settings) cleanUrlSettings(b.settings);
+            }
+        }
+
+        if (urlRepaired) {
+            schemaJson = JSON.stringify(parsed, null, 2);
+            repairCount++;
+            logger.info(`[Validator] 🛠️ Auto-removed 'default' from 'url' type setting in ${mod.filePath}`);
+        }
+    } catch (e) { }
 
     // Repair 3: SVG Placeholder hallucinations (e.g., "texture-1" -> "image")
     // Official list from https://shopify.dev/docs/api/liquid/filters/placeholder_svg_tag

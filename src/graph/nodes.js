@@ -1084,9 +1084,26 @@ async function coderNode(state, config) {
 For every section request:
 1. Parse the brief into required capabilities, constraints, content slots, visual requirements, and exclusions.
 2. Inspect the Section Registry before generating implementation code.
-3. Select the registry section and preset that satisfy the brief with the smallest delta.
-4. Configure supported settings, blocks, snippets, and content bindings using the registry contract.
-5. Generate only the delta that the registry cannot already provide.
+3. Select and configure supported settings, blocks, snippets, and content bindings using the registry contract.
+4. Evaluate the user prompt, store category, and brand vibe to reason about and choose header layout settings in settings_patch:
+   - desktop_menu_position: Choose 'left', 'center', or 'right'.
+     * SET TO 'left' (with desktop_logo_position 'left') FOR ALL STANDARD E-COMMERCE CATEGORIES:
+       - Children's products, toys, plush/soft toys (e.g. Jellycat, Lego), baby & kids gear, family retail.
+       - Tech, gadgets, consumer electronics, computer hardware, mobile accessories.
+       - Apparel, streetwear, sportswear, shoes & footwear, outdoor gear, fitness.
+       - Home goods, furniture, kitchenware, tools, hardware, pet supplies, office/stationery.
+       - Food & beverage, coffee, tea, snacks, grocery.
+     * SET TO 'center' (with desktop_logo_position 'center' or 'left') ONLY FOR HIGH-END EDITORIAL & LUXURY CATEGORIES:
+       - Luxury timepieces, fine jewelry, haute couture, luxury leather goods.
+       - Premium skincare, fine fragrance, artisanal cosmetics.
+       - High-fashion lookbooks, fine art prints, bespoke collectibles.
+     * CRITICAL OVERRIDE: If the user explicitly requested a menu or logo position in their prompt (e.g., "put menu on left"), ALWAYS honor the explicit placement request over category defaults.
+   - desktop_logo_position: 'left' or 'center'
+   - background_mode: 'solid', 'transparent_slide', or 'transparent_fade' (e.g. use transparent overlay modes for hero-heavy or luxury landing pages)
+   - width_mode: 'full' or 'boxed'
+   - show_status_bar & status_bar_text: toggle status bar and set brand-relevant announcement text (e.g. "Free shipping on orders over $100" or custom brand promise).
+   Detail your layout reasoning and aesthetic choices in the 'rationale' output field.
+5. Generate only the delta CSS/JS that the registry cannot already provide.
 6. Never rewrite registry-owned files unless the task explicitly asks for a registry package change.
 7. Preserve manifest schema, snippet boundaries, asset ownership, examples, and tests.
 
@@ -1097,6 +1114,7 @@ Available Select Settings & Allowed Options:
 - boxed_corner_style: ["square", "round"]
 - background_mode: ["solid", "transparent_slide", "transparent_fade"]
 - desktop_menu_position: ["left", "center", "right"]
+- desktop_logo_position: ["left", "center", "right"]
 - desktop_menu_content: ["items", "burger"]
 - cart_position: ["left", "right", "none"]
 - search_display_desktop: ["none", "left", "right"]
@@ -1109,10 +1127,11 @@ ${adaptiveInstructions}
 
 Output MUST follow the JSON schema:
 - rationale: brief explanation of section selection and configuration
-- settings_patch: object mapping schema setting IDs to custom values (e.g. {"background_color": "#000000", "desktop_menu_position": "left", "show_status_bar": true, "status_bar_text": "Welcome to our store"})
+- settings_patch: object mapping schema setting IDs to custom values (e.g. {"background_color": "#000000", "desktop_menu_position": "left", "desktop_logo_position": "left", "show_status_bar": true, "status_bar_text": "Free express shipping"})
 - delta_css: optional string for custom styling hooks if brief requires visual styling not in settings
 - delta_js: optional custom Javascript if brief requires unsupported interactions`,
-                        prompt: `User Prompt & Content for Header:
+                        prompt: `User Prompt & Design Intent:
+User Goal: ${state.userPrompt || 'Modern eCommerce store'}
 Store Name: ${shopName || 'Shopify Store'}
 Design Tokens: ${JSON.stringify(designTokens)}
 Brief Content: ${JSON.stringify(sectionContent[componentNameFull] || sectionContent[targetComponent.name] || {})}`,

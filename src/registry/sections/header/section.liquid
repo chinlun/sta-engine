@@ -43,21 +43,21 @@
     <div class="header-inner{% if section.settings.width_mode == 'boxed' %} page-width{% endif %}">
       <div class="header-desktop" aria-label="Desktop header">
         <div class="header-slot header-slot--left">
-          {%- if section.settings.desktop_menu_position == 'left' -%}
-            {% render 'header-menu', section: section, menu: section.settings.menu, is_mobile: false %}
-          {%- endif -%}
           {%- if section.settings.enable_logo_desktop and section.settings.desktop_logo_position == 'left' -%}
             {% render 'header-logo', section: section, is_mobile: false %}
+          {%- endif -%}
+          {%- if section.settings.desktop_menu_position == 'left' -%}
+            {% render 'header-menu', section: section, menu: section.settings.menu, is_mobile: false %}
           {%- endif -%}
           {% render 'header-icons', section: section, device: 'desktop', slot: 'left' %}
         </div>
 
         <div class="header-slot header-slot--center">
-          {%- if section.settings.desktop_menu_position == 'center' -%}
-            {% render 'header-menu', section: section, menu: section.settings.menu, is_mobile: false %}
-          {%- endif -%}
           {%- if section.settings.enable_logo_desktop and section.settings.desktop_logo_position == 'center' -%}
             {% render 'header-logo', section: section, is_mobile: false %}
+          {%- endif -%}
+          {%- if section.settings.desktop_menu_position == 'center' -%}
+            {% render 'header-menu', section: section, menu: section.settings.menu, is_mobile: false %}
           {%- endif -%}
         </div>
 

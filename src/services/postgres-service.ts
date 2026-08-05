@@ -3,8 +3,98 @@ import { PostgresSaver } from '@langchain/langgraph-checkpoint-postgres';
 import { logger } from "../lib/logger";
 import crypto from 'crypto';
 
+import { MemorySaver } from '@langchain/langgraph';
+import { BaseCheckpointSaver, Checkpoint, CheckpointTuple, CheckpointMetadata, ChannelVersions, PendingWrite, CheckpointListOptions } from '@langchain/langgraph-checkpoint';
+
 let pool: Pool | null = null;
-let checkpointer: PostgresSaver | null = null;
+let resilientCheckpointer: ResilientCheckpointer | null = null;
+
+export class ResilientCheckpointer extends BaseCheckpointSaver {
+    private pgSaver: any;
+    private memSaver: MemorySaver;
+
+    constructor(pgSaver: any) {
+        super();
+        this.pgSaver = pgSaver;
+        this.memSaver = new MemorySaver();
+    }
+
+    async setup(): Promise<void> {
+        try {
+            if (this.pgSaver && typeof this.pgSaver.setup === 'function') {
+                await this.pgSaver.setup();
+            }
+        } catch (e: any) {
+            logger.warn(`[Checkpointer] Postgres setup warning: ${e.message}. Using in-memory fallback.`);
+        }
+    }
+
+    async getTuple(config: any): Promise<CheckpointTuple | undefined> {
+        try {
+            if (this.pgSaver && typeof this.pgSaver.getTuple === 'function') {
+                const res = await this.pgSaver.getTuple(config);
+                if (res) return res;
+            }
+        } catch (e: any) {
+            logger.warn(`[Checkpointer] Postgres getTuple failed: ${e.message}. Falling back to MemorySaver.`);
+        }
+        return await this.memSaver.getTuple(config);
+    }
+
+    async *list(config: any, options?: CheckpointListOptions): AsyncGenerator<CheckpointTuple> {
+        try {
+            if (this.pgSaver && typeof this.pgSaver.list === 'function') {
+                const gen = this.pgSaver.list(config, options);
+                for await (const item of gen) {
+                    yield item;
+                }
+                return;
+            }
+        } catch (e: any) {
+            logger.warn(`[Checkpointer] Postgres list failed: ${e.message}. Falling back to MemorySaver.`);
+        }
+        const memGen = this.memSaver.list(config, options);
+        for await (const item of memGen) {
+            yield item;
+        }
+    }
+
+    async put(config: any, checkpoint: Checkpoint, metadata: CheckpointMetadata, newVersions: ChannelVersions): Promise<any> {
+        await this.memSaver.put(config, checkpoint, metadata);
+        try {
+            if (this.pgSaver && typeof this.pgSaver.put === 'function') {
+                return await this.pgSaver.put(config, checkpoint, metadata, newVersions);
+            }
+        } catch (e: any) {
+            logger.warn(`[Checkpointer] Postgres put failed (${e.message}). Proceeding safely via MemorySaver.`);
+        }
+        return config;
+    }
+
+    async putWrites(config: any, writes: PendingWrite[], taskId: string): Promise<void> {
+        await this.memSaver.putWrites(config, writes, taskId);
+        try {
+            if (this.pgSaver && typeof this.pgSaver.putWrites === 'function') {
+                await this.pgSaver.putWrites(config, writes, taskId);
+            }
+        } catch (e: any) {
+            logger.warn(`[Checkpointer] Postgres putWrites failed (${e.message}). Proceeding safely via MemorySaver.`);
+        }
+    }
+
+    async deleteThread(threadId: string): Promise<void> {
+        try {
+            if (this.pgSaver && typeof this.pgSaver.deleteThread === 'function') {
+                await this.pgSaver.deleteThread(threadId);
+            }
+        } catch (e: any) {
+            logger.warn(`[Checkpointer] Postgres deleteThread failed: ${e.message}.`);
+        }
+        if (typeof (this.memSaver as any).deleteThread === 'function') {
+            await (this.memSaver as any).deleteThread(threadId);
+        }
+    }
+}
 
 export interface Project {
     id: string;
@@ -32,15 +122,17 @@ export function getPool(): Pool {
     return pool;
 }
 
-export function getCheckpointer(): PostgresSaver {
-    if (!checkpointer) {
+export function getCheckpointer(): any {
+    if (!resilientCheckpointer) {
         const connectionString = process.env.DATABASE_URL;
         if (!connectionString) {
-            throw new Error("DATABASE_URL is not set");
+            logger.warn("[Checkpointer] DATABASE_URL is not set. Using MemorySaver fallback.");
+            return new MemorySaver();
         }
-        checkpointer = PostgresSaver.fromConnString(connectionString);
+        const pgSaver = PostgresSaver.fromConnString(connectionString);
+        resilientCheckpointer = new ResilientCheckpointer(pgSaver);
     }
-    return checkpointer;
+    return resilientCheckpointer;
 }
 
 export async function initPostgres(): Promise<void> {
