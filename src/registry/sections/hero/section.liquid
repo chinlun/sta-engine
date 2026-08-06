@@ -1,0 +1,262 @@
+{{ 'section-hero.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'section-hero.js' | asset_url }}" defer="defer"></script>
+
+{%- style -%}
+  #shopify-section-{{ section.id }} .hero-registry-section {
+    --hero-bg-color: {{ section.settings.background_color | default: '#0d0d0d' }};
+    --hero-text-color: {{ section.settings.text_color | default: '#ffffff' }};
+    --hero-accent-color: {{ section.settings.accent_color | default: '#d4af37' }};
+    {%- if section.settings.height_mode == 'custom' -%}
+      --hero-custom-height-desktop: {{ section.settings.custom_height_desktop | default: 650 }}px;
+      --hero-custom-height-mobile: {{ section.settings.custom_height_mobile | default: 480 }}px;
+    {%- endif -%}
+  }
+{%- endstyle -%}
+
+<hero-section class="hero-registry-section hero-registry-section--layout-{{ section.settings.layout_mode }} hero-registry-section--height-{{ section.settings.height_mode }}" id="Hero-{{ section.id }}">
+  <div class="hero-registry-container">
+    {% render 'hero-media', section: section %}
+
+    <div class="hero-content-wrapper hero-content-wrapper--pos-{{ section.settings.content_position }}">
+      {% render 'hero-content', section: section %}
+    </div>
+  </div>
+</hero-section>
+
+{% schema %}
+{
+  "name": "Hero Registry Section",
+  "class": "section-hero",
+  "settings": [
+    {
+      "type": "select",
+      "id": "layout_mode",
+      "label": "Layout Mode",
+      "options": [
+        { "value": "full_overlay", "label": "Full Overlay" },
+        { "value": "split_screen", "label": "Split Screen (50/50)" },
+        { "value": "boxed_card", "label": "Boxed Floating Card" }
+      ],
+      "default": "full_overlay"
+    },
+    {
+      "type": "select",
+      "id": "height_mode",
+      "label": "Section Height",
+      "options": [
+        { "value": "full", "label": "Full Screen (100vh)" },
+        { "value": "large", "label": "Large (80vh / 650px)" },
+        { "value": "medium", "label": "Medium (60vh / 500px)" },
+        { "value": "custom", "label": "Custom Pixel Height" }
+      ],
+      "default": "large"
+    },
+    {
+      "type": "range",
+      "id": "custom_height_desktop",
+      "min": 300,
+      "max": 1000,
+      "step": 20,
+      "unit": "px",
+      "label": "Custom Height (Desktop)",
+      "default": 650
+    },
+    {
+      "type": "range",
+      "id": "custom_height_mobile",
+      "min": 250,
+      "max": 800,
+      "step": 10,
+      "unit": "px",
+      "label": "Custom Height (Mobile)",
+      "default": 480
+    },
+    {
+      "type": "select",
+      "id": "content_position",
+      "label": "Content Alignment Position",
+      "options": [
+        { "value": "top_left", "label": "Top Left" },
+        { "value": "top_center", "label": "Top Center" },
+        { "value": "center", "label": "Center" },
+        { "value": "bottom_left", "label": "Bottom Left" },
+        { "value": "bottom_center", "label": "Bottom Center" },
+        { "value": "center_right", "label": "Center Right" }
+      ],
+      "default": "center"
+    },
+    {
+      "type": "select",
+      "id": "text_alignment",
+      "label": "Text Alignment",
+      "options": [
+        { "value": "left", "label": "Left" },
+        { "value": "center", "label": "Center" },
+        { "value": "right", "label": "Right" }
+      ],
+      "default": "center"
+    },
+    {
+      "type": "range",
+      "id": "max_width_content",
+      "min": 400,
+      "max": 1200,
+      "step": 20,
+      "unit": "px",
+      "label": "Max Content Width",
+      "default": 780
+    },
+    {
+      "type": "select",
+      "id": "media_type",
+      "label": "Background Media Type",
+      "options": [
+        { "value": "image", "label": "Image" },
+        { "value": "video", "label": "Video" }
+      ],
+      "default": "image"
+    },
+    {
+      "type": "text",
+      "id": "image_desktop",
+      "label": "Desktop Image (URL or Unsplash)",
+      "default": "unsplash://luxury-hero-banner"
+    },
+    {
+      "type": "text",
+      "id": "image_mobile",
+      "label": "Mobile Image (URL or Unsplash)",
+      "default": "unsplash://luxury-hero-banner-mobile"
+    },
+    {
+      "type": "text",
+      "id": "video_url",
+      "label": "MP4 Video URL"
+    },
+    {
+      "type": "select",
+      "id": "overlay_style",
+      "label": "Overlay Style",
+      "options": [
+        { "value": "none", "label": "None" },
+        { "value": "dark_gradient", "label": "Dark Gradient" },
+        { "value": "light_gradient", "label": "Light Gradient" },
+        { "value": "solid_tint", "label": "Solid Tint" },
+        { "value": "glassmorphism", "label": "Glassmorphism" }
+      ],
+      "default": "dark_gradient"
+    },
+    {
+      "type": "range",
+      "id": "overlay_opacity",
+      "min": 0,
+      "max": 90,
+      "step": 5,
+      "unit": "%",
+      "label": "Overlay Opacity",
+      "default": 40
+    },
+    {
+      "type": "color",
+      "id": "background_color",
+      "label": "Background Color",
+      "default": "#0d0d0d"
+    },
+    {
+      "type": "color",
+      "id": "text_color",
+      "label": "Text Color",
+      "default": "#ffffff"
+    },
+    {
+      "type": "color",
+      "id": "accent_color",
+      "label": "Accent Color",
+      "default": "#d4af37"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_eyebrow_badge",
+      "label": "Show Eyebrow Badge",
+      "default": true
+    },
+    {
+      "type": "text",
+      "id": "eyebrow_text",
+      "label": "Eyebrow Text",
+      "default": "New Collection 2026"
+    },
+    {
+      "type": "text",
+      "id": "heading",
+      "label": "Heading",
+      "default": "Elevate Your Living Space"
+    },
+    {
+      "type": "select",
+      "id": "heading_size",
+      "label": "Heading Size",
+      "options": [
+        { "value": "h0", "label": "H0 (Extra Large)" },
+        { "value": "h1", "label": "H1 (Large)" },
+        { "value": "h2", "label": "H2 (Medium)" }
+      ],
+      "default": "h1"
+    },
+    {
+      "type": "textarea",
+      "id": "subheading",
+      "label": "Subheading",
+      "default": "Discover our meticulously crafted furniture and decor designed for modern luxury living."
+    },
+    {
+      "type": "text",
+      "id": "primary_button_label",
+      "label": "Primary Button Label",
+      "default": "Explore Collection"
+    },
+    {
+      "type": "url",
+      "id": "primary_button_link",
+      "label": "Primary Button Link"
+    },
+    {
+      "type": "text",
+      "id": "secondary_button_label",
+      "label": "Secondary Button Label",
+      "default": "Watch Story"
+    },
+    {
+      "type": "url",
+      "id": "secondary_button_link",
+      "label": "Secondary Button Link"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_trust_badges",
+      "label": "Show Trust Badges",
+      "default": true
+    },
+    {
+      "type": "text",
+      "id": "trust_text",
+      "label": "Trust Rating Text",
+      "default": "Rated 4.9/5 by over 10,000+ satisfied customers"
+    },
+    {
+      "type": "range",
+      "id": "trust_rating",
+      "min": 0,
+      "max": 5,
+      "step": 1,
+      "label": "Star Rating (0 to 5)",
+      "default": 5
+    }
+  ],
+  "presets": [
+    {
+      "name": "Hero Registry Section"
+    }
+  ]
+}
+{% endschema %}

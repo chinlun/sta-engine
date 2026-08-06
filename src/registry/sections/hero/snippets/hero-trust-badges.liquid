@@ -1,0 +1,20 @@
+{% comment %}
+  Renders Hero Trust & Social Proof Badges
+  Accepts:
+  - section: {Object} Shopify section object
+{% endcomment %}
+
+{%- if section.settings.trust_text != blank or section.settings.trust_rating > 0 -%}
+  <div class="hero-trust-badges">
+    {%- if section.settings.trust_rating > 0 -%}
+      <div class="hero-trust-badges__stars">
+        {%- for i in (1..5) -%}
+          <i data-lucide="star" class="hero-trust-badges__star-icon {% if i <= section.settings.trust_rating %}is-filled{% endif %}"></i>
+        {%- endfor -%}
+      </div>
+    {%- endif -%}
+    {%- if section.settings.trust_text != blank -%}
+      <span class="hero-trust-badges__text">{{ section.settings.trust_text | escape }}</span>
+    {%- endif -%}
+  </div>
+{%- endif -%}

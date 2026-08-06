@@ -1,0 +1,33 @@
+{
+  "name": "Default Hero Registry Preset",
+  "settings": {
+    "layout_mode": "full_overlay",
+    "height_mode": "large",
+    "custom_height_desktop": 650,
+    "custom_height_mobile": 480,
+    "content_position": "center",
+    "text_alignment": "center",
+    "max_width_content": 780,
+    "media_type": "image",
+    "image_desktop": "unsplash://luxury-hero-banner",
+    "image_mobile": "unsplash://luxury-hero-banner-mobile",
+    "video_url": "",
+    "overlay_style": "dark_gradient",
+    "overlay_opacity": 40,
+    "background_color": "#0d0d0d",
+    "text_color": "#ffffff",
+    "accent_color": "#d4af37",
+    "show_eyebrow_badge": true,
+    "eyebrow_text": "New Collection 2026",
+    "heading": "Elevate Your Living Space",
+    "heading_size": "h1",
+    "subheading": "Discover our meticulously crafted furniture and decor designed for modern luxury living.",
+    "primary_button_label": "Explore Collection",
+    "primary_button_link": "/collections/all",
+    "secondary_button_label": "Watch Story",
+    "secondary_button_link": "#story",
+    "show_trust_badges": true,
+    "trust_text": "Rated 4.9/5 by over 10,000+ satisfied customers",
+    "trust_rating": 5
+  }
+}

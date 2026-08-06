@@ -159,8 +159,8 @@ app.post('/api/chat', async (req, res) => {
                     inputSchema: z.object({
                         storeName: z.string().describe('The name of the shop'),
                         summary: z.string().describe('Brief summary of the business requirements gathered')
-                    }),
-                    execute: async ({ storeName, summary }) => {
+                    }) as any,
+                    execute: async ({ storeName, summary }: { storeName: string; summary: string }) => {
                         if (!projectId) throw new Error("Project not found in context");
                         wasBuildTriggered = true;
                         // Prepare transition to building phase
@@ -175,9 +175,9 @@ app.post('/api/chat', async (req, res) => {
                         // We return a "trigger" event that tells the frontend to start listening to the build SSE
                         return { status: 'BUILD_STARTED', projectId };
                     }
-                })
+                }) as any
             }
-        });
+        } as any);
 
         // We don't use SSE for the simple chat response to keep it simple, 
         // but we return the projectId so the frontend can track it.

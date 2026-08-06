@@ -1,0 +1,46 @@
+{% comment %}
+  Renders Hero Typography & Action Content
+  Accepts:
+  - section: {Object} Shopify section object
+{% endcomment %}
+
+<div class="hero-content hero-content--align-{{ section.settings.text_alignment }}" style="--max-content-width: {{ section.settings.max_width_content | default: 780 }}px;">
+  {%- if section.settings.show_eyebrow_badge and section.settings.eyebrow_text != blank -%}
+    <div class="hero-content__badge">
+      <span class="hero-content__badge-text">{{ section.settings.eyebrow_text | escape }}</span>
+    </div>
+  {%- endif -%}
+
+  {%- if section.settings.heading != blank -%}
+    <h1 class="hero-content__heading hero-content__heading--{{ section.settings.heading_size | default: 'h1' }}">
+      {{ section.settings.heading | escape }}
+    </h1>
+  {%- endif -%}
+
+  {%- if section.settings.subheading != blank -%}
+    <div class="hero-content__subheading">
+      <p>{{ section.settings.subheading | escape }}</p>
+    </div>
+  {%- endif -%}
+
+  {%- if section.settings.primary_button_label != blank or section.settings.secondary_button_label != blank -%}
+    <div class="hero-content__actions">
+      {%- if section.settings.primary_button_label != blank -%}
+        <a href="{{ section.settings.primary_button_link | default: '#' }}" class="hero-button hero-button--primary">
+          <span>{{ section.settings.primary_button_label | escape }}</span>
+          <i data-lucide="arrow-right" class="hero-button__icon"></i>
+        </a>
+      {%- endif -%}
+
+      {%- if section.settings.secondary_button_label != blank -%}
+        <a href="{{ section.settings.secondary_button_link | default: '#' }}" class="hero-button hero-button--secondary">
+          <span>{{ section.settings.secondary_button_label | escape }}</span>
+        </a>
+      {%- endif -%}
+    </div>
+  {%- endif -%}
+
+  {%- if section.settings.show_trust_badges -%}
+    {% render 'hero-trust-badges', section: section %}
+  {%- endif -%}
+</div>

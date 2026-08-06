@@ -363,7 +363,19 @@ export function validateAndRepair(plan: ThemePlan | BuildThemeToolParams): Valid
                     result.repairs.push(`Auto-registered section "${sectionType}" in index.json`);
                 }
             }
-            indexJson.order = orderArray;
+            // Guardrail: Ensure any hero section key in indexJson.order is hoisted to position 0
+            const heroKeys = orderArray.filter(key => {
+                const sec = indexJson.sections[key];
+                const secType = sec?.type || key;
+                return secType.toLowerCase().includes('hero');
+            });
+            if (heroKeys.length > 0) {
+                const nonHeroKeys = orderArray.filter(key => !heroKeys.includes(key));
+                indexJson.order = [...heroKeys, ...nonHeroKeys];
+            } else {
+                indexJson.order = orderArray;
+            }
+
             updateModContent(indexJsonMod, JSON.stringify(indexJson, null, 2));
         } catch { }
     } else if (sectionFiles.size > 0 && !indexJsonMod) {

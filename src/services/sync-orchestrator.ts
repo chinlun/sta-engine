@@ -215,7 +215,7 @@ export class SyncOrchestrator {
                                 .filter(k => k.startsWith('sections/') && k.endsWith('.liquid'))
                                 .map(k => k.replace('sections/', '').replace('.liquid', ''));
                             
-                            const bestMatch = availableSections.find(s => 
+                            const bestMatch: string | undefined = availableSections.find(s => 
                                 s.toLowerCase() === missingType.toLowerCase().replace(/\s+/g, '-') ||
                                 s.toLowerCase().replace(/[^a-z0-0]/g, '') === missingType.toLowerCase().replace(/[^a-z0-0]/g, '')
                             );

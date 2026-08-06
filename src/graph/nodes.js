@@ -8,6 +8,7 @@ const fs = require('fs');
 const path = require('path');
 const { uploadThemeState, getThemeState } = require("../services/r2-service");
 const { loadHeaderRegistry, assembleHeaderFiles } = require("../registry/header-assembler");
+const { loadHeroRegistry, assembleHeroFiles } = require("../registry/hero-assembler");
 const { extractBriefSignals } = require("../services/signal-extractor");
 const { mapSignalsToSchema, sanitizeBusinessFacts } = require("../services/schema-mapper");
 const { validateGeneratedTheme } = require("../services/post-gen-validator");
@@ -1197,6 +1198,109 @@ Brief Content: ${JSON.stringify(sectionContent[componentNameFull] || sectionCont
         }
     }
 
+    // --- REGISTRY-FIRST BRANCH: HERO ---
+    if (targetComponent.type === 'hero' || componentNameFull === 'sections/hero.liquid' || componentNameFull.includes('hero')) {
+        logger.info(`[Graph] Executing Registry-First Flow for Hero (${componentNameFull})`);
+        try {
+            const heroRegistry = loadHeroRegistry();
+            let attempt = 0;
+            const maxAttempts = 10;
+            let finalObject;
+
+            while (attempt < maxAttempts) {
+                attempt++;
+                const { model, adaptiveInstructions } = getLLMConfig({ ...state, isFallback: localIsFallback }, attempt);
+
+                try {
+                    const { partialObjectStream, object } = await streamObject({
+                        model,
+                        maxRetries: 0,
+                        mode: 'json',
+                        system: `You are a Shopify theme section assembler. Your default behavior is registry-first, not scratch-first.
+For every section request:
+1. Parse the brief into required capabilities, layout style, content hierarchy, media needs, and brand tone.
+2. Inspect the Hero Section Registry contract before generating patch code.
+3. Configure supported settings in settings_patch:
+   - layout_mode: 'full_overlay' (text over image/video), 'split_screen' (50/50 content/media), or 'boxed_card' (elevated frosted card).
+   - height_mode: 'full' (100vh), 'large' (80vh), 'medium' (60vh), or 'custom'.
+   - content_position: 'top_left', 'top_center', 'center', 'bottom_left', 'bottom_center', 'center_right'.
+   - text_alignment: 'left', 'center', 'right'.
+   - media_type: 'image' or 'video'.
+   - overlay_style: 'none', 'dark_gradient', 'light_gradient', 'solid_tint', 'glassmorphism'.
+   - heading, subheading, eyebrow_text, primary_button_label, secondary_button_label.
+   - show_trust_badges & trust_text & trust_rating.
+4. Detail your layout reasoning and aesthetic choices in the 'rationale' output field.
+5. Generate only the delta CSS/JS that the registry cannot already provide.
+
+Registry Description: ${heroRegistry.manifest.description}
+${adaptiveInstructions}`,
+                        prompt: `User Prompt & Design Intent:
+User Goal: ${state.userPrompt || 'Modern eCommerce store'}
+Store Name: ${shopName || 'Shopify Store'}
+Design Tokens: ${JSON.stringify(designTokens)}
+Brief Content: ${JSON.stringify(sectionContent[componentNameFull] || sectionContent[targetComponent.name] || {})}`,
+                        schema: z.object({
+                            rationale: z.string().describe("Explanation of configuration choices."),
+                            settings_patch: z.record(z.any()).optional().describe("Key-value settings patch to customize section schema defaults."),
+                            delta_css: z.string().optional().describe("Optional custom CSS override delta."),
+                            delta_js: z.string().optional().describe("Optional custom JS delta.")
+                        }),
+                        maxTokens: 16384,
+                    });
+
+                    object.catch(() => {});
+                    let previousLength = 0;
+                    for await (const partial of partialObjectStream) {
+                        if (partial.rationale && partial.rationale.length > previousLength) {
+                            const delta = partial.rationale.substring(previousLength);
+                            if (sendEvent) sendEvent({ type: 'thinking', component: componentNameFull, node: 'Coding (Registry Hero)', text: delta });
+                            previousLength = partial.rationale.length;
+                        }
+                    }
+
+                    finalObject = await object;
+                    break;
+                } catch (err) {
+                    logger.error(`[Graph] Registry hero generation error (Attempt ${attempt}): ${err.message}`);
+                    if (attempt >= maxAttempts) throw err;
+                    await sleepWithJitter(attempt);
+                }
+            }
+
+            const generatedFiles = assembleHeroFiles(heroRegistry, finalObject, designTokens, shopName);
+            await resolveUnsplashPlaceholders(generatedFiles, state);
+
+            const duration = Date.now() - startTime;
+            logger.info(`[Graph] ✅ Registry-First Hero complete (${duration}ms). Generated ${generatedFiles.length} files.`);
+
+            // Incremental R2 Update for all assembled hero files
+            const { themeId } = state;
+            if (themeId) {
+                try {
+                    const currentState = await getThemeState(themeId);
+                    const updatedState = [...currentState];
+                    for (const f of generatedFiles) {
+                        const idx = updatedState.findIndex(s => (s.filePath || s.path) === f.path);
+                        const mod = { filePath: f.path, content: f.content, action: 'update', path: f.path };
+                        if (idx >= 0) updatedState[idx] = mod;
+                        else updatedState.push(mod);
+                    }
+                    await uploadThemeState(themeId, updatedState);
+                    logger.info(`[R2] Incremental update saved for Registry Hero (${generatedFiles.length} files)`);
+                } catch (e) { logger.warn(`[R2] Failed incremental update for registry hero: ${e.message}`); }
+            }
+
+            return {
+                currentComponentFiles: generatedFiles,
+                tsErrors: [],
+                reasoning: { node: 'coder', text: `Assembled Registry Hero section with ${generatedFiles.length} files.` },
+                isFallback: localIsFallback
+            };
+        } catch (e) {
+            logger.error(`[Graph] Registry Hero assembly failed, falling back to standard coderNode: ${e.message}`);
+        }
+    }
+
     const errors = [...(tsErrors || [])];
 
     // Blueprint Check
@@ -1547,6 +1651,15 @@ async function assemblerNode(state, config) {
         if (c.isGlobal === true) return false;
 
         return true;
+    });
+
+    // Ensure Hero section is positioned first in page template layout
+    pageSections.sort((a, b) => {
+        const aIsHero = a.name.toLowerCase().includes('hero') || (a.type || '').toLowerCase().includes('hero');
+        const bIsHero = b.name.toLowerCase().includes('hero') || (b.type || '').toLowerCase().includes('hero');
+        if (aIsHero && !bIsHero) return -1;
+        if (!aIsHero && bIsHero) return 1;
+        return 0;
     });
 
     const indexJson = {

@@ -1,0 +1,21 @@
+{
+  "name": "Ultimate Hero Section Registry",
+  "handle": "hero-ultimate",
+  "version": "1.0.0",
+  "description": "Comprehensive Shopify OS 2.0 hero registry. Supports full-width overlay, 50/50 split screen, boxed card, and minimal centered layouts with image/video media, CTA button groups, badges, ratings, and responsive mobile controls.",
+  "category": "Hero",
+  "files": {
+    "section": "section.liquid",
+    "styles": "styles.css",
+    "script": "script.js",
+    "snippets": [
+      "snippets/hero-media.liquid",
+      "snippets/hero-content.liquid",
+      "snippets/hero-trust-badges.liquid"
+    ],
+    "presets": [
+      "presets/default.json"
+    ]
+  },
+  "schema_version": "2.0"
+}

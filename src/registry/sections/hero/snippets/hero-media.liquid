@@ -1,0 +1,34 @@
+{% comment %}
+  Renders Hero Media (Background Image, Video, Overlay)
+  Accepts:
+  - section: {Object} Shopify section object
+{% endcomment %}
+
+<div class="hero-media-wrapper hero-media-wrapper--{{ section.settings.overlay_style }}" style="--overlay-opacity: {{ section.settings.overlay_opacity | default: 40 | divided_by: 100.0 }};">
+  {%- if section.settings.media_type == 'video' and section.settings.video_url != blank -%}
+    <div class="hero-media__video-container">
+      <video class="hero-media__video" autoplay loop muted playsinline poster="{{ section.settings.image_desktop | default: 'unsplash://luxury-hero-banner' }}">
+        <source src="{{ section.settings.video_url }}" type="video/mp4">
+      </video>
+    </div>
+  {%- else -%}
+    <picture class="hero-media__picture">
+      {%- if section.settings.image_mobile != blank -%}
+        <source media="(max-width: 767px)" srcset="{{ section.settings.image_mobile }}">
+      {%- endif -%}
+      <img
+        src="{{ section.settings.image_desktop | default: 'unsplash://luxury-hero-banner' }}"
+        alt="{{ section.settings.heading | escape | default: shop.name }}"
+        class="hero-media__image"
+        loading="eager"
+        fetchpriority="high"
+        width="1920"
+        height="1080"
+      >
+    </picture>
+  {%- endif -%}
+
+  {%- if section.settings.overlay_style != 'none' -%}
+    <div class="hero-media__overlay hero-media__overlay--{{ section.settings.overlay_style }}"></div>
+  {%- endif -%}
+</div>
