@@ -1,0 +1,283 @@
+{% comment %}
+  Footer Registry Section (OS 2.0 Store Compliant)
+{% endcomment %}
+
+<footer-section class="footer-registry-section" id="Footer-{{ section.id }}">
+  <div class="footer-container">
+
+    {% comment %} Pre-Footer CTA Band {% endcomment %}
+    {% if section.settings.show_pre_footer_cta %}
+      <div class="footer-pre-cta">
+        <div class="footer-pre-cta__content">
+          {% if section.settings.pre_footer_heading != blank %}
+            <h2 class="footer-pre-cta__title">{{ section.settings.pre_footer_heading }}</h2>
+          {% endif %}
+          {% if section.settings.pre_footer_subtext != blank %}
+            <p class="footer-pre-cta__subtext">{{ section.settings.pre_footer_subtext }}</p>
+          {% endif %}
+        </div>
+        {% if section.settings.pre_footer_button_label != blank %}
+          <a href="{{ section.settings.pre_footer_button_link | default: '/collections/all' }}" class="footer-pre-cta__btn">
+            <span>{{ section.settings.pre_footer_button_label }}</span>
+            <i data-lucide="arrow-right"></i>
+          </a>
+        {% endif %}
+      </div>
+    {% endif %}
+
+    {% comment %} Main Footer Grid {% endcomment %}
+    <div class="footer-grid footer-grid--{{ section.settings.layout_mode }}">
+
+      {% comment %} Brand Bio Column {% endcomment %}
+      <div class="footer-brand">
+        <a href="{{ routes.root_url }}" class="footer-brand__logo">
+          {{ section.settings.logo_text | default: shop.name }}
+        </a>
+        {% if section.settings.brand_bio != blank %}
+          <p class="footer-brand__bio">{{ section.settings.brand_bio }}</p>
+        {% endif %}
+
+        {% if section.settings.show_social %}
+          {% render 'footer-social' %}
+        {% endif %}
+      </div>
+
+      {% comment %} Dynamic Block Render (Link Lists / Newsletter) {% endcomment %}
+      {% if section.blocks.size > 0 %}
+        {% for block in section.blocks %}
+          {% case block.type %}
+            {% when 'link_list' %}
+              <div class="footer-column" {{ block.shopify_attributes }}>
+                {% if block.settings.title != blank %}
+                  <h3 class="footer-column__title">{{ block.settings.title }}</h3>
+                {% endif %}
+                {% assign footer_linklist = linklists[block.settings.menu] %}
+                {% if footer_linklist != blank and footer_linklist.links.size > 0 %}
+                  <ul class="footer-nav-list">
+                    {% for link in footer_linklist.links %}
+                      <li><a href="{{ link.url }}">{{ link.title }}</a></li>
+                    {% endfor %}
+                  </ul>
+                {% else %}
+                  <ul class="footer-nav-list">
+                    <li><a href="/collections/all">Shop All</a></li>
+                    <li><a href="/pages/about">About Us</a></li>
+                    <li><a href="/pages/contact">Contact</a></li>
+                    <li><a href="/policies/privacy-policy">Privacy Policy</a></li>
+                  </ul>
+                {% endif %}
+              </div>
+
+            {% when 'newsletter' %}
+              <div class="footer-column footer-column--newsletter" {{ block.shopify_attributes }}>
+                {% render 'footer-newsletter',
+                  title: block.settings.heading,
+                  body: block.settings.subtext,
+                  button_text: block.settings.button_label
+                %}
+              </div>
+          {% endcase %}
+        {% endfor %}
+      {% else %}
+        {% comment %} Default Link Lists when no blocks added {% endcomment %}
+        <div class="footer-column">
+          <h3 class="footer-column__title">Navigation</h3>
+          <ul class="footer-nav-list">
+            <li><a href="/collections/all">Shop All</a></li>
+            <li><a href="/collections/new">New Arrivals</a></li>
+            <li><a href="/collections/bestsellers">Bestsellers</a></li>
+            <li><a href="/pages/our-story">Our Story</a></li>
+          </ul>
+        </div>
+
+        <div class="footer-column">
+          <h3 class="footer-column__title">Customer Care</h3>
+          <ul class="footer-nav-list">
+            <li><a href="/pages/contact">Contact Us</a></li>
+            <li><a href="/pages/shipping">Shipping & Returns</a></li>
+            <li><a href="/pages/faq">FAQs</a></li>
+            <li><a href="/pages/size-guide">Size Guide</a></li>
+          </ul>
+        </div>
+
+        {% if section.settings.show_newsletter %}
+          <div class="footer-column footer-column--newsletter">
+            {% render 'footer-newsletter',
+              title: section.settings.newsletter_heading,
+              body: section.settings.newsletter_subtext
+            %}
+          </div>
+        {% endif %}
+      {% endif %}
+
+    </div>
+
+    {% comment %} Bottom Bar {% endcomment %}
+    <div class="footer-bottom-bar">
+      <div class="footer-bottom-bar__left">
+        {% if section.settings.show_copyright %}
+          <p class="footer-bottom-bar__copyright">
+            &copy; {{ 'now' | date: '%Y' }} {{ section.settings.logo_text | default: shop.name }}. All rights reserved. Powered by Shopify.
+          </p>
+        {% endif %}
+      </div>
+
+      {% if section.settings.show_payment_icons %}
+        {% render 'footer-payments' %}
+      {% endif %}
+    </div>
+
+  </div>
+</footer-section>
+
+{% schema %}
+{
+  "name": "Footer Registry",
+  "tag": "footer",
+  "class": "section-footer-registry",
+  "settings": [
+    {
+      "type": "select",
+      "id": "layout_mode",
+      "label": "Layout Mode",
+      "options": [
+        { "value": "multi_column", "label": "Multi-Column Grid" },
+        { "value": "centered_minimal", "label": "Centered Minimal" },
+        { "value": "editorial_split", "label": "Editorial Split" },
+        { "value": "bottom_bar_elevated", "label": "Bottom Bar Elevated" }
+      ],
+      "default": "multi_column"
+    },
+    {
+      "type": "text",
+      "id": "logo_text",
+      "label": "Shop Name / Logo Text",
+      "default": "Shopify Store"
+    },
+    {
+      "type": "textarea",
+      "id": "brand_bio",
+      "label": "Brand Bio",
+      "default": "Elevating daily rituals through intentional design, sustainable materials, and uncompromising craftsmanship."
+    },
+    {
+      "type": "checkbox",
+      "id": "show_social",
+      "label": "Show Social Media Links",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "show_newsletter",
+      "label": "Show Newsletter Signup",
+      "default": true
+    },
+    {
+      "type": "text",
+      "id": "newsletter_heading",
+      "label": "Newsletter Heading",
+      "default": "Join the Inner Circle"
+    },
+    {
+      "type": "textarea",
+      "id": "newsletter_subtext",
+      "label": "Newsletter Subtext",
+      "default": "Subscribe to receive exclusive preview access, editorial stories, and 10% off your initial order."
+    },
+    {
+      "type": "checkbox",
+      "id": "show_payment_icons",
+      "label": "Show Payment Method Badges",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "show_copyright",
+      "label": "Show Copyright Line",
+      "default": true
+    },
+    {
+      "type": "header",
+      "content": "Pre-Footer CTA Band"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_pre_footer_cta",
+      "label": "Enable Pre-Footer CTA Band",
+      "default": false
+    },
+    {
+      "type": "text",
+      "id": "pre_footer_heading",
+      "label": "Pre-Footer Heading",
+      "default": "Experience Uncompromising Quality"
+    },
+    {
+      "type": "text",
+      "id": "pre_footer_subtext",
+      "label": "Pre-Footer Subtext",
+      "default": "Free express worldwide shipping on orders over $150."
+    },
+    {
+      "type": "text",
+      "id": "pre_footer_button_label",
+      "label": "Pre-Footer Button Label",
+      "default": "Explore Collection"
+    },
+    {
+      "type": "url",
+      "id": "pre_footer_button_link",
+      "label": "Pre-Footer Button Link"
+    }
+  ],
+  "blocks": [
+    {
+      "type": "link_list",
+      "name": "Navigation Menu",
+      "settings": [
+        {
+          "type": "text",
+          "id": "title",
+          "label": "Heading",
+          "default": "Quick Links"
+        },
+        {
+          "type": "link_list",
+          "id": "menu",
+          "label": "Menu",
+          "default": "footer"
+        }
+      ]
+    },
+    {
+      "type": "newsletter",
+      "name": "Newsletter Form",
+      "settings": [
+        {
+          "type": "text",
+          "id": "heading",
+          "label": "Heading",
+          "default": "Subscribe to our Newsletter"
+        },
+        {
+          "type": "textarea",
+          "id": "subtext",
+          "label": "Subtext",
+          "default": "Get the latest updates and exclusive offers."
+        },
+        {
+          "type": "text",
+          "id": "button_label",
+          "label": "Button Label",
+          "default": "Subscribe"
+        }
+      ]
+    }
+  ],
+  "presets": [
+    {
+      "name": "Footer Registry"
+    }
+  ]
+}
+{% endschema %}

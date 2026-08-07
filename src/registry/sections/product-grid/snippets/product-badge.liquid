@@ -1,0 +1,25 @@
+{% comment %}
+  Renders product badges (Sale %, New, Sold Out, Custom Tag)
+  Accepts:
+  - product: {Object} Shopify Product Object (or placeholder object)
+  - badge_style: {String} Badge visual style ('pill', 'square', 'minimal')
+  - show_sale_badge: {Boolean}
+  - show_new_badge: {Boolean}
+{% endcomment %}
+
+<div class="product-badge-group product-badge-group--{{ badge_style | default: 'pill' }}">
+  {% if product.available == false %}
+    <span class="product-badge product-badge--sold-out">
+      {{ 'products.product.sold_out' | t | default: 'Sold out' }}
+    </span>
+  {% elsif product.compare_at_price > product.price and show_sale_badge != false %}
+    {% assign discount = product.compare_at_price | minus: product.price | times: 100 | divided_by: product.compare_at_price %}
+    <span class="product-badge product-badge--sale">
+      Save {{ discount }}%
+    </span>
+  {% elsif product.tags contains 'new' or product.tags contains 'New' or show_new_badge %}
+    <span class="product-badge product-badge--new">
+      New
+    </span>
+  {% endif %}
+</div>

@@ -1,0 +1,5 @@
+{
+  "name": "Ultimate Product Grid Registry",
+  "version": "1.0.0",
+  "description": "Comprehensive Shopify OS 2.0 product grid registry. Supports standard grid, snap carousel slider, asymmetric 2x2 lead card, and dense horizontal list layouts. Features aspect ratio controls, color swatch dots, quick-view drawer, rating stars, badges, collection switching tabs, and AJAX load-more/pagination."
+}

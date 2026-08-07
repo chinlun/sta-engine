@@ -1,0 +1,21 @@
+{
+  "name": "Default Product Grid Preset",
+  "settings": {
+    "title": "Featured Collection",
+    "subheading": "Curated selection of best-selling products crafted with intention.",
+    "layout_mode": "standard_grid",
+    "columns_desktop": 4,
+    "columns_mobile": "2",
+    "card_aspect_ratio": "portrait",
+    "hover_effect": "image_zoom",
+    "show_vendor": false,
+    "show_rating": true,
+    "show_swatches": true,
+    "show_quick_add": true,
+    "show_quick_view": true,
+    "badge_style": "pill",
+    "enable_filter_bar": false,
+    "enable_load_more": true,
+    "products_to_show": 8
+  }
+}

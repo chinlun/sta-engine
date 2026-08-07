@@ -1,0 +1,18 @@
+{
+  "name": "Default Footer Preset",
+  "settings": {
+    "layout_mode": "multi_column",
+    "logo_text": "Shopify Store",
+    "brand_bio": "Elevating daily rituals through intentional design, sustainable materials, and uncompromising craftsmanship.",
+    "show_newsletter": true,
+    "newsletter_heading": "Join the Inner Circle",
+    "newsletter_subtext": "Subscribe to receive exclusive preview access, editorial stories, and 10% off your initial order.",
+    "show_social": true,
+    "show_payment_icons": true,
+    "show_copyright": true,
+    "show_pre_footer_cta": false,
+    "pre_footer_heading": "Experience Uncompromising Quality",
+    "pre_footer_subtext": "Free express worldwide shipping on orders over $150.",
+    "pre_footer_button_label": "Explore Collection"
+  }
+}

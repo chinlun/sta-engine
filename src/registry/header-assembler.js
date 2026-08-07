@@ -7,6 +7,8 @@ try {
     logger = console;
 }
 
+const { normalizeHeaderCss } = require('./css-normalizer');
+
 const REGISTRY_DIR = path.join(__dirname, 'sections/header');
 
 /**
@@ -152,7 +154,7 @@ function assembleHeaderFiles(registry, configPatch, designTokens = {}, shopName 
             }
             customizedSectionLiquid = customizedSectionLiquid.replace(
                 schemaMatch[0],
-                `${schemaMatch[1]}\n${JSON.stringify(schemaObj, null, 2)}\n${schemaMatch[3]}`
+                () => `${schemaMatch[1]}\n${JSON.stringify(schemaObj, null, 2)}\n${schemaMatch[3]}`
             );
         }
     } catch (err) {
@@ -186,7 +188,7 @@ function assembleHeaderFiles(registry, configPatch, designTokens = {}, shopName 
         },
         {
             path: 'assets/section-header.css',
-            content: `${stylesCss}\n${deltaCss}`.trim()
+            content: `${stylesCss}\n${normalizeHeaderCss(deltaCss)}`.trim()
         },
         {
             path: 'assets/section-header.js',

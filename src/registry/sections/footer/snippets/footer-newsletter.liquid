@@ -1,0 +1,37 @@
+{% comment %}
+  Renders Footer Newsletter Form Snippet
+  Accepts:
+  - title: {String}
+  - body: {String}
+  - button_text: {String}
+{% endcomment %}
+
+<div class="footer-newsletter">
+  {% if title != blank %}
+    <h3 class="footer-newsletter__title">{{ title }}</h3>
+  {% endif %}
+  {% if body != blank %}
+    <p class="footer-newsletter__body">{{ body }}</p>
+  {% endif %}
+
+  {% form 'customer', class: 'footer-newsletter__form' %}
+    <input type="hidden" name="contact[tags]" value="newsletter">
+    <div class="footer-newsletter__input-wrapper">
+      <input
+        type="email"
+        name="contact[email]"
+        class="footer-newsletter__input"
+        placeholder="Enter your email address"
+        aria-label="Enter your email address"
+        required
+      >
+      <button type="submit" class="footer-newsletter__submit-btn" aria-label="Subscribe">
+        <span>{{ button_text | default: 'Subscribe' }}</span>
+        <i data-lucide="arrow-right"></i>
+      </button>
+    </div>
+    {% if form.posted_successfully? %}
+      <p class="footer-newsletter__success-msg">Thank you for subscribing!</p>
+    {% endif %}
+  {% endform %}
+</div>

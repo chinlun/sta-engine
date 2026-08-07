@@ -1,0 +1,122 @@
+{% comment %}
+  Renders a Product Card Component
+  Accepts:
+  - product: {Object} Shopify product object or placeholder object
+  - card_aspect_ratio: {String} 'square', 'portrait', 'tall', 'adapt'
+  - hover_effect: {String} 'secondary_image_fade', 'image_zoom', 'card_lift', 'none'
+  - show_vendor: {Boolean}
+  - show_rating: {Boolean}
+  - show_quick_add: {Boolean}
+  - show_quick_view: {Boolean}
+  - show_swatches: {Boolean}
+  - badge_style: {String}
+  - placeholder_title: {String}
+  - placeholder_price: {String}
+  - placeholder_image: {String}
+{% endcomment %}
+
+{% assign is_placeholder = false %}
+{% if product == blank or product.title == blank %}
+  {% assign is_placeholder = true %}
+{% endif %}
+
+<div class="product-card product-card--hover-{{ hover_effect | default: 'image_zoom' }} {% if is_placeholder %}product-card--placeholder{% endif %}" data-product-card>
+  <div class="product-card__image-container product-card__image-container--{{ card_aspect_ratio | default: 'portrait' }}">
+    
+    {% comment %} Badges {% endcomment %}
+    {% unless is_placeholder %}
+      {% render 'product-badge', product: product, badge_style: badge_style %}
+    {% else %}
+      <div class="product-badge-group product-badge-group--pill">
+        <span class="product-badge product-badge--sale">Save 15%</span>
+      </div>
+    {% endbreaks %}{% endunless %}
+
+    <a href="{% if is_placeholder %}#{% else %}{{ product.url }}{% endif %}" class="product-card__image-wrapper">
+      {% if is_placeholder %}
+        {% assign img_url = placeholder_image | default: 'unsplash://luxury-product-lifestyle' %}
+        <img src="{{ img_url }}" alt="{{ placeholder_title | default: 'Featured Product' }}" class="product-card__image product-card__image--primary" loading="lazy" width="800" height="1000">
+      {% else %}
+        {% assign primary_image = product.featured_media.preview_image | default: product.featured_image %}
+        {% if primary_image %}
+          <img src="{{ primary_image | image_url: width: 800 }}" alt="{{ primary_image.alt | escape }}" class="product-card__image product-card__image--primary" loading="lazy" width="800" height="1000">
+        {% else %}
+          <img src="unsplash://luxury-product-lifestyle" alt="{{ product.title | escape }}" class="product-card__image product-card__image--primary" loading="lazy" width="800" height="1000">
+        {% endif %}
+
+        {% if hover_effect == 'secondary_image_fade' and product.media[1] %}
+          <img src="{{ product.media[1].preview_image | image_url: width: 800 }}" alt="{{ product.title | escape }}" class="product-card__image product-card__image--secondary" loading="lazy" width="800" height="1000">
+        {% endif %}
+      {% endif %}
+    </a>
+
+    {% comment %} Overlay Action Buttons {% endcomment %}
+    <div class="product-card__actions">
+      {% if show_quick_view != false %}
+        <button type="button" class="product-card__action-btn" aria-label="Quick View" data-quick-view-btn data-product-handle="{% if is_placeholder %}demo-product{% else %}{{ product.handle }}{% endif %}">
+          <i data-lucide="eye"></i>
+          <span class="product-card__action-tooltip">Quick View</span>
+        </button>
+      {% endif %}
+      {% if show_quick_add != false %}
+        <button type="button" class="product-card__action-btn product-card__action-btn--primary" aria-label="Quick Add" data-quick-add-btn data-variant-id="{% if is_placeholder %}0{% else %}{{ product.selected_or_first_available_variant.id }}{% endif %}">
+          <i data-lucide="shopping-bag"></i>
+          <span class="product-card__action-tooltip">Add to Cart</span>
+        </button>
+      {% endif %}
+    </div>
+  </div>
+
+  {% comment %} Product Details Content {% endcomment %}
+  <div class="product-card__info">
+    {% if show_vendor and product.vendor != blank %}
+      <span class="product-card__vendor">{{ product.vendor }}</span>
+    {% elsif show_vendor and is_placeholder %}
+      <span class="product-card__vendor">Bespoke Collection</span>
+    {% endif %}
+
+    <h3 class="product-card__title">
+      <a href="{% if is_placeholder %}#{% else %}{{ product.url }}{% endif %}">
+        {% if is_placeholder %}
+          {{ placeholder_title | default: 'Signature Craft Item' }}
+        {% else %}
+          {{ product.title }}
+        {% endif %}
+      </a>
+    </h3>
+
+    {% if show_rating %}
+      <div class="product-card__rating">
+        <div class="rating-stars" aria-label="4.9 out of 5 stars">
+          <i data-lucide="star" class="star-filled"></i>
+          <i data-lucide="star" class="star-filled"></i>
+          <i data-lucide="star" class="star-filled"></i>
+          <i data-lucide="star" class="star-filled"></i>
+          <i data-lucide="star" class="star-filled"></i>
+        </div>
+        <span class="rating-count">(48)</span>
+      </div>
+    {% endif %}
+
+    {% comment %} Color Swatches Preview {% endcomment %}
+    {% if show_swatches %}
+      <div class="product-card__swatches">
+        <span class="swatch-dot swatch-dot--black" title="Onyx Black"></span>
+        <span class="swatch-dot swatch-dot--cream" title="Ivory Cream"></span>
+        <span class="swatch-dot swatch-dot--gold" title="Champagne Gold"></span>
+      </div>
+    {% endif %}
+
+    <div class="product-card__price-wrapper">
+      {% if is_placeholder %}
+        <span class="product-card__price">{{ placeholder_price | default: '$148.00' }}</span>
+        <span class="product-card__price product-card__price--compare">$180.00</span>
+      {% else %}
+        <span class="product-card__price">{{ product.price | money }}</span>
+        {% if product.compare_at_price > product.price %}
+          <span class="product-card__price product-card__price--compare">{{ product.compare_at_price | money }}</span>
+        {% endif %}
+      {% endif %}
+    </div>
+  </div>
+</div>

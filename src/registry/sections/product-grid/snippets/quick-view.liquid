@@ -1,0 +1,17 @@
+{% comment %}
+  Renders Quick View Drawer / Modal Container
+{% endcomment %}
+
+<dialog id="QuickView-Modal-{{ section.id }}" class="quick-view-dialog">
+  <div class="quick-view-container">
+    <button type="button" class="quick-view-close" aria-label="Close quick view" data-quick-view-close>
+      <i data-lucide="x"></i>
+    </button>
+    <div class="quick-view-content" data-quick-view-content>
+      <div class="quick-view-loading">
+        <i data-lucide="loader-2" class="spin-icon"></i>
+        <span>Loading details...</span>
+      </div>
+    </div>
+  </div>
+</dialog>

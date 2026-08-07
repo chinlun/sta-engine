@@ -7,14 +7,14 @@ try {
     logger = console;
 }
 
-const { normalizeHeroCss } = require('./css-normalizer');
+const { normalizeProductGridCss } = require('./css-normalizer');
 
-const REGISTRY_DIR = path.join(__dirname, 'sections/hero');
+const REGISTRY_DIR = path.join(__dirname, 'sections/product-grid');
 
 /**
- * Loads registry files for the hero section
+ * Loads registry files for the product grid section
  */
-function loadHeroRegistry() {
+function loadProductGridRegistry() {
     try {
         const manifestPath = path.join(REGISTRY_DIR, 'manifest.json');
         const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
@@ -46,26 +46,25 @@ function loadHeroRegistry() {
             defaultPreset
         };
     } catch (e) {
-        logger.error(`[HeroRegistry] Error loading hero registry: ${e.message}`);
+        logger.error(`[ProductGridRegistry] Error loading product grid registry: ${e.message}`);
         throw e;
     }
 }
 
 /**
- * Assembles the final hero section files (section.liquid + snippets + CSS/JS)
+ * Assembles the final product grid section files (section.liquid + snippets + CSS/JS)
  * applying LLM configuration patch and design tokens.
  */
-function assembleHeroFiles(registry, configPatch, designTokens = {}, shopName = "") {
+function assembleProductGridFiles(registry, configPatch, designTokens = {}, shopName = "", sectionTargetName = "featured-collection") {
     const { sectionLiquid, stylesCss, scriptJs, snippets } = registry;
     const settingsPatch = configPatch?.settings_patch || {};
     const deltaCss = configPatch?.delta_css || "";
     const deltaJs = configPatch?.delta_js || "";
 
-    // 1. Inject design tokens into color defaults if not explicitly set in patch
     const colors = designTokens.colors || designTokens.palette || {};
-    const defaultBg = colors.background || '#0d0d0d';
-    const defaultText = colors.text || '#ffffff';
-    const defaultAccent = colors.primary || colors.accent || '#d4af37';
+    const defaultBg = colors.background || '#ffffff';
+    const defaultText = colors.text || '#111111';
+    const defaultPrimary = colors.primary || '#000000';
 
     let customizedSectionLiquid = sectionLiquid;
 
@@ -84,7 +83,7 @@ function assembleHeroFiles(registry, configPatch, designTokens = {}, shopName = 
             }
         }
     } catch (err) {
-        logger.warn(`[HeroRegistry] Failed to parse schema JSON for validation: ${err.message}`);
+        logger.warn(`[ProductGridRegistry] Failed to parse schema JSON for validation: ${err.message}`);
     }
 
     // Apply settings patch on top of registry default.json preset and schema defaults
@@ -93,7 +92,7 @@ function assembleHeroFiles(registry, configPatch, designTokens = {}, shopName = 
         ...presetSettings,
         background_color: defaultBg,
         text_color: defaultText,
-        accent_color: defaultAccent,
+        primary_color: defaultPrimary,
         ...settingsPatch
     };
 
@@ -115,11 +114,11 @@ function assembleHeroFiles(registry, configPatch, designTokens = {}, shopName = 
                 const fallback = validOptions.includes('none') ? 'none' : validOptions[0];
                 sanitizedSettings[key] = fallback;
             } else {
-                logger.warn(`[HeroRegistry] Invalid select value "${val}" for setting "${key}". Allowed values: [${validOptions.join(', ')}]. Skipping.`);
+                logger.warn(`[ProductGridRegistry] Invalid select value "${val}" for setting "${key}". Allowed values: [${validOptions.join(', ')}]. Skipping.`);
             }
         } else if (settingDef.type === 'checkbox') {
             sanitizedSettings[key] = Boolean(val);
-        } else if (settingDef.type === 'color' || settingDef.type === 'text' || settingDef.type === 'textarea' || settingDef.type === 'liquid' || settingDef.type === 'url') {
+        } else if (settingDef.type === 'color' || settingDef.type === 'text' || settingDef.type === 'textarea' || settingDef.type === 'liquid' || settingDef.type === 'url' || settingDef.type === 'collection') {
             sanitizedSettings[key] = String(val);
         } else if (settingDef.type === 'range' || settingDef.type === 'number') {
             const numVal = Number(val);
@@ -155,27 +154,31 @@ function assembleHeroFiles(registry, configPatch, designTokens = {}, shopName = 
             );
         }
     } catch (err) {
-        logger.warn(`[HeroRegistry] Failed to update schema JSON: ${err.message}`);
+        logger.warn(`[ProductGridRegistry] Failed to update schema JSON: ${err.message}`);
     }
 
-    // 2. Asset Isolation: Prepend asset tags into section.liquid (No inline <style> or <script> blocks)
-    const assetTags = `{{ 'section-hero.css' | asset_url | stylesheet_tag }}\n<script src="{{ 'section-hero.js' | asset_url }}" defer="defer"></script>\n`;
-    if (!customizedSectionLiquid.includes("section-hero.css")) {
+    // Asset Isolation: Prepend asset tags into section.liquid (No inline <style> or <script> blocks)
+    const assetTags = `{{ 'section-product-grid.css' | asset_url | stylesheet_tag }}\n<script src="{{ 'section-product-grid.js' | asset_url }}" defer="defer"></script>\n`;
+    if (!customizedSectionLiquid.includes("section-product-grid.css")) {
         customizedSectionLiquid = assetTags + '\n' + customizedSectionLiquid;
     }
 
-    // 3. Assemble all files with asset isolation
+    // Determine target section filename (e.g. sections/featured-collection.liquid or sections/product-grid.liquid)
+    let sectionFileName = sectionTargetName;
+    if (!sectionFileName.endsWith('.liquid')) sectionFileName += '.liquid';
+    if (!sectionFileName.startsWith('sections/')) sectionFileName = 'sections/' + sectionFileName;
+
     const resultFiles = [
         {
-            path: 'sections/hero.liquid',
+            path: sectionFileName,
             content: customizedSectionLiquid
         },
         {
-            path: 'assets/section-hero.css',
-            content: `${stylesCss}\n${normalizeHeroCss(deltaCss)}`.trim()
+            path: 'assets/section-product-grid.css',
+            content: `${stylesCss}\n${normalizeProductGridCss(deltaCss)}`.trim()
         },
         {
-            path: 'assets/section-hero.js',
+            path: 'assets/section-product-grid.js',
             content: `${scriptJs}\n${deltaJs}`.trim()
         }
     ];
@@ -201,6 +204,6 @@ function assembleHeroFiles(registry, configPatch, designTokens = {}, shopName = 
 }
 
 module.exports = {
-    loadHeroRegistry,
-    assembleHeroFiles
+    loadProductGridRegistry,
+    assembleProductGridFiles
 };

@@ -9,6 +9,8 @@ const path = require('path');
 const { uploadThemeState, getThemeState } = require("../services/r2-service");
 const { loadHeaderRegistry, assembleHeaderFiles } = require("../registry/header-assembler");
 const { loadHeroRegistry, assembleHeroFiles } = require("../registry/hero-assembler");
+const { loadProductGridRegistry, assembleProductGridFiles } = require("../registry/product-grid-assembler");
+const { loadFooterRegistry, assembleFooterFiles } = require("../registry/footer-assembler");
 const { extractBriefSignals } = require("../services/signal-extractor");
 const { mapSignalsToSchema, sanitizeBusinessFacts } = require("../services/schema-mapper");
 const { validateGeneratedTheme } = require("../services/post-gen-validator");
@@ -605,18 +607,27 @@ ${adaptiveInstructions}
 
 ${prunedContext}
 
-AESTHETIC RULES:
-1. "Sophisticated" & Premium: Avoid basic colors. Use HSL-tailored, harmonious palettes.
-2. Editorial Design: Prioritize typography and white space. No rounded corners (0px).`,
+AESTHETIC RULES & HARMONIOUS COLOR SYSTEM:
+1. "Sophisticated" & Premium Palette Rules (NEVER use neon red #ff0000 or harsh unharmonious colors):
+   - For Plush / Toys / JellyCat / Kids: Use warm ivory (#faf8f5) or soft cream canvas (#fffdfa), warm espresso (#2b2623) primary text & buttons, soft blush (#f4e3dd) or sage (#d8e2dc) secondary accents. Primary buttons MUST be warm espresso (#2b2623) or warm terracotta (#c86d51)—NEVER neon red (#ff0000) or periwinkle (#8294c4)!
+   - For Luxury Timepieces / Haute Couture / Fine Jewelry: Use deep obsidian (#0d0d0d) or midnight charcoal (#121212), champagne gold (#d4af37) or warm platinum accents, optic white (#ffffff) canvas, and slate text (#1e293b).
+   - For Modern Tech & Gadgets: Use deep graphite (#0f172a), midnight slate (#020617), sleek electric cyan/emerald accents (#06b6d4 / #10b981), and crisp neutral surfaces (#f8fafc).
+   - For Organic Home & Wellness: Use warm oat (#f5f2eb), forest green (#2d4a3e), earth terracotta (#b85d43), and charcoal text (#1a1a1a).
+2. Contrast & Harmony Guarantee:
+   - Primary text MUST have >= 7:1 contrast ratio against background.
+   - Backgrounds should be clean, warm neutral or dark obsidian—never harsh blue-purple fills.
+   - Surface color MUST complement background seamlessly.
+3. Editorial Design: Prioritize typography, subtle elevation, and generous whitespace.`,
                 prompt: `User Prompt: ${userPrompt}\n\nSelect design tokens in JSON format based on the prompt.`,
                 schema: z.object({
                     reasoning: z.string().describe("Your thought process. MUST BE FIRST."),
                     palette: z.object({
-                        primary: z.string(),
-                        secondary: z.string(),
-                        accent: z.string(),
-                        background: z.string(),
-                        text: z.string(),
+                        primary: z.string().describe("Primary CTA & header color"),
+                        secondary: z.string().describe("Secondary accent color"),
+                        accent: z.string().describe("Highlight color"),
+                        background: z.string().describe("Page background color"),
+                        surface: z.string().describe("Container surface color"),
+                        text: z.string().describe("Primary text color"),
                     }),
                     typography: z.object({
                         heading_font: z.string(),
@@ -898,14 +909,19 @@ async function structuralNode(state, config) {
     if (sendEvent) sendEvent({ type: 'progress', stage: 'structural', message: 'Building global layout shell...', component: 'layout/theme.liquid' });
 
     // 1. Generate base.css with design tokens
-    const c = designTokens.colors || {};
+    const c = designTokens.palette || designTokens.colors || {};
     const baseCss = `
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
 :root {
   --color-primary: ${c.primary || designTokens.primary_color || '#000000'};
   --color-secondary: ${c.secondary || designTokens.secondary_color || '#999999'};
   --color-background: ${c.background || designTokens.background_color || '#ffffff'};
   --color-surface: ${c.surface || designTokens.surface_color || '#f4f4f4'};
   --color-text: ${c.text || designTokens.text_color || '#111111'};
+  --color-text-muted: ${c.text ? `${c.text}bb` : 'rgba(17, 17, 17, 0.75)'};
   --font-heading: 'Playfair Display', serif;
   --font-body: 'Inter', sans-serif;
   --spacing-base: 0.5rem;
@@ -918,12 +934,99 @@ body {
   background-color: var(--color-background);
   color: var(--color-text);
   line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
 }
 
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-heading);
   margin-top: 0;
   color: var(--color-primary);
+  line-height: 1.25;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+input, button, select, textarea {
+  font-family: inherit;
+  font-size: 0.9375rem;
+}
+
+input[type="text"], input[type="email"], input[type="search"], input[type="number"], select, textarea {
+  padding: 12px 18px;
+  border: 1px solid rgba(0,0,0,0.15);
+  border-radius: var(--border-radius-base, 6px);
+  background-color: var(--color-surface, #ffffff);
+  color: var(--color-text, #111111);
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+input:focus, select:focus, textarea:focus {
+  border-color: var(--color-primary, #000000);
+  box-shadow: 0 0 0 3px rgba(0,0,0,0.05);
+}
+
+/* --- Global Modern Button Architecture --- */
+button, .button, .btn, input[type="submit"], input[type="button"] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 14px 28px;
+  min-height: 48px;
+  background-color: var(--color-primary, #111111);
+  color: #ffffff;
+  border: 1.5px solid var(--color-primary, #111111);
+  border-radius: var(--border-radius-base, 6px);
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+button:hover, .button:hover, .btn:hover, input[type="submit"]:hover {
+  background-color: var(--color-text, #000000);
+  border-color: var(--color-text, #000000);
+  color: #ffffff;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+}
+
+button:active, .button:active, .btn:active {
+  transform: translateY(0) scale(0.98);
+}
+
+/* Secondary / Badge / Outline Button Variants */
+.button--outline, .btn-outline, .button--secondary, .btn-secondary {
+  background-color: transparent;
+  color: var(--color-primary, #111111);
+  border: 1.5px solid var(--color-primary, #111111);
+  box-shadow: none;
+}
+
+.button--outline:hover, .btn-outline:hover, .button--secondary:hover, .btn-secondary:hover {
+  background-color: var(--color-primary, #111111);
+  color: #ffffff;
+}
+
+.button--pill, .btn-pill {
+  border-radius: 50px;
+}
+
+ul, ol {
+  padding-left: 1.25rem;
+  margin-top: 0.5rem;
+  margin-bottom: 1rem;
 }
 
 main {
@@ -945,6 +1048,7 @@ main {
   --color-background: ${colorSchemes.background || c.background || '#ffffff'};
   --color-surface: ${colorSchemes.surface || c.surface || '#f4f4f4'};
   --color-text: ${colorSchemes.text || c.text || '#111111'};
+  --color-text-muted: ${colorSchemes.text || c.text ? `${colorSchemes.text || c.text}bb` : 'rgba(17, 17, 17, 0.75)'};
   --font-heading: '${typography.heading_font || 'Playfair Display'}', serif;
   --font-body: '${typography.body_font || 'Inter'}', sans-serif;
   --container-max-width: ${layout.container_width || 1280}px;
@@ -1301,6 +1405,224 @@ Brief Content: ${JSON.stringify(sectionContent[componentNameFull] || sectionCont
         }
     }
 
+    // --- REGISTRY-FIRST BRANCH: PRODUCT GRID / FEATURED COLLECTION ---
+    if (targetComponent.type === 'product-grid' || 
+        targetComponent.type === 'featured-collection' || 
+        componentNameFull.includes('featured-collection') || 
+        componentNameFull.includes('product-grid') || 
+        componentNameFull.includes('collection-grid')) {
+        logger.info(`[Graph] Executing Registry-First Flow for Product Grid (${componentNameFull})`);
+        try {
+            const productGridRegistry = loadProductGridRegistry();
+            let attempt = 0;
+            const maxAttempts = 10;
+            let finalObject;
+
+            while (attempt < maxAttempts) {
+                attempt++;
+                const { model, adaptiveInstructions } = getLLMConfig({ ...state, isFallback: localIsFallback }, attempt);
+
+                try {
+                    const { partialObjectStream, object } = await streamObject({
+                        model,
+                        maxRetries: 0,
+                        mode: 'json',
+                        system: `You are a Shopify theme section assembler. Your default behavior is registry-first, not scratch-first.
+For every product grid / collection section request:
+1. Parse the brief into required capabilities, store size scale, layout mode, card customization, and brand tone.
+2. Inspect the Product Grid Section Registry contract before generating patch code.
+3. Configure supported settings in settings_patch:
+   - layout_mode: 'standard_grid' (auto-fit responsive columns), 'carousel_slider' (horizontal snap slider), 'asymmetric_editorial' (2x2 lead card + grid), or 'horizontal_list' (dense catalog list).
+   - columns_desktop: 2, 3, 4, or 5.
+   - columns_mobile: '1' or '2'.
+   - card_aspect_ratio: 'portrait' (4:5), 'square' (1:1), 'tall' (2:3), or 'adapt'.
+   - hover_effect: 'image_zoom', 'secondary_image_fade', 'card_lift', or 'none'.
+   - eyebrow, title, subheading.
+   - show_vendor, show_rating, show_swatches, show_quick_add, show_quick_view, badge_style ('pill' or 'square').
+   - enable_filter_bar & enable_load_more.
+4. Detail your layout reasoning and aesthetic choices in the 'rationale' output field.
+5. Generate only the delta CSS/JS that the registry cannot already provide.
+
+Registry Description: ${productGridRegistry.manifest.description}
+${adaptiveInstructions}`,
+                        prompt: `User Prompt & Design Intent:
+User Goal: ${state.userPrompt || 'Modern eCommerce store'}
+Store Name: ${shopName || 'Shopify Store'}
+Design Tokens: ${JSON.stringify(designTokens)}
+Brief Content: ${JSON.stringify(sectionContent[componentNameFull] || sectionContent[targetComponent.name] || {})}`,
+                        schema: z.object({
+                            rationale: z.string().describe("Explanation of configuration choices."),
+                            settings_patch: z.record(z.any()).optional().describe("Key-value settings patch to customize section schema defaults."),
+                            delta_css: z.string().optional().describe("Optional custom CSS override delta."),
+                            delta_js: z.string().optional().describe("Optional custom JS delta.")
+                        }),
+                        maxTokens: 16384,
+                    });
+
+                    object.catch(() => {});
+                    let previousLength = 0;
+                    for await (const partial of partialObjectStream) {
+                        if (partial.rationale && partial.rationale.length > previousLength) {
+                            const delta = partial.rationale.substring(previousLength);
+                            if (sendEvent) sendEvent({ type: 'thinking', component: componentNameFull, node: 'Coding (Registry Product Grid)', text: delta });
+                            previousLength = partial.rationale.length;
+                        }
+                    }
+
+                    finalObject = await object;
+                    break;
+                } catch (err) {
+                    logger.error(`[Graph] Registry product grid generation error (Attempt ${attempt}): ${err.message}`);
+                    if (attempt >= maxAttempts) throw err;
+                    await sleepWithJitter(attempt);
+                }
+            }
+
+            const generatedFiles = assembleProductGridFiles(productGridRegistry, finalObject, designTokens, shopName, componentNameFull);
+            await resolveUnsplashPlaceholders(generatedFiles, state);
+
+            const duration = Date.now() - startTime;
+            logger.info(`[Graph] ✅ Registry-First Product Grid complete (${duration}ms). Generated ${generatedFiles.length} files.`);
+
+            // Incremental R2 Update for all assembled product grid files
+            const { themeId } = state;
+            if (themeId) {
+                try {
+                    const currentState = await getThemeState(themeId);
+                    const updatedState = [...currentState];
+                    for (const f of generatedFiles) {
+                        const idx = updatedState.findIndex(s => (s.filePath || s.path) === f.path);
+                        const mod = { filePath: f.path, content: f.content, action: 'update', path: f.path };
+                        if (idx >= 0) updatedState[idx] = mod;
+                        else updatedState.push(mod);
+                    }
+                    await uploadThemeState(themeId, updatedState);
+                    logger.info(`[R2] Incremental update saved for Registry Product Grid (${generatedFiles.length} files)`);
+                } catch (e) { logger.warn(`[R2] Failed incremental update for registry product grid: ${e.message}`); }
+            }
+
+            return {
+                currentComponentFiles: generatedFiles,
+                tsErrors: [],
+                reasoning: { node: 'coder', text: `Assembled Registry Product Grid section with ${generatedFiles.length} files.` },
+                isFallback: localIsFallback
+            };
+        } catch (e) {
+            logger.error(`[Graph] Registry Product Grid assembly failed, falling back to standard coderNode: ${e.message}`);
+        }
+    }
+
+    // --- REGISTRY-FIRST BRANCH: FOOTER ---
+    if (targetComponent.type === 'footer' || componentNameFull === 'sections/footer.liquid' || componentNameFull.includes('footer')) {
+        logger.info(`[Graph] Executing Registry-First Flow for Footer (${componentNameFull})`);
+        try {
+            const footerRegistry = loadFooterRegistry();
+            let attempt = 0;
+            const maxAttempts = 10;
+            let finalObject;
+
+            while (attempt < maxAttempts) {
+                attempt++;
+                const { model, adaptiveInstructions } = getLLMConfig({ ...state, isFallback: localIsFallback }, attempt);
+
+                try {
+                    const { partialObjectStream, object } = await streamObject({
+                        model,
+                        maxRetries: 0,
+                        mode: 'json',
+                        system: `You are a Shopify theme section assembler. Your default behavior is registry-first, not scratch-first.
+For every footer section request:
+1. Parse the brief into required capabilities, layout style, content blocks, brand information, and social links.
+2. Inspect the Footer Section Registry contract before generating patch code.
+3. Configure supported settings in settings_patch:
+   - layout_mode: 'multi_column' (4-6 column navigation grid), 'centered_minimal' (centered logo, nav, social), 'editorial_split' (50/50 brand pitch & newsletter left, nav right), or 'bottom_bar_elevated' (CTA band + grid + bottom bar).
+   - logo_text: shop name (default to merchant shop name "${shopName || 'Shopify Store'}").
+   - brand_bio: sophisticated brand summary.
+   - show_social: boolean (default true).
+   - show_newsletter, newsletter_heading, newsletter_subtext.
+   - show_payment_icons, show_copyright.
+   - show_pre_footer_cta, pre_footer_heading, pre_footer_subtext, pre_footer_button_label.
+4. Detail your layout reasoning and aesthetic choices in the 'rationale' output field.
+5. Generate only the delta CSS/JS that the registry cannot already provide.
+   CRITICAL: When generating delta_css, target the exact CSS selectors used by the registry:
+   - Root section: .footer-registry-section (or .footer-registry-section--light-bg)
+   - Pre-footer CTA band: .footer-pre-cta, .footer-pre-cta__title, .footer-pre-cta__subtext, .footer-pre-cta__btn
+   - Grid layout: .footer-grid, .footer-grid--multi_column, .footer-grid--editorial_split, .footer-grid--bottom_bar_elevated
+   - Brand block: .footer-brand, .footer-brand__logo, .footer-brand__bio
+   - Column titles & menu links: .footer-column__title, .footer-nav-list, .footer-nav-list a
+   - Newsletter: .footer-newsletter, .footer-newsletter__title, .footer-newsletter__body, .footer-newsletter__input, .footer-newsletter__submit-btn
+   - Social links & icons: .footer-social-links, .footer-social-link
+   - Bottom bar: .footer-bottom-bar, .footer-bottom-bar__copyright, .payment-badge
+
+Registry Description: ${footerRegistry.manifest.description}
+${adaptiveInstructions}`,
+                        prompt: `User Prompt & Design Intent:
+User Goal: ${state.userPrompt || 'Modern eCommerce store'}
+Store Name: ${shopName || 'Shopify Store'}
+Design Tokens: ${JSON.stringify(designTokens)}
+Brief Content: ${JSON.stringify(sectionContent[componentNameFull] || sectionContent[targetComponent.name] || {})}`,
+                        schema: z.object({
+                            rationale: z.string().describe("Explanation of configuration choices."),
+                            settings_patch: z.record(z.any()).optional().describe("Key-value settings patch to customize section schema defaults."),
+                            delta_css: z.string().optional().describe("Optional custom CSS override delta."),
+                            delta_js: z.string().optional().describe("Optional custom JS delta.")
+                        }),
+                        maxTokens: 16384,
+                    });
+
+                    object.catch(() => {});
+                    let previousLength = 0;
+                    for await (const partial of partialObjectStream) {
+                        if (partial.rationale && partial.rationale.length > previousLength) {
+                            const delta = partial.rationale.substring(previousLength);
+                            if (sendEvent) sendEvent({ type: 'thinking', component: componentNameFull, node: 'Coding (Registry Footer)', text: delta });
+                            previousLength = partial.rationale.length;
+                        }
+                    }
+
+                    finalObject = await object;
+                    break;
+                } catch (err) {
+                    logger.error(`[Graph] Registry footer generation error (Attempt ${attempt}): ${err.message}`);
+                    if (attempt >= maxAttempts) throw err;
+                    await sleepWithJitter(attempt);
+                }
+            }
+
+            const generatedFiles = assembleFooterFiles(footerRegistry, finalObject, designTokens, shopName);
+            await resolveUnsplashPlaceholders(generatedFiles, state);
+
+            const duration = Date.now() - startTime;
+            logger.info(`[Graph] ✅ Registry-First Footer complete (${duration}ms). Generated ${generatedFiles.length} files.`);
+
+            // Incremental R2 Update for all assembled footer files
+            const { themeId } = state;
+            if (themeId) {
+                try {
+                    const currentState = await getThemeState(themeId);
+                    const updatedState = [...currentState];
+                    for (const f of generatedFiles) {
+                        const idx = updatedState.findIndex(s => (s.filePath || s.path) === f.path);
+                        const mod = { filePath: f.path, content: f.content, action: 'update', path: f.path };
+                        if (idx >= 0) updatedState[idx] = mod;
+                        else updatedState.push(mod);
+                    }
+                    await uploadThemeState(themeId, updatedState);
+                    logger.info(`[R2] Incremental update saved for Registry Footer (${generatedFiles.length} files)`);
+                } catch (e) { logger.warn(`[R2] Failed incremental update for registry footer: ${e.message}`); }
+            }
+
+            return {
+                currentComponentFiles: generatedFiles,
+                tsErrors: [],
+                reasoning: { node: 'coder', text: `Assembled Registry Footer section with ${generatedFiles.length} files.` },
+                isFallback: localIsFallback
+            };
+        } catch (e) {
+            logger.error(`[Graph] Registry Footer assembly failed, falling back to standard coderNode: ${e.message}`);
+        }
+    }
+
     const errors = [...(tsErrors || [])];
 
     // Blueprint Check
@@ -1382,7 +1704,7 @@ ${contextBank.getPrunedContext('coder', targetComponent, selectedDesignSystem)}
 
 ## THE ARCHITECTURAL RULES
 You are a Senior Frontend Engineer. Build a stunning, bespoke editorial eCommerce section.
-- ASSET ISOLATION (NO INLINE CSS/JS): NEVER write <style>, {%- style -%}, or <script> tags inside .liquid section files. Custom styles must be placed in CSS asset files or leverage CSS variables in assets/theme-brand.css.
+- ASSET ISOLATION (NO INLINE CSS/JS): NEVER write <style>, {%- style -%}, or <script> tags inside .liquid section files. You MUST return both the section Liquid file (e.g. 'sections/newsletter.liquid') AND its accompanying CSS asset file (e.g. 'assets/section-newsletter.css'). Link the CSS at top of Liquid via \`{{ 'section-<basename>.css' | asset_url | stylesheet_tag }}\`.
 - NO TAILWIND: Do NOT use Tailwind utility classes (py-10, flex, etc.) in the HTML. Use standard CSS classes.
 - SHOP NAME: The name of the merchant's store is "${shopName || 'Shopify Store'}". When generating the header, footer, logo section, or copyright notices, always set the default value for the logo text or shop name setting in the schema settings to exactly "${shopName || 'Shopify Store'}" (rather than using generic placeholder text). In Liquid, use \`{{ section.settings.logo_text | default: shop.name }}\` or similar settings to allow customizability while defaulting to the configured shop name.
 - CONTENT: Use the provided "Sophisticated" content exactly. Do NOT hallucinate generic copy.
@@ -1391,7 +1713,7 @@ You are a Senior Frontend Engineer. Build a stunning, bespoke editorial eCommerc
 - LUCIDE ICONS INSTALLED: The Lucide Icons library is pre-installed via CDN in theme.liquid and automatically initialized. For social media icons, arrows, search, cart, user accounts, and all other theme icons, ALWAYS use Lucide HTML tags like \`<i data-lucide="instagram"></i>\`, \`<i data-lucide="facebook"></i>\`, \`<i data-lucide="search"></i>\`, \`<i data-lucide="shopping-bag"></i>\`, etc. Do NOT use \`{% render 'icon-...' %}\` (as they do not exist) and do NOT write large inline SVGs.
 - LIQUID SPLIT RULE: When splitting strings in Liquid to generate loop datasets (e.g., for placeholders), NEVER use a comma (',') as the split delimiter. Formatted prices (like '$1,250.00') contain commas which corrupts the split logic. Always use a semicolon (';') or double hashes ('##') as the delimiter.
 - PLACEHOLDERS & FALLBACKS: For sections that rely on dynamic Shopify resources (like collection, product_list, blog, etc.), you MUST always implement a high-fidelity placeholder loop (rendering mock titles, prices, and Unsplash image URLs using the LIQUID SPLIT RULE) in the '{% else %}' block when the resource is blank/unset. NEVER leave a section empty or output unconfigured translation tags (like 'homepage.onboarding.no_content') if the resource is empty. The section must display beautifully in the preview out-of-the-box.
-- MENU STYLING: When styling menus ('<ul>' lists), always ensure the list styling (display: flex; list-style: none; padding: 0; margin: 0;) is applied directly to the '<ul>' element (e.g., '.site-header__nav-list' or '.header__menu'), rather than only on the parent '<nav>' wrapper.
+- MENU & FORM STYLING: When styling menus ('<ul>' lists) or form inputs/buttons, always provide full CSS styling (display, flex/grid, padding, gap, background, border-radius). Never output plain unstyled HTML elements.
 - GRID RESPONSIVENESS: When building multi-item layouts (such as product grids, collection grids, testimonials, logo lists), NEVER use a hardcoded column count (like 'repeat(3, 1fr)') that doesn't match the maximum item limit (e.g., displaying 4 items in a 3-column grid). Always use a flexible, auto-fitting grid (e.g., 'grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));') or ensure the column count on desktop matches the configured item limit so there are never unbalanced/orphaned items in the grid.
 - CSS HEIGHT & ASPECT RATIO: When absolute-positioning an image inside a container (position: absolute; width: 100%; height: 100%;), the container MUST have a defined height or aspect ratio (e.g. aspect-ratio: 16/9; or aspect-ratio: 4/3;). NEVER override this with aspect-ratio: auto; on desktop unless you specify a min-height or height, otherwise the container collapses to 0px height and the image disappears.
 - HTML ATTRIBUTES: On the '<img>' tag, the HTML 'height' attribute MUST be an integer (e.g. height="800"). NEVER use CSS values like height="auto" inside HTML attributes.

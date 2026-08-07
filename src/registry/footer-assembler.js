@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { normalizeFooterCss } = require('./css-normalizer');
 let logger;
 try {
     logger = require('../lib/logger').logger;
@@ -7,14 +8,12 @@ try {
     logger = console;
 }
 
-const { normalizeHeroCss } = require('./css-normalizer');
-
-const REGISTRY_DIR = path.join(__dirname, 'sections/hero');
+const REGISTRY_DIR = path.join(__dirname, 'sections/footer');
 
 /**
- * Loads registry files for the hero section
+ * Loads registry files for the footer section
  */
-function loadHeroRegistry() {
+function loadFooterRegistry() {
     try {
         const manifestPath = path.join(REGISTRY_DIR, 'manifest.json');
         const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
@@ -46,26 +45,24 @@ function loadHeroRegistry() {
             defaultPreset
         };
     } catch (e) {
-        logger.error(`[HeroRegistry] Error loading hero registry: ${e.message}`);
+        logger.error(`[FooterRegistry] Error loading footer registry: ${e.message}`);
         throw e;
     }
 }
 
 /**
- * Assembles the final hero section files (section.liquid + snippets + CSS/JS)
+ * Assembles the final footer section files (section.liquid + snippets + CSS/JS)
  * applying LLM configuration patch and design tokens.
  */
-function assembleHeroFiles(registry, configPatch, designTokens = {}, shopName = "") {
+function assembleFooterFiles(registry, configPatch, designTokens = {}, shopName = "") {
     const { sectionLiquid, stylesCss, scriptJs, snippets } = registry;
     const settingsPatch = configPatch?.settings_patch || {};
     const deltaCss = configPatch?.delta_css || "";
     const deltaJs = configPatch?.delta_js || "";
 
-    // 1. Inject design tokens into color defaults if not explicitly set in patch
     const colors = designTokens.colors || designTokens.palette || {};
-    const defaultBg = colors.background || '#0d0d0d';
+    const defaultBg = colors.surface || colors.background || '#111111';
     const defaultText = colors.text || '#ffffff';
-    const defaultAccent = colors.primary || colors.accent || '#d4af37';
 
     let customizedSectionLiquid = sectionLiquid;
 
@@ -84,16 +81,16 @@ function assembleHeroFiles(registry, configPatch, designTokens = {}, shopName = 
             }
         }
     } catch (err) {
-        logger.warn(`[HeroRegistry] Failed to parse schema JSON for validation: ${err.message}`);
+        logger.warn(`[FooterRegistry] Failed to parse schema JSON for validation: ${err.message}`);
     }
 
     // Apply settings patch on top of registry default.json preset and schema defaults
     const presetSettings = registry?.defaultPreset?.settings || {};
     const mergedSettings = {
         ...presetSettings,
+        logo_text: shopName || presetSettings.logo_text || "Shopify Store",
         background_color: defaultBg,
         text_color: defaultText,
-        accent_color: defaultAccent,
         ...settingsPatch
     };
 
@@ -115,7 +112,7 @@ function assembleHeroFiles(registry, configPatch, designTokens = {}, shopName = 
                 const fallback = validOptions.includes('none') ? 'none' : validOptions[0];
                 sanitizedSettings[key] = fallback;
             } else {
-                logger.warn(`[HeroRegistry] Invalid select value "${val}" for setting "${key}". Allowed values: [${validOptions.join(', ')}]. Skipping.`);
+                logger.warn(`[FooterRegistry] Invalid select value "${val}" for setting "${key}". Allowed values: [${validOptions.join(', ')}]. Skipping.`);
             }
         } else if (settingDef.type === 'checkbox') {
             sanitizedSettings[key] = Boolean(val);
@@ -155,27 +152,33 @@ function assembleHeroFiles(registry, configPatch, designTokens = {}, shopName = 
             );
         }
     } catch (err) {
-        logger.warn(`[HeroRegistry] Failed to update schema JSON: ${err.message}`);
+        logger.warn(`[FooterRegistry] Failed to update schema JSON: ${err.message}`);
     }
 
-    // 2. Asset Isolation: Prepend asset tags into section.liquid (No inline <style> or <script> blocks)
-    const assetTags = `{{ 'section-hero.css' | asset_url | stylesheet_tag }}\n<script src="{{ 'section-hero.js' | asset_url }}" defer="defer"></script>\n`;
-    if (!customizedSectionLiquid.includes("section-hero.css")) {
+    // Detect background luminance to toggle light background contrast class if needed
+    const bgVal = String(mergedSettings.background_color || '').toLowerCase();
+    const isLightBg = bgVal.includes('fff') || bgVal.includes('255') || bgVal.includes('f9') || bgVal.includes('f4') || bgVal.includes('fa') || bgVal.includes('ea');
+    if (isLightBg) {
+        customizedSectionLiquid = customizedSectionLiquid.replace('class="footer-registry-section"', 'class="footer-registry-section footer-registry-section--light-bg"');
+    }
+
+    // Asset Isolation: Prepend asset tags into section.liquid (No inline <style> or <script> blocks)
+    const assetTags = `{{ 'section-footer.css' | asset_url | stylesheet_tag }}\n<script src="{{ 'section-footer.js' | asset_url }}" defer="defer"></script>\n`;
+    if (!customizedSectionLiquid.includes("section-footer.css")) {
         customizedSectionLiquid = assetTags + '\n' + customizedSectionLiquid;
     }
 
-    // 3. Assemble all files with asset isolation
     const resultFiles = [
         {
-            path: 'sections/hero.liquid',
+            path: 'sections/footer.liquid',
             content: customizedSectionLiquid
         },
         {
-            path: 'assets/section-hero.css',
-            content: `${stylesCss}\n${normalizeHeroCss(deltaCss)}`.trim()
+            path: 'assets/section-footer.css',
+            content: `${stylesCss}\n${normalizeFooterCss(deltaCss)}`.trim()
         },
         {
-            path: 'assets/section-hero.js',
+            path: 'assets/section-footer.js',
             content: `${scriptJs}\n${deltaJs}`.trim()
         }
     ];
@@ -201,6 +204,6 @@ function assembleHeroFiles(registry, configPatch, designTokens = {}, shopName = 
 }
 
 module.exports = {
-    loadHeroRegistry,
-    assembleHeroFiles
+    loadFooterRegistry,
+    assembleFooterFiles
 };

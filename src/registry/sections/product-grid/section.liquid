@@ -1,0 +1,259 @@
+{% comment %}
+  Product Grid Registry Section (OS 2.0 Store Compliant)
+{% endcomment %}
+
+<product-grid-section class="product-grid-registry-section" id="ProductGrid-{{ section.id }}">
+  <div class="product-grid-container">
+    
+    {% comment %} Header Block {% endcomment %}
+    {% if section.settings.title != blank or section.settings.subheading != blank or section.settings.eyebrow != blank %}
+      <div class="product-grid__header {% if section.settings.header_alignment == 'center' %}product-grid__header--center{% endif %}">
+        {% if section.settings.eyebrow != blank %}
+          <span class="product-grid__eyebrow">{{ section.settings.eyebrow }}</span>
+        {% endif %}
+
+        {% if section.settings.title != blank %}
+          <h2 class="product-grid__title">{{ section.settings.title }}</h2>
+        {% endif %}
+
+        {% if section.settings.subheading != blank %}
+          <p class="product-grid__subheading">{{ section.settings.subheading }}</p>
+        {% endif %}
+      </div>
+    {% endif %}
+
+    {% comment %} Filter / Category Tabs Bar {% endcomment %}
+    {% if section.settings.enable_filter_bar %}
+      <div class="product-grid__filter-bar">
+        <div class="product-grid__tabs">
+          <button type="button" class="product-grid__tab-btn is-active">All Products</button>
+          <button type="button" class="product-grid__tab-btn">Best Sellers</button>
+          <button type="button" class="product-grid__tab-btn">New Arrivals</button>
+          <button type="button" class="product-grid__tab-btn">On Sale</button>
+        </div>
+      </div>
+    {% endif %}
+
+    {% comment %} Product Grid Items Container {% endcomment %}
+    <div class="product-grid__items product-grid__items--{{ section.settings.layout_mode }} product-grid__items--cols-{{ section.settings.columns_desktop }} product-grid__items--mobile-{{ section.settings.columns_mobile }}">
+      {% assign selected_collection = collections[section.settings.collection] %}
+      {% assign limit = section.settings.products_to_show | default: 8 %}
+
+      {% if selected_collection != blank and selected_collection.products.size > 0 %}
+        {% for product in selected_collection.products limit: limit %}
+          {% render 'product-card',
+            product: product,
+            card_aspect_ratio: section.settings.card_aspect_ratio,
+            hover_effect: section.settings.hover_effect,
+            show_vendor: section.settings.show_vendor,
+            show_rating: section.settings.show_rating,
+            show_swatches: section.settings.show_swatches,
+            show_quick_add: section.settings.show_quick_add,
+            show_quick_view: section.settings.show_quick_view,
+            badge_style: section.settings.badge_style
+          %}
+        {% endfor %}
+      {% else %}
+        {% comment %} High-Fidelity Onboarding Fallback Loop (Liquid Split Delimiter Rule: ;; or ##) {% endcomment %}
+        {% assign mock_titles = "Artisanal Ceramic Vase;;Minimalist Steel Watch;;Organic Linen Throw;;Handcrafted Leather Tote;;Architectural Table Lamp;;Pure Wool Knit Sweater;;Bespoke Amber Candle;;Minimalist Desk Organizer" | split: ";;" %}
+        {% assign mock_prices = "$120.00;;$245.00;;$95.00;;$310.00;;$180.00;;$165.00;;$48.00;;$72.00" | split: ";;" %}
+        {% assign mock_images = "unsplash://minimalist-ceramic-vase;;unsplash://luxury-watch-lifestyle;;unsplash://organic-linen-textile;;unsplash://handcrafted-leather-bag;;unsplash://architectural-desk-lamp;;unsplash://pure-wool-sweater;;unsplash://scented-candle-home;;unsplash://minimalist-desk-setup" | split: ";;" %}
+
+        {% for i in (1..limit) %}
+          {% assign idx = forloop.index0 | modulo: 8 %}
+          {% render 'product-card',
+            product: nil,
+            card_aspect_ratio: section.settings.card_aspect_ratio,
+            hover_effect: section.settings.hover_effect,
+            show_vendor: section.settings.show_vendor,
+            show_rating: section.settings.show_rating,
+            show_swatches: section.settings.show_swatches,
+            show_quick_add: section.settings.show_quick_add,
+            show_quick_view: section.settings.show_quick_view,
+            badge_style: section.settings.badge_style,
+            placeholder_title: mock_titles[idx],
+            placeholder_price: mock_prices[idx],
+            placeholder_image: mock_images[idx]
+          %}
+        {% endfor %}
+      {% endif %}
+    </div>
+
+    {% comment %} Footer Action / Load More {% endcomment %}
+    {% if section.settings.enable_load_more %}
+      <div class="product-grid__footer-action">
+        <button type="button" class="product-grid__load-more-btn" data-load-more-btn>
+          Load More Products
+        </button>
+      </div>
+    {% endif %}
+
+  </div>
+
+  {% comment %} Quick View Modal Container {% endcomment %}
+  {% render 'quick-view' %}
+</product-grid-section>
+
+{% schema %}
+{
+  "name": "Product Grid Registry",
+  "tag": "section",
+  "class": "section-product-grid-registry",
+  "settings": [
+    {
+      "type": "text",
+      "id": "eyebrow",
+      "label": "Eyebrow Text",
+      "default": "CURATED SELECTION"
+    },
+    {
+      "type": "text",
+      "id": "title",
+      "label": "Heading",
+      "default": "Featured Collection"
+    },
+    {
+      "type": "textarea",
+      "id": "subheading",
+      "label": "Subheading",
+      "default": "Curated selection of best-selling products crafted with intention."
+    },
+    {
+      "type": "select",
+      "id": "header_alignment",
+      "label": "Header Alignment",
+      "options": [
+        { "value": "left", "label": "Left" },
+        { "value": "center", "label": "Center" }
+      ],
+      "default": "left"
+    },
+    {
+      "type": "collection",
+      "id": "collection",
+      "label": "Collection"
+    },
+    {
+      "type": "range",
+      "id": "products_to_show",
+      "min": 4,
+      "max": 16,
+      "step": 2,
+      "default": 8,
+      "label": "Products to Show"
+    },
+    {
+      "type": "select",
+      "id": "layout_mode",
+      "label": "Layout Mode",
+      "options": [
+        { "value": "standard_grid", "label": "Standard Grid" },
+        { "value": "carousel_slider", "label": "Carousel Slider" },
+        { "value": "asymmetric_editorial", "label": "Asymmetric Editorial (2x2 Lead)" },
+        { "value": "horizontal_list", "label": "Horizontal List Catalog" }
+      ],
+      "default": "standard_grid"
+    },
+    {
+      "type": "range",
+      "id": "columns_desktop",
+      "min": 2,
+      "max": 5,
+      "step": 1,
+      "default": 4,
+      "label": "Desktop Columns"
+    },
+    {
+      "type": "select",
+      "id": "columns_mobile",
+      "label": "Mobile Columns",
+      "options": [
+        { "value": "1", "label": "1 Column" },
+        { "value": "2", "label": "2 Columns" }
+      ],
+      "default": "2"
+    },
+    {
+      "type": "select",
+      "id": "card_aspect_ratio",
+      "label": "Card Image Aspect Ratio",
+      "options": [
+        { "value": "portrait", "label": "Portrait (4:5)" },
+        { "value": "square", "label": "Square (1:1)" },
+        { "value": "tall", "label": "Tall (2:3)" },
+        { "value": "adapt", "label": "Adapt to Image" }
+      ],
+      "default": "portrait"
+    },
+    {
+      "type": "select",
+      "id": "hover_effect",
+      "label": "Card Hover Effect",
+      "options": [
+        { "value": "image_zoom", "label": "Image Zoom" },
+        { "value": "secondary_image_fade", "label": "Secondary Image Flip" },
+        { "value": "card_lift", "label": "Card Lift Shadow" },
+        { "value": "none", "label": "None" }
+      ],
+      "default": "image_zoom"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_vendor",
+      "label": "Show Product Vendor",
+      "default": false
+    },
+    {
+      "type": "checkbox",
+      "id": "show_rating",
+      "label": "Show Rating Stars",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "show_swatches",
+      "label": "Show Color Swatch Dots",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "show_quick_add",
+      "label": "Show Quick Add Button",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "show_quick_view",
+      "label": "Show Quick View Button",
+      "default": true
+    },
+    {
+      "type": "select",
+      "id": "badge_style",
+      "label": "Badge Style",
+      "options": [
+        { "value": "pill", "label": "Pill Rounded" },
+        { "value": "square", "label": "Square Boxed" }
+      ],
+      "default": "pill"
+    },
+    {
+      "type": "checkbox",
+      "id": "enable_filter_bar",
+      "label": "Enable Category Filter Tabs",
+      "default": false
+    },
+    {
+      "type": "checkbox",
+      "id": "enable_load_more",
+      "label": "Enable Load More Button",
+      "default": true
+    }
+  ],
+  "presets": [
+    {
+      "name": "Product Grid Registry"
+    }
+  ]
+}
+{% endschema %}
