@@ -925,7 +925,9 @@ async function structuralNode(state, config) {
   --font-heading: 'Playfair Display', serif;
   --font-body: 'Inter', sans-serif;
   --spacing-base: 0.5rem;
+  --border-radius-base: 6px;
   --elevation-subtle: 0 4px 12px rgba(0,0,0,0.05);
+  --elevation-card: 0 10px 30px rgba(0,0,0,0.08);
 }
 
 body {
@@ -949,12 +951,114 @@ a {
   text-decoration: none;
 }
 
-input, button, select, textarea {
+/* --- Unopinionated Raw Button Reset --- */
+button {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  line-height: normal;
+  box-sizing: border-box;
+}
+
+/* --- Internal Ecommerce Component UX Button Library --- */
+.button, .btn, .button--primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px 24px;
+  min-height: 44px;
+  max-width: 100%;
+  background-color: var(--color-primary, #111111);
+  color: #ffffff;
+  border: 1.5px solid var(--color-primary, #111111);
+  border-radius: var(--border-radius-base, 6px);
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  box-sizing: border-box;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.button:hover, .btn:hover, .button--primary:hover {
+  background-color: var(--color-text, #000000);
+  border-color: var(--color-text, #000000);
+  color: #ffffff;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+}
+
+.button:active, .btn:active {
+  transform: translateY(0) scale(0.98);
+}
+
+/* Button Component Variants */
+.button--secondary, .btn-secondary, .button--outline, .btn-outline {
+  background-color: transparent;
+  color: var(--color-primary, #111111);
+  border: 1.5px solid var(--color-primary, #111111);
+  box-shadow: none;
+}
+
+.button--secondary:hover, .btn-secondary:hover, .button--outline:hover, .btn-outline:hover {
+  background-color: var(--color-primary, #111111);
+  color: #ffffff;
+}
+
+.button--pill, .btn-pill {
+  border-radius: 50px;
+}
+
+.button--ghost, .btn-ghost {
+  background: transparent;
+  border: none;
+  color: var(--color-primary, #111111);
+  box-shadow: none;
+  padding: 8px 12px;
+  min-height: auto;
+  text-transform: none;
+}
+
+.button--ghost:hover, .btn-ghost:hover {
+  background: rgba(0,0,0,0.04);
+  transform: none;
+}
+
+.button--sm, .btn-sm {
+  padding: 8px 16px;
+  min-height: 36px;
+  font-size: 0.8125rem;
+}
+
+.button--lg, .btn-lg {
+  padding: 16px 32px;
+  min-height: 52px;
+  font-size: 1rem;
+}
+
+/* --- Form Controls & Inputs --- */
+input, select, textarea {
   font-family: inherit;
   font-size: 0.9375rem;
+  box-sizing: border-box;
 }
 
 input[type="text"], input[type="email"], input[type="search"], input[type="number"], select, textarea {
+  width: 100%;
+  max-width: 100%;
   padding: 12px 18px;
   border: 1px solid rgba(0,0,0,0.15);
   border-radius: var(--border-radius-base, 6px);
@@ -969,58 +1073,56 @@ input:focus, select:focus, textarea:focus {
   box-shadow: 0 0 0 3px rgba(0,0,0,0.05);
 }
 
-/* --- Global Modern Button Architecture --- */
-button, .button, .btn, input[type="submit"], input[type="button"] {
+/* --- Embedded Input Form Group Protection --- */
+.input-group, .newsletter-form, .footer-newsletter__input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  max-width: 100%;
+}
+
+.input-group button,
+.newsletter-form button,
+.footer-newsletter__submit-btn {
+  position: absolute !important;
+  right: 4px !important;
+  top: 4px !important;
+  bottom: 4px !important;
+  height: calc(100% - 8px) !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+  padding: 0 18px !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: var(--border-radius-base, 4px) !important;
+}
+
+/* --- Ecommerce Badges --- */
+.badge, .product-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  padding: 14px 28px;
-  min-height: 48px;
-  background-color: var(--color-primary, #111111);
-  color: #ffffff;
-  border: 1.5px solid var(--color-primary, #111111);
-  border-radius: var(--border-radius-base, 6px);
-  font-family: var(--font-body);
-  font-size: 0.875rem;
+  padding: 4px 10px;
+  font-size: 0.75rem;
   font-weight: 600;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  cursor: pointer;
+  border-radius: var(--border-radius-base, 4px);
   white-space: nowrap;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-  appearance: none;
-  -webkit-appearance: none;
 }
 
-button:hover, .button:hover, .btn:hover, input[type="submit"]:hover {
-  background-color: var(--color-text, #000000);
-  border-color: var(--color-text, #000000);
-  color: #ffffff;
-  transform: translateY(-2px);
-  box-shadow: 0 6px 18px rgba(0,0,0,0.12);
-}
-
-button:active, .button:active, .btn:active {
-  transform: translateY(0) scale(0.98);
-}
-
-/* Secondary / Badge / Outline Button Variants */
-.button--outline, .btn-outline, .button--secondary, .btn-secondary {
-  background-color: transparent;
-  color: var(--color-primary, #111111);
-  border: 1.5px solid var(--color-primary, #111111);
-  box-shadow: none;
-}
-
-.button--outline:hover, .btn-outline:hover, .button--secondary:hover, .btn-secondary:hover {
-  background-color: var(--color-primary, #111111);
-  color: #ffffff;
-}
-
-.button--pill, .btn-pill {
+.badge--pill {
   border-radius: 50px;
+}
+
+/* --- Layout Containers --- */
+.page-width, .container, .section-container {
+  width: 100%;
+  max-width: var(--container-max-width, 1280px);
+  margin: 0 auto;
+  padding: 0 24px;
+  box-sizing: border-box;
 }
 
 ul, ol {
@@ -1031,6 +1133,14 @@ ul, ol {
 
 main {
   min-height: 50vh;
+}
+
+/* --- Universal Section Spacing Guardrail --- */
+main > .shopify-section:not(.shopify-section--advanced-header),
+main > section,
+.product-grid-registry-section {
+  padding-top: var(--section-vertical-spacing, 64px);
+  padding-bottom: var(--section-vertical-spacing, 64px);
 }
     `.trim();
 
@@ -1053,6 +1163,7 @@ main {
   --font-body: '${typography.body_font || 'Inter'}', sans-serif;
   --container-max-width: ${layout.container_width || 1280}px;
   --border-radius-base: ${layout.corner_radius || 4}px;
+  --section-vertical-spacing: clamp(48px, 6vw, 80px);
 }
 `.trim();
 
@@ -1206,8 +1317,9 @@ For every section request:
    - desktop_logo_position: 'left' or 'center'
    - background_mode: 'solid', 'transparent_slide', or 'transparent_fade' (e.g. use transparent overlay modes for hero-heavy or luxury landing pages)
    - width_mode: 'full' or 'boxed'
-   - show_status_bar & status_bar_text: toggle status bar and set brand-relevant announcement text (e.g. "Free shipping on orders over $100" or custom brand promise).
-   Detail your layout reasoning and aesthetic choices in the 'rationale' output field.
+   - show_status_bar & status_bar_text: toggle status bar and set brand-relevant announcement text (e.g. "Free shipping on orders over $100" or    Detail your layout reasoning and aesthetic choices in the 'rationale' output field.
+    CRITICAL ALIGNMENT REQUIREMENT:
+    Every layout choice, position, background color, status bar text, and feature (such as sticky header) mentioned in your 'rationale' MUST be explicitly set in settings_patch and/or delta_css. If your rationale mentions sticky header, you MUST set {"enable_sticky_header": true} in settings_patch.
 5. Generate only the delta CSS/JS that the registry cannot already provide.
 6. Never rewrite registry-owned files unless the task explicitly asks for a registry package change.
 7. Preserve manifest schema, snippet boundaries, asset ownership, examples, and tests.
@@ -1232,7 +1344,7 @@ ${adaptiveInstructions}
 
 Output MUST follow the JSON schema:
 - rationale: brief explanation of section selection and configuration
-- settings_patch: object mapping schema setting IDs to custom values (e.g. {"background_color": "#000000", "desktop_menu_position": "left", "desktop_logo_position": "left", "show_status_bar": true, "status_bar_text": "Free express shipping"})
+- settings_patch: object mapping schema setting IDs to custom values (e.g. {"background_color": "#000000", "desktop_menu_position": "left", "desktop_logo_position": "left", "enable_sticky_header": true, "show_status_bar": true, "status_bar_text": "Free express shipping"})
 - delta_css: optional string for custom styling hooks if brief requires visual styling not in settings
 - delta_js: optional custom Javascript if brief requires unsupported interactions`,
                         prompt: `User Prompt & Design Intent:
@@ -1334,6 +1446,12 @@ For every section request:
    - heading, subheading, eyebrow_text, primary_button_label, secondary_button_label.
    - show_trust_badges & trust_text & trust_rating.
 4. Detail your layout reasoning and aesthetic choices in the 'rationale' output field.
+   CRITICAL ALIGNMENT REQUIREMENT:
+   Every design decision, color palette choice, overlay gradient choice, button shape, copy writing, image search theme, layout placement, and height mode mentioned in your 'rationale' MUST be explicitly materialized into settings_patch and/or delta_css:
+   - Populate settings_patch with all store copy from Brief Content (heading, subheading, eyebrow_text, primary_button_label, trust_text) customized for the merchant's brand tone.
+   - Set image_desktop and image_mobile in settings_patch using relevant Unsplash search keywords matching the brand niche (e.g. "unsplash://jellycat-soft-plush-toys", "unsplash://luxury-gold-jewelry").
+   - If your rationale describes a custom gradient overlay (e.g. espresso gradient or soft warm tint), set overlay_style appropriately AND supply custom CSS in delta_css (e.g. .hero-media__overlay { --hero-overlay-bg: linear-gradient(180deg, rgba(44,24,16,0.3) 0%, rgba(30,15,10,0.7) 100%); }).
+   - If your rationale describes pill buttons or custom rounded corners, include explicit CSS in delta_css (e.g. .hero-button { border-radius: 999px; }).
 5. Generate only the delta CSS/JS that the registry cannot already provide.
 
 Registry Description: ${heroRegistry.manifest.description}
@@ -1441,6 +1559,11 @@ For every product grid / collection section request:
    - show_vendor, show_rating, show_swatches, show_quick_add, show_quick_view, badge_style ('pill' or 'square').
    - enable_filter_bar & enable_load_more.
 4. Detail your layout reasoning and aesthetic choices in the 'rationale' output field.
+   CRITICAL ALIGNMENT REQUIREMENT:
+   Every design decision, card aspect ratio, badge style, title, eyebrow, and hover effect mentioned in your 'rationale' MUST be explicitly materialized into settings_patch and/or delta_css:
+   - Populate settings_patch with all store copy from Brief Content (title, subheading, eyebrow) tailored to the brand niche.
+   - Set badge_style, hover_effect, columns_desktop, and card_aspect_ratio in settings_patch to match your design thinking.
+   - If your rationale describes custom card borders, shadows, swatches, or pill tags, include explicit target CSS rules in delta_css (targeting .product-card, .product-card__title, .product-card__price-wrapper, .product-badge).
 5. Generate only the delta CSS/JS that the registry cannot already provide.
 
 Registry Description: ${productGridRegistry.manifest.description}
@@ -1543,6 +1666,11 @@ For every footer section request:
    - show_payment_icons, show_copyright.
    - show_pre_footer_cta, pre_footer_heading, pre_footer_subtext, pre_footer_button_label.
 4. Detail your layout reasoning and aesthetic choices in the 'rationale' output field.
+   CRITICAL ALIGNMENT REQUIREMENT:
+   Every layout mode, brand bio, pre-footer CTA, newsletter heading, and social icon choice mentioned in your 'rationale' MUST be explicitly materialized into settings_patch and/or delta_css:
+   - Populate settings_patch with store copy from Brief Content (brand_bio, newsletter_heading, pre_footer_heading, pre_footer_subtext, pre_footer_button_label).
+   - Ensure logo_text is set to "${shopName || 'Shopify Store'}".
+   - Include explicit target CSS in delta_css for any custom footer styling mentioned in your rationale.
 5. Generate only the delta CSS/JS that the registry cannot already provide.
    CRITICAL: When generating delta_css, target the exact CSS selectors used by the registry:
    - Root section: .footer-registry-section (or .footer-registry-section--light-bg)
@@ -1717,8 +1845,10 @@ You are a Senior Frontend Engineer. Build a stunning, bespoke editorial eCommerc
 - GRID RESPONSIVENESS: When building multi-item layouts (such as product grids, collection grids, testimonials, logo lists), NEVER use a hardcoded column count (like 'repeat(3, 1fr)') that doesn't match the maximum item limit (e.g., displaying 4 items in a 3-column grid). Always use a flexible, auto-fitting grid (e.g., 'grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));') or ensure the column count on desktop matches the configured item limit so there are never unbalanced/orphaned items in the grid.
 - CSS HEIGHT & ASPECT RATIO: When absolute-positioning an image inside a container (position: absolute; width: 100%; height: 100%;), the container MUST have a defined height or aspect ratio (e.g. aspect-ratio: 16/9; or aspect-ratio: 4/3;). NEVER override this with aspect-ratio: auto; on desktop unless you specify a min-height or height, otherwise the container collapses to 0px height and the image disappears.
 - HTML ATTRIBUTES: On the '<img>' tag, the HTML 'height' attribute MUST be an integer (e.g. height="800"). NEVER use CSS values like height="auto" inside HTML attributes.
-- FORM INPUTS & BUTTONS LAYOUT: When positioning a newsletter signup button absolute inside a relative input field wrapper, always set \`z-index: 2;\` on the absolute button to ensure it is drawn on top and is not covered by the input's background or borders.
-- SOCIAL MEDIA LINK DEFAULTS: When generating social links (in the footer or header), never hide the link/icon when the social link settings (like \`settings.social_instagram_link\`) are blank in the backend. Instead, always use a fallback link (e.g. \`{{ settings.social_instagram_link | default: '#' }}\` or standard URLs like \`https://instagram.com/shopify\`) so that the icons render beautifully in the theme preview immediately.
+- READABILITY & CONTRAST GUARDRAIL: NEVER output low-contrast text. On dark card containers or dark media overlays, ALL text (headings, subheadings, badges) MUST be forced to readable high-contrast white (#ffffff) with text-shadow if needed. On light containers, text MUST be near-black (#111111). Muted text MUST have at least 4.5:1 contrast (e.g. rgba(17,17,17,0.75)).
+- INPUT OVERFLOW GUARDRAIL: When creating form inputs with embedded buttons (e.g. newsletter subscribe), NEVER position the submit button absolute over a padded input. ALWAYS wrap input and button inside a parent container with \`display: flex; overflow: hidden; border-radius: ...; padding: 4px;\` and set the submit button to \`position: static\` (flex child) so buttons CANNOT overflow outside input border boxes regardless of pill or square shape.
+- CARD INSET PADDING GUARDRAIL: Card detail containers (such as \`.product-card__info\`) MUST have a minimum 16px inset padding on all 4 sides (\`padding: 16px\` minimum). NEVER use 4px or cramped side paddings that push titles and prices against card borders.
+- UNIFORM CONTAINER MAX-WIDTH & SECTION SPACING: All section outer containers MUST specify \`padding-top: var(--section-vertical-spacing, 64px); padding-bottom: var(--section-vertical-spacing, 64px);\` and use \`max-width: var(--container-max-width, 1280px); margin: 0 auto; padding-left: 24px; padding-right: 24px;\` so that every section has consistent vertical breathing room and scales uniformly.
 - TECH STACK: Shopify Liquid + Vanilla JS Web Components (Light DOM) for interactivity.
 - LAYOUT: Use the "Intentional Asymmetry" and "No-Line" rules from the design system.`,
                 prompt: fullPrompt,

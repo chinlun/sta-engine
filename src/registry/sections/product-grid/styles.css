@@ -313,17 +313,19 @@
 
 /* Card Info */
 .product-card__info {
-  padding: 16px 4px;
+  padding: 18px 16px 16px 16px;
   display: flex;
   flex-direction: column;
   gap: 6px;
+  box-sizing: border-box;
 }
 
 .product-card__vendor {
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  color: var(--color-secondary, #888888);
+  font-weight: 600;
+  color: var(--color-text-muted, rgba(17, 17, 17, 0.75));
 }
 
 .product-card__title {
@@ -354,7 +356,7 @@
 
 .rating-stars { display: flex; gap: 2px; }
 .rating-stars i { width: 14px; height: 14px; fill: currentColor; }
-.rating-count { color: var(--color-secondary, #777777); font-size: 0.75rem; }
+.rating-count { color: var(--color-text-muted, rgba(17, 17, 17, 0.75)); font-size: 0.75rem; font-weight: 500; }
 
 /* Swatches */
 .product-card__swatches {
@@ -388,7 +390,7 @@
 
 .product-card__price--compare {
   text-decoration: line-through;
-  color: var(--color-secondary, #999999);
+  color: var(--color-text-muted, rgba(17, 17, 17, 0.65));
   font-weight: 400;
   font-size: 0.875rem;
 }
