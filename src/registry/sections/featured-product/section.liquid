@@ -1,0 +1,162 @@
+{%- comment -%}
+  Featured Product PDP Buy-Box Section
+{%- endcomment -%}
+
+{%- assign product = all_products[section.settings.product] -%}
+
+<section class="featured-product-section" id="featured-product-{{ section.id }}" style="--bg-color: {{ section.settings.background_color }}; --text-color: {{ section.settings.text_color }};">
+  <div class="featured-product__container">
+    {%- if product != blank -%}
+      <div class="featured-product__grid">
+        {%- comment -%} Media Gallery {%- endcomment -%}
+        <div class="featured-product__gallery">
+          <div class="featured-product__main-image-wrapper">
+            {%- if product.featured_image != blank -%}
+              <img id="FeaturedProductMainImage-{{ section.id }}" src="{{ product.featured_image | image_url: width: 1000 }}" alt="{{ product.title | escape }}" loading="lazy" class="featured-product__main-image">
+            {%- else -%}
+              {{ 'product-1' | placeholder_svg_tag: 'featured-product__placeholder' }}
+            {%- endif -%}
+          </div>
+          {%- if product.images.size > 1 -%}
+            <div class="featured-product__thumbnails">
+              {%- for image in product.images limit: 5 -%}
+                <button type="button" class="featured-product__thumbnail-btn {% if forloop.first %}is-active{% endif %}" data-target-image="{{ image | image_url: width: 1000 }}">
+                  <img src="{{ image | image_url: width: 200 }}" alt="{{ product.title | escape }}" loading="lazy">
+                </button>
+              {%- endfor -%}
+            </div>
+          {%- endif -%}
+        </div>
+
+        {%- comment -%} Product Buy Box Info {%- endcomment -%}
+        <div class="featured-product__info">
+          {%- if section.settings.show_vendor and product.vendor != blank -%}
+            <span class="featured-product__vendor">{{ product.vendor }}</span>
+          {%- endif -%}
+
+          <h2 class="featured-product__title">{{ product.title }}</h2>
+
+          <div class="featured-product__price-wrapper">
+            <span class="featured-product__price" id="FeaturedProductPrice-{{ section.id }}">{{ product.price | money }}</span>
+            {%- if product.compare_at_price > product.price -%}
+              <s class="featured-product__compare-price">{{ product.compare_at_price | money }}</s>
+              <span class="featured-product__badge">Sale</span>
+            {%- endif -%}
+          </div>
+
+          {%- if product.description != blank and section.settings.show_short_description -%}
+            <div class="featured-product__description">
+              {{ product.description | strip_html | truncatewords: 35 }}
+            </div>
+          {%- endif -%}
+
+          {%- form 'product', product, id: 'FeaturedProductForm', class: 'featured-product__form' -%}
+            <input type="hidden" name="id" value="{{ product.selected_or_first_available_variant.id }}">
+
+            {%- if product.has_only_default_variant == false -%}
+              <div class="featured-product__variants">
+                {%- for option in product.options_with_values -%}
+                  <div class="featured-product__option">
+                    <label class="featured-product__option-label">{{ option.name }}: <span class="selected-value">{{ option.selected_value }}</span></label>
+                    <div class="featured-product__option-values">
+                      {%- for value in option.values -%}
+                        <button type="button" class="featured-product__pill-btn {% if option.selected_value == value %}is-selected{% endif %}" data-option-index="{{ forloop.parentloop.index0 }}" data-value="{{ value | escape }}">
+                          {{ value }}
+                        </button>
+                      {%- endfor -%}
+                    </div>
+                  </div>
+                {%- endfor -%}
+              </div>
+            {%- endif -%}
+
+            <div class="featured-product__quantity-and-add">
+              <div class="featured-product__quantity">
+                <button type="button" class="qty-btn qty-minus">-</button>
+                <input type="number" name="quantity" value="1" min="1" class="qty-input">
+                <button type="button" class="qty-btn qty-plus">+</button>
+              </div>
+
+              <button type="submit" class="featured-product__add-to-cart-btn" {% unless product.available %}disabled{% endunless %}>
+                {%- if product.available -%}
+                  {{ section.settings.button_text | default: "Add to Cart" }}
+                {%- else -%}
+                  Sold Out
+                {%- endif -%}
+              </button>
+            </div>
+          {%- endform -%}
+        </div>
+      </div>
+    {%- else -%}
+      {%- comment -%} Placeholder layout when no product is assigned {%- endcomment -%}
+      <div class="featured-product__grid">
+        <div class="featured-product__gallery">
+          <div class="featured-product__main-image-wrapper">
+            {{ 'product-1' | placeholder_svg_tag: 'featured-product__placeholder' }}
+          </div>
+        </div>
+        <div class="featured-product__info">
+          <span class="featured-product__vendor">Signature Collection</span>
+          <h2 class="featured-product__title">Featured Product Highlight</h2>
+          <div class="featured-product__price-wrapper">
+            <span class="featured-product__price">$129.00</span>
+          </div>
+          <div class="featured-product__description">
+            Experience premium craftsmanship and luxury detail. Designed for everyday elegance with sustainable materials.
+          </div>
+          <button type="button" class="featured-product__add-to-cart-btn">Add to Cart</button>
+        </div>
+      </div>
+    {%- endif -%}
+  </div>
+</section>
+
+{% schema %}
+{
+  "name": "Featured Product",
+  "class": "section-featured-product",
+  "settings": [
+    {
+      "type": "product",
+      "id": "product",
+      "label": "Product"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_vendor",
+      "label": "Show vendor",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "show_short_description",
+      "label": "Show short description",
+      "default": true
+    },
+    {
+      "type": "text",
+      "id": "button_text",
+      "label": "Button label",
+      "default": "Add to Cart"
+    },
+    {
+      "type": "color",
+      "id": "background_color",
+      "label": "Background color",
+      "default": "#FFFFFF"
+    },
+    {
+      "type": "color",
+      "id": "text_color",
+      "label": "Text color",
+      "default": "#111111"
+    }
+  ],
+  "presets": [
+    {
+      "name": "Featured Product"
+    }
+  ]
+}
+{% endschema %}

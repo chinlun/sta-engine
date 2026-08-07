@@ -1,0 +1,113 @@
+{%- comment -%}
+  Collection List Grid Section
+{%- endcomment -%}
+
+<section class="collection-list-section" style="--bg-color: {{ section.settings.background_color }}; --text-color: {{ section.settings.text_color }};">
+  <div class="collection-list__container">
+    {%- if section.settings.title != blank -%}
+      <h2 class="collection-list__heading">{{ section.settings.title }}</h2>
+    {%- endif -%}
+
+    <div class="collection-list__grid collection-list__grid--{{ section.settings.columns }}">
+      {%- if section.blocks.size > 0 -%}
+        {%- for block in section.blocks -%}
+          {%- assign collection = collections[block.settings.collection] -%}
+          <div class="collection-card" {{ block.shopify_attributes }}>
+            <a href="{{ collection.url | default: '#' }}" class="collection-card__link">
+              <div class="collection-card__image-wrapper">
+                {%- if collection.image != blank -%}
+                  <img src="{{ collection.image | image_url: width: 600 }}" alt="{{ collection.title | escape }}" loading="lazy" class="collection-card__image">
+                {%- elsif collection.products.first.featured_image != blank -%}
+                  <img src="{{ collection.products.first.featured_image | image_url: width: 600 }}" alt="{{ collection.title | escape }}" loading="lazy" class="collection-card__image">
+                {%- else -%}
+                  {{ 'collection-1' | placeholder_svg_tag: 'collection-card__placeholder' }}
+                {%- endif -%}
+              </div>
+              <div class="collection-card__content">
+                <h3 class="collection-card__title">{{ collection.title | default: "Featured Category" }}</h3>
+                {%- if section.settings.show_product_count and collection.all_products_count != blank -%}
+                  <span class="collection-card__count">{{ collection.all_products_count }} Products</span>
+                {%- endif -%}
+              </div>
+            </a>
+          </div>
+        {%- endfor -%}
+      {%- else -%}
+        {%- for i in (1..4) -%}
+          <div class="collection-card">
+            <a href="#" class="collection-card__link">
+              <div class="collection-card__image-wrapper">
+                {{ 'collection-1' | placeholder_svg_tag: 'collection-card__placeholder' }}
+              </div>
+              <div class="collection-card__content">
+                <h3 class="collection-card__title">Collection {{ i }}</h3>
+                <span class="collection-card__count">12 Products</span>
+              </div>
+            </a>
+          </div>
+        {%- endfor -%}
+      {%- endif -%}
+    </div>
+  </div>
+</section>
+
+{% schema %}
+{
+  "name": "Collection list",
+  "class": "section-collection-list",
+  "settings": [
+    {
+      "type": "text",
+      "id": "title",
+      "label": "Heading",
+      "default": "Shop by Category"
+    },
+    {
+      "type": "select",
+      "id": "columns",
+      "label": "Columns",
+      "options": [
+        { "value": "3", "label": "3 Columns" },
+        { "value": "4", "label": "4 Columns" }
+      ],
+      "default": "4"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_product_count",
+      "label": "Show product count",
+      "default": true
+    },
+    {
+      "type": "color",
+      "id": "background_color",
+      "label": "Background color",
+      "default": "#FFFFFF"
+    },
+    {
+      "type": "color",
+      "id": "text_color",
+      "label": "Text color",
+      "default": "#111111"
+    }
+  ],
+  "blocks": [
+    {
+      "type": "collection",
+      "name": "Collection",
+      "settings": [
+        {
+          "type": "collection",
+          "id": "collection",
+          "label": "Collection"
+        }
+      ]
+    }
+  ],
+  "presets": [
+    {
+      "name": "Collection list"
+    }
+  ]
+}
+{% endschema %}

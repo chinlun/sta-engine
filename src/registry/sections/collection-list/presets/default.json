@@ -1,0 +1,10 @@
+{
+  "name": "Collection List Default",
+  "settings": {
+    "title": "Shop by Category",
+    "columns": "4",
+    "show_product_count": true,
+    "background_color": "#FFFFFF",
+    "text_color": "#111111"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "name": "Featured Product Default",
+  "settings": {
+    "show_vendor": true,
+    "show_short_description": true,
+    "button_text": "Add to Cart",
+    "background_color": "#FFFFFF",
+    "text_color": "#111111"
+  }
+}

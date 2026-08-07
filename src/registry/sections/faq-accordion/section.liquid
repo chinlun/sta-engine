@@ -1,0 +1,107 @@
+{%- comment -%}
+  FAQ Accordion Section
+{%- endcomment -%}
+
+<section class="faq-accordion-section" style="--bg-color: {{ section.settings.background_color }}; --text-color: {{ section.settings.text_color }};">
+  <div class="faq-accordion__container">
+    {%- if section.settings.title != blank -%}
+      <h2 class="faq-accordion__heading">{{ section.settings.title }}</h2>
+    {%- endif -%}
+
+    <div class="faq-accordion__items">
+      {%- if section.blocks.size > 0 -%}
+        {%- for block in section.blocks -%}
+          <details class="faq-accordion__item" {{ block.shopify_attributes }}>
+            <summary class="faq-accordion__question">
+              <span>{{ block.settings.question | default: "Frequently Asked Question" }}</span>
+              <span class="faq-accordion__icon">+</span>
+            </summary>
+            <div class="faq-accordion__answer">
+              <p>{{ block.settings.answer | default: "Here is the detailed answer providing full clarification for your customers." }}</p>
+            </div>
+          </details>
+        {%- endfor -%}
+      {%- else -%}
+        <details class="faq-accordion__item" open>
+          <summary class="faq-accordion__question">
+            <span>What is your shipping & return policy?</span>
+            <span class="faq-accordion__icon">+</span>
+          </summary>
+          <div class="faq-accordion__answer">
+            <p>We offer free global express shipping on all orders over $75. Returns are accepted within 30 days of delivery.</p>
+          </div>
+        </details>
+        <details class="faq-accordion__item">
+          <summary class="faq-accordion__question">
+            <span>How do I track my order?</span>
+            <span class="faq-accordion__icon">+</span>
+          </summary>
+          <div class="faq-accordion__answer">
+            <p>Once your order ships, you will receive an automated email notification containing your live tracking code.</p>
+          </div>
+        </details>
+        <details class="faq-accordion__item">
+          <summary class="faq-accordion__question">
+            <span>Are your products sustainably made?</span>
+            <span class="faq-accordion__icon">+</span>
+          </summary>
+          <div class="faq-accordion__answer">
+            <p>Yes, 100% of our packaging is biodegradable and our manufacturing process relies exclusively on renewable energy.</p>
+          </div>
+        </details>
+      {%- endif -%}
+    </div>
+  </div>
+</section>
+
+{% schema %}
+{
+  "name": "FAQ Accordion",
+  "class": "section-faq-accordion",
+  "settings": [
+    {
+      "type": "text",
+      "id": "title",
+      "label": "Heading",
+      "default": "Frequently Asked Questions"
+    },
+    {
+      "type": "color",
+      "id": "background_color",
+      "label": "Background color",
+      "default": "#FFFFFF"
+    },
+    {
+      "type": "color",
+      "id": "text_color",
+      "label": "Text color",
+      "default": "#111111"
+    }
+  ],
+  "blocks": [
+    {
+      "type": "faq_item",
+      "name": "FAQ Item",
+      "settings": [
+        {
+          "type": "text",
+          "id": "question",
+          "label": "Question",
+          "default": "What is your shipping policy?"
+        },
+        {
+          "type": "textarea",
+          "id": "answer",
+          "label": "Answer",
+          "default": "We offer free global shipping on all orders over $75."
+        }
+      ]
+    }
+  ],
+  "presets": [
+    {
+      "name": "FAQ Accordion"
+    }
+  ]
+}
+{% endschema %}

@@ -1,0 +1,76 @@
+{%- comment -%}
+  Interactive Before / After Media Slider Section
+{%- endcomment -%}
+
+<section class="interactive-media-section" style="--bg-color: {{ section.settings.background_color }}; --text-color: {{ section.settings.text_color }};">
+  <div class="interactive-media__container">
+    {%- if section.settings.title != blank -%}
+      <h2 class="interactive-media__heading">{{ section.settings.title }}</h2>
+    {%- endif -%}
+
+    <div class="before-after-slider" id="BeforeAfter-{{ section.id }}">
+      <div class="before-after-slider__image-before">
+        {%- if section.settings.image_before != blank -%}
+          <img src="{{ section.settings.image_before | image_url: width: 1400 }}" alt="Before Image" loading="lazy">
+        {%- else -%}
+          {{ 'lifestyle-1' | placeholder_svg_tag: 'placeholder-svg' }}
+        {%- endif -%}
+        <span class="before-after-slider__label label-before">Before</span>
+      </div>
+
+      <div class="before-after-slider__image-after">
+        {%- if section.settings.image_after != blank -%}
+          <img src="{{ section.settings.image_after | image_url: width: 1400 }}" alt="After Image" loading="lazy">
+        {%- else -%}
+          {{ 'lifestyle-2' | placeholder_svg_tag: 'placeholder-svg' }}
+        {%- endif -%}
+        <span class="before-after-slider__label label-after">After</span>
+      </div>
+
+      <input type="range" min="0" max="100" value="50" class="before-after-slider__range-input" aria-label="Before/After Slider">
+      <div class="before-after-slider__handle"></div>
+    </div>
+  </div>
+</section>
+
+{% schema %}
+{
+  "name": "Before/After Slider",
+  "class": "section-interactive-media",
+  "settings": [
+    {
+      "type": "text",
+      "id": "title",
+      "label": "Heading",
+      "default": "See The Transformation"
+    },
+    {
+      "type": "image_picker",
+      "id": "image_before",
+      "label": "Before Image"
+    },
+    {
+      "type": "image_picker",
+      "id": "image_after",
+      "label": "After Image"
+    },
+    {
+      "type": "color",
+      "id": "background_color",
+      "label": "Background color",
+      "default": "#FFFFFF"
+    },
+    {
+      "type": "color",
+      "id": "text_color",
+      "label": "Text color",
+      "default": "#111111"
+    }
+  ],
+  "presets": [
+    {
+      "name": "Before/After Slider"
+    }
+  ]
+}
+{% endschema %}

@@ -1,0 +1,8 @@
+{
+  "name": "FAQ Accordion Default",
+  "settings": {
+    "title": "Frequently Asked Questions",
+    "background_color": "#FFFFFF",
+    "text_color": "#111111"
+  }
+}

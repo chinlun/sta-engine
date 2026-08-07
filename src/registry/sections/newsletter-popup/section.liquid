@@ -1,0 +1,73 @@
+{%- comment -%}
+  Newsletter Lead Capture Section
+{%- endcomment -%}
+
+<section class="newsletter-section" style="--bg-color: {{ section.settings.background_color }}; --text-color: {{ section.settings.text_color }};">
+  <div class="newsletter__container">
+    <div class="newsletter__card">
+      <span class="newsletter__subtitle">{{ section.settings.subtitle | default: "JOIN OUR COMMUNITY" }}</span>
+      <h2 class="newsletter__title">{{ section.settings.title | default: "Unlock 15% Off Your First Order" }}</h2>
+      <p class="newsletter__description">{{ section.settings.description | default: "Subscribe to receive exclusive access to new releases, VIP sales, and secret discount drops." }}</p>
+
+      {%- form 'customer', class: 'newsletter__form' -%}
+        <input type="hidden" name="contact[tags]" value="newsletter">
+        <div class="newsletter__input-group">
+          <input type="email" name="contact[email]" placeholder="Enter your email address" required class="newsletter__input">
+          <button type="submit" class="newsletter__submit-btn">
+            {{ section.settings.button_text | default: "Subscribe" }}
+          </button>
+        </div>
+      {%- endform -%}
+    </div>
+  </div>
+</section>
+
+{% schema %}
+{
+  "name": "Newsletter",
+  "class": "section-newsletter",
+  "settings": [
+    {
+      "type": "text",
+      "id": "subtitle",
+      "label": "Subheading",
+      "default": "JOIN OUR COMMUNITY"
+    },
+    {
+      "type": "text",
+      "id": "title",
+      "label": "Heading",
+      "default": "Unlock 15% Off Your First Order"
+    },
+    {
+      "type": "textarea",
+      "id": "description",
+      "label": "Description",
+      "default": "Subscribe to receive exclusive access to new releases, VIP sales, and secret discount drops."
+    },
+    {
+      "type": "text",
+      "id": "button_text",
+      "label": "Button text",
+      "default": "Subscribe"
+    },
+    {
+      "type": "color",
+      "id": "background_color",
+      "label": "Background color",
+      "default": "#111111"
+    },
+    {
+      "type": "color",
+      "id": "text_color",
+      "label": "Text color",
+      "default": "#FFFFFF"
+    }
+  ],
+  "presets": [
+    {
+      "name": "Newsletter"
+    }
+  ]
+}
+{% endschema %}

@@ -1,0 +1,11 @@
+{
+  "name": "Newsletter Default",
+  "settings": {
+    "subtitle": "JOIN OUR COMMUNITY",
+    "title": "Unlock 15% Off Your First Order",
+    "description": "Subscribe to receive exclusive access to new releases, VIP sales, and secret discount drops.",
+    "button_text": "Subscribe",
+    "background_color": "#111111",
+    "text_color": "#FFFFFF"
+  }
+}

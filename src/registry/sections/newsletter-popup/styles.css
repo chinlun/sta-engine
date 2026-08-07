@@ -1,0 +1,75 @@
+.newsletter-section {
+  background-color: var(--bg-color, #111111);
+  color: var(--text-color, #ffffff);
+  padding: 5rem 1.5rem;
+}
+
+.newsletter__container {
+  max-width: 800px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.newsletter__subtitle {
+  font-size: 0.875rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  opacity: 0.7;
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+.newsletter__title {
+  font-size: 2.25rem;
+  margin: 0 0 1rem 0;
+}
+
+.newsletter__description {
+  font-size: 1.125rem;
+  opacity: 0.85;
+  margin-bottom: 2rem;
+  line-height: 1.5;
+}
+
+.newsletter__form {
+  max-width: 500px;
+  margin: 0 auto;
+}
+
+.newsletter__input-group {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.newsletter__input {
+  flex: 1;
+  height: 48px;
+  padding: 0 1rem;
+  border-radius: var(--border-radius, 4px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.1);
+  color: inherit;
+  font-size: 1rem;
+}
+
+.newsletter__input::placeholder {
+  color: inherit;
+  opacity: 0.5;
+}
+
+.newsletter__submit-btn {
+  height: 48px;
+  padding: 0 1.5rem;
+  border-radius: var(--border-radius, 4px);
+  border: none;
+  background-color: var(--text-color, #ffffff);
+  color: var(--bg-color, #111111);
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.newsletter__submit-btn:hover {
+  opacity: 0.9;
+}

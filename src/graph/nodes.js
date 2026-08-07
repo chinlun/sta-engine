@@ -11,6 +11,7 @@ const { loadHeaderRegistry, assembleHeaderFiles } = require("../registry/header-
 const { loadHeroRegistry, assembleHeroFiles } = require("../registry/hero-assembler");
 const { loadProductGridRegistry, assembleProductGridFiles } = require("../registry/product-grid-assembler");
 const { loadFooterRegistry, assembleFooterFiles } = require("../registry/footer-assembler");
+const { assembleRegistryFiles, getAvailableRegistries } = require("../registry/registry-manager");
 const { extractBriefSignals } = require("../services/signal-extractor");
 const { mapSignalsToSchema, sanitizeBusinessFacts } = require("../services/schema-mapper");
 const { validateGeneratedTheme } = require("../services/post-gen-validator");
@@ -749,6 +750,7 @@ RULES:
                         name: z.string(),
                         type: z.enum(["header", "footer", "section"]),
                         isGlobal: z.boolean(),
+                        preset_id: z.string().optional().describe("Preset ID from registry (e.g. 'default', 'asymmetric-2x2', 'snap-carousel')"),
                         layout_directive: z.string()
                     }))
                 }),
