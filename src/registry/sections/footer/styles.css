@@ -36,8 +36,9 @@
 }
 
 .footer-registry-section--light-bg .footer-newsletter__input {
-  background-color: #ffffff;
-  border: 1px solid rgba(0, 0, 0, 0.15);
+  background-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
   color: #111111;
 }
 

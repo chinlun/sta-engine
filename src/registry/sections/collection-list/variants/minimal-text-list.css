@@ -1,0 +1,58 @@
+.cl-variant-text-list {
+  padding: 5rem 2rem;
+  background: #f8f8f8;
+}
+
+.cl-tl-container {
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.cl-tl-header h2 {
+  font-size: 1.2rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: #777777;
+  margin-bottom: 2.5rem;
+}
+
+.cl-tl-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.cl-tl-list li a {
+  display: flex;
+  align-items: center;
+  padding: 1.75rem 0;
+  border-bottom: 1px solid #e0e0e0;
+  text-decoration: none;
+  color: #111111;
+  transition: padding-left 0.2s ease;
+}
+
+.cl-tl-list li a:hover {
+  padding-left: 1rem;
+}
+
+.cl-tl-num {
+  font-size: 0.9rem;
+  color: #999999;
+  width: 60px;
+}
+
+.cl-tl-name {
+  font-family: Georgia, serif;
+  font-size: 2rem;
+  flex: 1;
+}
+
+.cl-tl-count {
+  font-size: 0.85rem;
+  color: #777777;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}

@@ -1,0 +1,60 @@
+.pg-variant-carousel {
+  padding: 4rem 2rem;
+  overflow: hidden;
+}
+
+.pg-carousel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 2.5rem;
+}
+
+.pg-carousel-arrows {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.pg-carousel-arrow {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid #e0e0e0;
+  background: #ffffff;
+  font-size: 1.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.pg-carousel-arrow:hover {
+  background: #111111;
+  color: #ffffff;
+  border-color: #111111;
+}
+
+.pg-carousel-track {
+  display: flex;
+  gap: 1.5rem;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  padding-bottom: 1.5rem;
+  scrollbar-width: none;
+}
+
+.pg-carousel-track::-webkit-scrollbar {
+  display: none;
+}
+
+.pg-carousel-slide {
+  flex: 0 0 320px;
+  scroll-snap-align: start;
+}
+
+@media (max-width: 768px) {
+  .pg-carousel-slide {
+    flex: 0 0 260px;
+  }
+}

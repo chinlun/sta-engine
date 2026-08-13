@@ -1,0 +1,37 @@
+{{ 'section-featured-product.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'section-featured-product.js' | asset_url }}" defer="defer"></script>
+
+<section class="featured-product-section fp-variant-bento" id="featured-product-{{ section.id }}" style="--bg-color: {{ section.settings.background_color | default: '#0F172A' }}; --text-color: {{ section.settings.text_color | default: '#F8FAFC' }};">
+  <div class="fp-bento-grid">
+    <div class="fp-bento-card fp-bento-card--image">
+      <img src="unsplash://luxury-product-showcase" alt="Featured Product" loading="lazy">
+    </div>
+
+    <div class="fp-bento-card fp-bento-card--buy">
+      <span class="fp-bento-badge">SPOTLIGHT PRODUCT</span>
+      <h2>Precision Engineered Chronograph</h2>
+      <div class="fp-bento-price">$340.00</div>
+      <p>Handcrafted aerospace-grade stainless steel casing with Swiss movement mechanism.</p>
+      <button type="button" class="fp-bento-add-btn">Add to Cart</button>
+    </div>
+
+    <div class="fp-bento-card fp-bento-card--spec">
+      <h3>Key Specs</h3>
+      <ul>
+        <li>Water resistant up to 100m</li>
+        <li>Sapphire crystal glass</li>
+        <li>2-year international warranty</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+{% schema %}
+{
+  "name": "Featured Product Bento",
+  "class": "section-featured-product",
+  "settings": [
+    { "type": "color", "id": "background_color", "label": "Background color", "default": "#0F172A" }
+  ]
+}
+{% endschema %}

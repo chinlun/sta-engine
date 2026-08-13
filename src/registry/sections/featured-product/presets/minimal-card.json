@@ -1,0 +1,10 @@
+{
+  "name": "Minimal Card PDP",
+  "settings": {
+    "show_vendor": false,
+    "show_short_description": true,
+    "button_text": "Quick Add",
+    "background_color": "#FFFFFF",
+    "text_color": "#111111"
+  }
+}

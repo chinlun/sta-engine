@@ -1,0 +1,36 @@
+{{ 'section-faq-accordion.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'section-faq-accordion.js' | asset_url }}" defer="defer"></script>
+
+<section class="faq-accordion-section faq-variant-glass">
+  <div class="faq-glass-container page-width">
+    <div class="faq-glass-card">
+      <h2>Frequently Asked Questions</h2>
+      <details class="faq-accordion__item" open>
+        <summary class="faq-accordion__question">
+          <span>What materials do you use?</span>
+          <span class="faq-accordion__icon">+</span>
+        </summary>
+        <div class="faq-accordion__answer">
+          <p>We source 100% organic cotton, recycled aerospace aluminum, and sustainably harvested hardwoods.</p>
+        </div>
+      </details>
+      <details class="faq-accordion__item">
+        <summary class="faq-accordion__question">
+          <span>How can I initiate a return?</span>
+          <span class="faq-accordion__icon">+</span>
+        </summary>
+        <div class="faq-accordion__answer">
+          <p>Simply visit our self-service portal with your order ID to print your prepaid return label instantly.</p>
+        </div>
+      </details>
+    </div>
+  </div>
+</section>
+
+{% schema %}
+{
+  "name": "FAQ Floating Glass",
+  "class": "section-faq-accordion",
+  "settings": []
+}
+{% endschema %}

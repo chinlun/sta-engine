@@ -1,0 +1,24 @@
+{{ 'section-newsletter-popup.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'section-newsletter-popup.js' | asset_url }}" defer="defer"></script>
+
+<section class="newsletter-section nl-variant-toast">
+  <div class="nl-toast-widget">
+    <button type="button" class="nl-toast-close" aria-label="Close">&times;</button>
+    <div class="nl-toast-content">
+      <strong>Get 10% Off Your Order</strong>
+      <p>Enter your email to receive an instant discount code.</p>
+      <form class="nl-toast-form">
+        <input type="email" placeholder="Your email address" required>
+        <button type="submit">Claim</button>
+      </form>
+    </div>
+  </div>
+</section>
+
+{% schema %}
+{
+  "name": "Newsletter Floating Toast",
+  "class": "section-newsletter",
+  "settings": []
+}
+{% endschema %}

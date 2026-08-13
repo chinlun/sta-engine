@@ -1,0 +1,13 @@
+{
+  "name": "Dense Horizontal List",
+  "settings": {
+    "columns_desktop": 1,
+    "layout_mode": "list",
+    "card_aspect_ratio": "landscape",
+    "show_swatches": true,
+    "show_secondary_image": false,
+    "show_quick_view": true,
+    "background_color": "#FFFFFF",
+    "text_color": "#111111"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "name": "Minimal Typography Hero",
+  "settings": {
+    "layout_style": "minimal_typography",
+    "desktop_height": "650px",
+    "mobile_height": "450px",
+    "content_alignment": "left",
+    "overlay_opacity": 0,
+    "show_secondary_button": false,
+    "background_color": "#FFFFFF",
+    "text_color": "#111111"
+  }
+}

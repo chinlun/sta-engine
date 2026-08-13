@@ -1,0 +1,35 @@
+{{ 'section-collection-list.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'section-collection-list.js' | asset_url }}" defer="defer"></script>
+
+<section class="collection-list-section cl-variant-bubble" style="--bg-color: {{ section.settings.background_color | default: '#FAFAFA' }}; --text-color: {{ section.settings.text_color | default: '#111111' }};">
+  <div class="cl-bubble-container">
+    {%- if section.settings.title != blank -%}
+      <h2 class="cl-bubble-heading">{{ section.settings.title }}</h2>
+    {%- endif -%}
+
+    <div class="cl-bubble-track">
+      {% assign mock_categories = "New In;;Best Sellers;;Apparel;;Footwear;;Accessories;;Home Goods" | split: ";;" %}
+      {% assign mock_images = "unsplash://minimalist-ceramic-vase;;unsplash://luxury-watch-lifestyle;;unsplash://pure-wool-sweater;;unsplash://handcrafted-leather-bag;;unsplash://architectural-desk-lamp;;unsplash://scented-candle-home" | split: ";;" %}
+
+      {% for cat in mock_categories %}
+        {% assign idx = forloop.index0 %}
+        <a href="#" class="cl-bubble-item">
+          <div class="cl-bubble-avatar">
+            <img src="{{ mock_images[idx] }}" alt="{{ cat }}" loading="lazy">
+          </div>
+          <span class="cl-bubble-title">{{ cat }}</span>
+        </a>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+{% schema %}
+{
+  "name": "Collection List Bubbles",
+  "class": "section-collection-list",
+  "settings": [
+    { "type": "text", "id": "title", "label": "Heading", "default": "Explore Categories" }
+  ]
+}
+{% endschema %}

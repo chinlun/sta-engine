@@ -1,0 +1,38 @@
+{{ 'section-collection-list.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'section-collection-list.js' | asset_url }}" defer="defer"></script>
+
+<section class="collection-list-section cl-variant-masonry" style="--bg-color: {{ section.settings.background_color | default: '#FFFFFF' }};">
+  <div class="cl-masonry-container page-width">
+    <div class="cl-masonry-grid">
+      <a href="#" class="cl-masonry-tile cl-masonry-tile--hero">
+        <img src="unsplash://minimalist-ceramic-vase" alt="Category 1">
+        <div class="cl-masonry-overlay">
+          <h3>Living Room</h3>
+          <span>Explore 24 Items &rarr;</span>
+        </div>
+      </a>
+      <a href="#" class="cl-masonry-tile">
+        <img src="unsplash://architectural-desk-lamp" alt="Category 2">
+        <div class="cl-masonry-overlay">
+          <h3>Lighting</h3>
+          <span>Explore 18 Items &rarr;</span>
+        </div>
+      </a>
+      <a href="#" class="cl-masonry-tile">
+        <img src="unsplash://organic-linen-textile" alt="Category 3">
+        <div class="cl-masonry-overlay">
+          <h3>Textiles</h3>
+          <span>Explore 32 Items &rarr;</span>
+        </div>
+      </a>
+    </div>
+  </div>
+</section>
+
+{% schema %}
+{
+  "name": "Collection List Masonry Tiles",
+  "class": "section-collection-list",
+  "settings": []
+}
+{% endschema %}

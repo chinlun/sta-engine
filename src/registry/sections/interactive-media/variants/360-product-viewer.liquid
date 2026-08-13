@@ -1,0 +1,21 @@
+{{ 'section-interactive-media.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'section-interactive-media.js' | asset_url }}" defer="defer"></script>
+
+<section class="interactive-media-section im-variant-360">
+  <div class="im-360-container page-width">
+    <div class="im-360-stage">
+      <img src="unsplash://luxury-product-showcase" alt="360 View Frame" class="im-360-frame">
+      <div class="im-360-scrubber">
+        <span>&larr; Drag to rotate 360&deg; &rarr;</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+{% schema %}
+{
+  "name": "360 Product Viewer",
+  "class": "section-interactive-media",
+  "settings": []
+}
+{% endschema %}

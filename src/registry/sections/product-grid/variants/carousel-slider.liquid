@@ -1,0 +1,52 @@
+{{ 'section-product-grid.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'section-product-grid.js' | asset_url }}" defer="defer"></script>
+
+<product-grid-section class="product-grid-registry-section pg-variant-carousel" id="ProductGrid-{{ section.id }}">
+  <div class="product-grid-container">
+    <div class="pg-carousel-header">
+      <div>
+        <span class="product-grid__eyebrow">{{ section.settings.eyebrow | default: "CURATED SELECTION" }}</span>
+        <h2 class="product-grid__title">{{ section.settings.title | default: "Featured Arrivals" }}</h2>
+      </div>
+      <div class="pg-carousel-arrows">
+        <button type="button" class="pg-carousel-arrow pg-carousel-arrow--prev" aria-label="Previous">&larr;</button>
+        <button type="button" class="pg-carousel-arrow pg-carousel-arrow--next" aria-label="Next">&rarr;</button>
+      </div>
+    </div>
+
+    <div class="pg-carousel-track">
+      {% assign mock_titles = "Artisanal Ceramic Vase;;Minimalist Steel Watch;;Organic Linen Throw;;Handcrafted Leather Tote;;Architectural Table Lamp" | split: ";;" %}
+      {% assign mock_prices = "$120.00;;$245.00;;$95.00;;$310.00;;$180.00" | split: ";;" %}
+      {% assign mock_images = "unsplash://minimalist-ceramic-vase;;unsplash://luxury-watch-lifestyle;;unsplash://organic-linen-textile;;unsplash://handcrafted-leather-bag;;unsplash://architectural-desk-lamp" | split: ";;" %}
+
+      {% for i in (1..5) %}
+        {% assign idx = forloop.index0 %}
+        <div class="pg-carousel-slide">
+          {% render 'product-card',
+            product: nil,
+            card_aspect_ratio: 'portrait',
+            hover_effect: 'image_zoom',
+            show_vendor: false,
+            show_rating: true,
+            show_quick_add: true,
+            placeholder_title: mock_titles[idx],
+            placeholder_price: mock_prices[idx],
+            placeholder_image: mock_images[idx]
+          %}
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+</product-grid-section>
+
+{% schema %}
+{
+  "name": "Product Grid Carousel",
+  "tag": "section",
+  "class": "section-product-grid-registry",
+  "settings": [
+    { "type": "text", "id": "eyebrow", "label": "Eyebrow Text", "default": "CURATED SELECTION" },
+    { "type": "text", "id": "title", "label": "Heading", "default": "Featured Arrivals" }
+  ]
+}
+{% endschema %}

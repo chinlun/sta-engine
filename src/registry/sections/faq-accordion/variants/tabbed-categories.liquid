@@ -1,0 +1,44 @@
+{{ 'section-faq-accordion.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'section-faq-accordion.js' | asset_url }}" defer="defer"></script>
+
+<section class="faq-accordion-section faq-variant-tabbed">
+  <div class="faq-tabbed-container page-width">
+    <div class="faq-tabbed-header">
+      <h2>Help Center</h2>
+      <div class="faq-tabs-bar">
+        <button type="button" class="faq-tab-btn is-active">Orders & Shipping</button>
+        <button type="button" class="faq-tab-btn">Returns & Exchange</button>
+        <button type="button" class="faq-tab-btn">Product Specs</button>
+      </div>
+    </div>
+
+    <div class="faq-tabbed-content">
+      <details class="faq-accordion__item" open>
+        <summary class="faq-accordion__question">
+          <span>How long does standard shipping take?</span>
+          <span class="faq-accordion__icon">+</span>
+        </summary>
+        <div class="faq-accordion__answer">
+          <p>Orders are dispatched within 24 hours and typically arrive within 3-5 business days.</p>
+        </div>
+      </details>
+      <details class="faq-accordion__item">
+        <summary class="faq-accordion__question">
+          <span>Do you ship internationally?</span>
+          <span class="faq-accordion__icon">+</span>
+        </summary>
+        <div class="faq-accordion__answer">
+          <p>Yes, we ship to over 120 countries worldwide with prepaid duties and taxes at checkout.</p>
+        </div>
+      </details>
+    </div>
+  </div>
+</section>
+
+{% schema %}
+{
+  "name": "FAQ Tabbed Categories",
+  "class": "section-faq-accordion",
+  "settings": []
+}
+{% endschema %}

@@ -1,0 +1,20 @@
+{{ 'section-header.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'section-header.js' | asset_url }}" defer="defer"></script>
+
+<shopify-header id="shopify-header-{{ section.id }}" class="site-header header-variant-minimal-icon">
+  <div class="header-mi-inner">
+    <button type="button" class="header-mi-burger" aria-label="Toggle Navigation">&#9776;</button>
+    <a href="/" class="header-mi-brand">{{ section.settings.logo_text | default: "NOMAD" }}</a>
+    <a href="/cart" class="header-mi-cart-icon" aria-label="Cart">Cart (0)</a>
+  </div>
+</shopify-header>
+
+{% schema %}
+{
+  "name": "Header Minimal Icon",
+  "class": "shopify-section--advanced-header",
+  "settings": [
+    { "type": "text", "id": "logo_text", "label": "Logo Text", "default": "NOMAD" }
+  ]
+}
+{% endschema %}

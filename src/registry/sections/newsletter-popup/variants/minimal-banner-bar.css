@@ -1,0 +1,50 @@
+.nl-variant-banner-bar {
+  padding: 1.25rem 2rem;
+  background: #111111;
+  color: #ffffff;
+}
+
+.nl-bb-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.nl-bb-container span {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.nl-bb-form {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.nl-bb-form input {
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
+  border: 1px solid #444444;
+  background: #222222;
+  color: #ffffff;
+  font-size: 0.85rem;
+}
+
+.nl-bb-form button {
+  padding: 0.5rem 1.25rem;
+  border-radius: 999px;
+  border: none;
+  background: #ffffff;
+  color: #000000;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+@media (max-width: 768px) {
+  .nl-bb-container {
+    flex-direction: column;
+    gap: 1rem;
+    text-align: center;
+  }
+}

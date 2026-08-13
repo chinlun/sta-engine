@@ -1,0 +1,9 @@
+{
+  "name": "Newsletter Prominent Footer",
+  "settings": {
+    "background_color": "#0F172A",
+    "text_color": "#F8FAFC",
+    "show_social_icons": true,
+    "show_newsletter": true
+  }
+}

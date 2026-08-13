@@ -74,6 +74,24 @@ function loadSectionRegistry(sectionType) {
             }
         }
 
+        // Load variants
+        const variantsDir = path.join(sectionDir, 'variants');
+        const variants = {};
+        if (fs.existsSync(variantsDir)) {
+            const variantFiles = fs.readdirSync(variantsDir);
+            for (const file of variantFiles) {
+                const ext = path.extname(file);
+                const name = path.basename(file, ext);
+                if (!variants[name]) variants[name] = {};
+                const fullPath = path.join(variantsDir, file);
+                if (ext === '.liquid') {
+                    variants[name].liquid = fs.readFileSync(fullPath, 'utf8');
+                } else if (ext === '.css') {
+                    variants[name].css = fs.readFileSync(fullPath, 'utf8');
+                }
+            }
+        }
+
         const registryData = {
             sectionType,
             manifest,
@@ -82,6 +100,7 @@ function loadSectionRegistry(sectionType) {
             scriptJs,
             snippets,
             presets,
+            variants,
             defaultPreset: presets['default'] || Object.values(presets)[0] || {}
         };
 
@@ -132,13 +151,36 @@ function assembleRegistryFiles(sectionType, configPatch = {}, designTokens = {},
         throw new Error(`Registry for section type "${sectionType}" not found.`);
     }
 
-    const { sectionLiquid, stylesCss, scriptJs, snippets, presets } = registry;
+    const { variants } = registry;
+    let { sectionLiquid, stylesCss, scriptJs, snippets, presets } = registry;
     const settingsPatch = configPatch?.settings_patch || {};
     const deltaCss = configPatch?.delta_css || "";
     const deltaJs = configPatch?.delta_js || "";
 
-    const selectedPreset = presets[presetId] || registry.defaultPreset || {};
+    const targetPresetId = configPatch?.preset_id || presetId || "default";
+    const selectedPreset = presets[targetPresetId] || registry.defaultPreset || {};
     const presetSettings = selectedPreset.settings || {};
+
+    let targetVariantId = configPatch?.variant || configPatch?.variant_id || configPatch?.preset_id || presetId || "default";
+
+    if (variants && Object.keys(variants).length > 0) {
+        if (!variants[targetVariantId] || targetVariantId === 'default') {
+            const rationale = (configPatch?.rationale || '').toLowerCase();
+            const variantKeys = Object.keys(variants);
+            const matchedKey = variantKeys.find(k => rationale.includes(k.replace(/-/g, ' ')) || rationale.includes(k) || targetPresetId.includes(k));
+            if (matchedKey) {
+                targetVariantId = matchedKey;
+            } else if (variantKeys.length > 0) {
+                targetVariantId = variantKeys[Math.floor(Math.random() * variantKeys.length)];
+            }
+        }
+        if (variants[targetVariantId]) {
+            if (variants[targetVariantId].liquid) sectionLiquid = variants[targetVariantId].liquid;
+            if (variants[targetVariantId].css) stylesCss = `${stylesCss}\n${variants[targetVariantId].css}`;
+        }
+    }
+
+    logger.info(`[RegistryManager] Assembling section "${sectionType}" using variant "${targetVariantId}" (requested preset: "${targetPresetId}")`);
 
     const colors = designTokens.colors || designTokens.palette || {};
     const defaultBg = colors.background || '#FFFFFF';
@@ -175,6 +217,12 @@ function assembleRegistryFiles(sectionType, configPatch = {}, designTokens = {},
     for (const [key, val] of Object.entries(mergedSettings)) {
         const settingDef = validSettingsMap[key];
         if (!settingDef) continue;
+
+        // BUGFIX: Sanitize null / "null" / "undefined" strings
+        if (val === null || val === undefined || String(val).toLowerCase() === 'null' || String(val).toLowerCase() === 'undefined') {
+            sanitizedSettings[key] = "";
+            continue;
+        }
 
         if (settingDef.type === 'select') {
             const validOptions = (settingDef.options || []).map(o => String(o.value));

@@ -1,0 +1,40 @@
+{{ 'section-interactive-media.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'section-interactive-media.js' | asset_url }}" defer="defer"></script>
+
+<section class="interactive-media-section im-variant-lookbook" style="--bg-color: {{ section.settings.background_color | default: '#111111' }}; --text-color: {{ section.settings.text_color | default: '#FFFFFF' }};">
+  <div class="im-lookbook-container">
+    {%- if section.settings.title != blank -%}
+      <h2 class="im-lookbook-heading">{{ section.settings.title }}</h2>
+    {%- endif -%}
+
+    <div class="im-lookbook-stage">
+      <img src="unsplash://luxury-living-room-interior" alt="Shoppable Lookbook" loading="lazy" class="im-lookbook-bg">
+
+      <div class="im-hotspot" style="top: 35%; left: 45%;">
+        <button type="button" class="im-hotspot-pin" aria-label="Pin 1">+</button>
+        <div class="im-hotspot-card">
+          <strong>Architectural Lounge Chair</strong>
+          <span>$890.00</span>
+        </div>
+      </div>
+
+      <div class="im-hotspot" style="top: 65%; left: 70%;">
+        <button type="button" class="im-hotspot-pin" aria-label="Pin 2">+</button>
+        <div class="im-hotspot-card">
+          <strong>Sculptural Ceramic Lamp</strong>
+          <span>$240.00</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+{% schema %}
+{
+  "name": "Shoppable Lookbook",
+  "class": "section-interactive-media",
+  "settings": [
+    { "type": "text", "id": "title", "label": "Heading", "default": "Shop The Look" }
+  ]
+}
+{% endschema %}

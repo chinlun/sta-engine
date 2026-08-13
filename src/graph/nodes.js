@@ -93,31 +93,44 @@ async function resolveUnsplashPlaceholders(files, state) {
             } catch (e) {
                 logger.warn(`[Unsplash] Failed to decode query key '${cleanQueryKey}': ${e.message}`);
             }
-            query = query.replace(/[-_]+/g, ' ');
-            
+            query = query.replace(/[-_]+/g, ' ').trim();
+
             const genericKeywords = ['product', 'image', 'keyword', 'placeholder', 'fallback', 'temp', 'dummy', 'default'];
             const isGeneric = genericKeywords.some(kw => query.toLowerCase() === kw || query.toLowerCase().includes('image keyword') || query.toLowerCase().includes('product image'));
-            if (isGeneric || !query.trim()) {
+            if (isGeneric || !query) {
                 query = fallbackTopic;
             }
-            
-            try {
-                const url = `https://unsplash.com/napi/search/photos?query=${encodeURIComponent(query)}&per_page=10`;
-                const res = await fetch(url);
-                if (res.ok) {
-                    const data = await res.json();
-                    if (data.results && data.results.length > 0) {
-                        const freeResults = data.results.filter(r => r.urls && r.urls.raw && r.urls.raw.includes('images.unsplash.com'));
-                        const targetResults = freeResults.length > 0 ? freeResults : data.results;
-                        const randomIndex = Math.floor(Math.random() * Math.min(targetResults.length, 10));
-                        const rawUrl = targetResults[randomIndex].urls.raw;
-                        const cleanUrl = rawUrl.split('?')[0];
-                        replacements[rawQuery] = cleanUrl;
-                        return;
+
+            // Progressive Search Retry Pipeline (Original Query -> Tail Keywords -> Fallback Topic)
+            const queryCandidates = [query];
+            const words = query.split(' ');
+            if (words.length > 2) {
+                queryCandidates.push(words.slice(1).join(' ')); // Drop first word (often brand or modifier)
+                queryCandidates.push(words.slice(-2).join(' ')); // Take last two words (core product noun)
+            }
+            if (!queryCandidates.includes(fallbackTopic)) {
+                queryCandidates.push(fallbackTopic);
+            }
+
+            for (const candidate of queryCandidates) {
+                try {
+                    const url = `https://unsplash.com/napi/search/photos?query=${encodeURIComponent(candidate)}&per_page=10`;
+                    const res = await fetch(url);
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data.results && data.results.length > 0) {
+                            const freeResults = data.results.filter(r => r.urls && r.urls.raw && r.urls.raw.includes('images.unsplash.com'));
+                            const targetResults = freeResults.length > 0 ? freeResults : data.results;
+                            const randomIndex = Math.floor(Math.random() * Math.min(targetResults.length, 10));
+                            const rawUrl = targetResults[randomIndex].urls.raw;
+                            const cleanUrl = rawUrl.split('?')[0];
+                            replacements[rawQuery] = cleanUrl;
+                            return;
+                        }
                     }
+                } catch (e) {
+                    // Try next candidate
                 }
-            } catch (e) {
-                // Ignore error, fallback
             }
 
             let defaultId = 'photo-1542838132-92c53300491e';
@@ -521,7 +534,14 @@ Rules for selecting Design System:
                 schema: z.object({
                     archetypeDescription: z.string(),
                     catalogSize: z.enum(["single_product", "boutique", "enterprise"]),
-                    selectedDesignSystem: z.string().describe("The name of the design system folder that best fits the vibe of the user prompt. Must be one of the available design systems listed in the system instructions.")
+                    selectedDesignSystem: z.string().describe("The name of the design system folder that best fits the vibe of the user prompt."),
+                    designStance: z.enum([
+                        "editorial_luxury",
+                        "commercial_high_volume",
+                        "modern_dtc_minimal",
+                        "playful_vibrant",
+                        "artisanal_organic"
+                    ]).describe("Visual aesthetic stance inspired by top Shopify themes (e.g. Prestige vs Impulse vs Dawn vs Shapes).")
                 }),
                 maxTokens: 4096,
             });
@@ -556,16 +576,19 @@ Rules for selecting Design System:
         selectedDS = 'the-minimalist';
     }
 
+    const stance = finalObject.designStance || 'modern_dtc_minimal';
+
     logger.debug({ node: 'classifier', rawOutput: finalObject }, 'LLM response');
 
     const duration = Date.now() - startTime;
-    logger.info(`[Graph] ✅ Node: classifierNode complete (${duration}ms). Selected design system: ${selectedDS}`);
-    console.log(`\n🎨 [STA-Engine] Dynamic Design System Selected: ${selectedDS.toUpperCase()}\n`);
+    logger.info(`[Graph] ✅ Node: classifierNode complete (${duration}ms). Selected design system: ${selectedDS}, Stance: ${stance}`);
+    console.log(`\n🎨 [STA-Engine] Dynamic Design System Selected: ${selectedDS.toUpperCase()} (Stance: ${stance})\n`);
 
     return {
         catalogSize: finalObject.catalogSize,
         selectedDesignSystem: selectedDS,
-        reasoning: { node: 'classifier', text: `Classified catalog scale and selected design system: ${selectedDS}.` }
+        designStance: stance,
+        reasoning: { node: 'classifier', text: `Classified catalog scale, selected design system: ${selectedDS}, and visual stance: ${stance}.` }
     };
 }
 
@@ -727,7 +750,7 @@ async function plannerNode(state, config) {
                 model,
                 maxRetries: 0,
                 mode: 'json',
-                system: `You are the Lead Shopify Architect. Based on the selected design tokens, break down the home page into a list of components. Return ONLY valid JSON.
+                system: `You are the Lead Shopify Architect. Based on the selected design tokens and active Design Stance (${state.designStance || 'modern_dtc_minimal'}), break down the home page into a list of components with appropriate section presets. Return ONLY valid JSON.
                 
 ${adaptiveInstructions}
 
@@ -739,10 +762,21 @@ ${manifestSummary}
 RULES:
 1. Editorial Hierarchy: Start with a strong visual hook (Hero), followed by product discovery, then brand story.
 2. Global Layout Elements: Always include exactly one "header.liquid" and one "footer.liquid". EXPLICITLY set their type to "header" and "footer" and mark them as isGlobal: true.
-3. Page Template Sections: All other components should be tagged as type "section" and will be part of the Home Page Template (index.json).
+3. Section Variants & Presets: You MUST actively select distinct structural variants (preset_id / variant) for each section matching the active Design Stance. DO NOT default to 'default'.
+   Available Section Variants:
+   - hero: 'split-screen', 'bento-grid', 'editorial-overlay', 'video-backdrop', 'minimal-centered'
+   - featured-product: 'sticky-gallery-split', 'bento-showcase', 'carousel-view', 'minimal-quick-add'
+   - product-grid / featured-collection: 'carousel-slider', 'bento-showcase', 'editorial-masonry', 'horizontal-catalog'
+   - header: 'centered-split', 'stacked-drawer', 'minimal-icon', 'floating-pill'
+   - footer: 'minimal-centered', 'newsletter-prominent', 'mega-footer', 'editorial-asymmetric'
+   - collection-list: 'bubble-carousel', 'masonry-tiles', 'overlay-banner-stack', 'minimal-text-list'
+   - faq-accordion: 'two-column-split', 'card-grid-faq', 'tabbed-categories', 'floating-glass'
+   - testimonials: 'single-quote-slider', 'social-proof-bar', 'user-photo-cards', 'quote-marquee'
+   - newsletter-popup: 'split-image-modal', 'bottom-floating-toast', 'full-screen-overlay', 'minimal-banner-bar'
+   - interactive-media: 'shoppable-lookbook', 'video-hero-showcase', 'tabbed-media-gallery', '360-product-viewer'
 4. No HTML/CSS: Describe layouts in English.
 5. Hero Blueprint: Select the most appropriate Hero Blueprint ID from the manifest.`,
-                prompt: `User Prompt: ${userPrompt}\nCatalog Size: ${catalogSize}\nDesign System Tokens: ${JSON.stringify(designTokens)}\n\nGenerate the component plan in JSON format.`,
+                prompt: `User Prompt: ${userPrompt}\nCatalog Size: ${catalogSize}\nDesign Stance: ${state.designStance || 'modern_dtc_minimal'}\nDesign System Tokens: ${JSON.stringify(designTokens)}\n\nGenerate the component plan in JSON format.`,
                 schema: z.object({
                     reasoning: z.string().describe("Your thought process. MUST BE FIRST."),
                     blueprint_id: z.string().optional(),
@@ -750,7 +784,8 @@ RULES:
                         name: z.string(),
                         type: z.enum(["header", "footer", "section"]),
                         isGlobal: z.boolean(),
-                        preset_id: z.string().optional().describe("Preset ID from registry (e.g. 'default', 'asymmetric-2x2', 'snap-carousel')"),
+                        preset_id: z.string().optional().describe("Preset or Variant ID (e.g. 'split-screen', 'bento-grid', 'sticky-gallery-split', 'carousel-slider')"),
+                        variant: z.string().optional().describe("Structural layout variant ID"),
                         layout_directive: z.string()
                     }))
                 }),
@@ -774,16 +809,22 @@ RULES:
             }
 
             const duration = Date.now() - startTime;
-            if (finalObject.blueprint_id) {
-                logger.info(`[Graph] Selected Hero Blueprint: ${finalObject.blueprint_id}`);
-            }
-
             // NORMALIZE AT SOURCE: Force all names to FULL PATH identifiers immediately.
             // This ensures the state and events use the exact same key.
             const normalizedComponents = finalObject.components.map(c => ({
                 ...c,
                 name: normalizeFilename(c.name, c.type, true)
             }));
+
+            // Log selected components and presets in info log
+            logger.info(`[Graph] 📋 Planner selected ${normalizedComponents.length} components:`);
+            for (const c of normalizedComponents) {
+                logger.info(`   - Component: "${c.name}" | Type: ${c.type} | Selected Preset: "${c.preset_id || 'default'}"`);
+            }
+
+            if (finalObject.reasoning) {
+                logger.info(`[Graph] 🧠 Planner Thinking:\n${finalObject.reasoning}`);
+            }
 
             logger.info(`[Graph] ✅ Node: plannerNode complete (${duration}ms)`);
             return {
@@ -1356,6 +1397,7 @@ Design Tokens: ${JSON.stringify(designTokens)}
 Brief Content: ${JSON.stringify(sectionContent[componentNameFull] || sectionContent[targetComponent.name] || {})}`,
                         schema: z.object({
                             rationale: z.string().describe("Explanation of configuration choices."),
+                            preset_id: z.string().optional().describe("Preset ID to load (e.g. 'default', 'centered-logo', 'minimal-drawer')."),
                             settings_patch: z.record(z.any()).optional().describe("Key-value settings patch to customize section schema defaults."),
                             delta_css: z.string().optional().describe("Optional custom CSS override delta."),
                             delta_js: z.string().optional().describe("Optional custom JS delta.")
@@ -1374,6 +1416,12 @@ Brief Content: ${JSON.stringify(sectionContent[componentNameFull] || sectionCont
                     }
 
                     finalObject = await object;
+                    logger.info(`[Graph] 🎨 Header Registry Section Configuration:`);
+                    logger.info(`   - Target Component: "${componentNameFull}"`);
+                    logger.info(`   - Selected Preset: "${finalObject.preset_id || 'default'}"`);
+                    if (finalObject.rationale) {
+                        logger.info(`   - LLM Rationale Thinking:\n${finalObject.rationale}`);
+                    }
                     break;
                 } catch (err) {
                     logger.error(`[Graph] Registry header generation error (Attempt ${attempt}): ${err.message}`);
@@ -1451,7 +1499,7 @@ For every section request:
    CRITICAL ALIGNMENT REQUIREMENT:
    Every design decision, color palette choice, overlay gradient choice, button shape, copy writing, image search theme, layout placement, and height mode mentioned in your 'rationale' MUST be explicitly materialized into settings_patch and/or delta_css:
    - Populate settings_patch with all store copy from Brief Content (heading, subheading, eyebrow_text, primary_button_label, trust_text) customized for the merchant's brand tone.
-   - Set image_desktop and image_mobile in settings_patch using relevant Unsplash search keywords matching the brand niche (e.g. "unsplash://jellycat-soft-plush-toys", "unsplash://luxury-gold-jewelry").
+   - Set image_desktop and image_mobile in settings_patch using generic visual product search keywords matching the brand niche (e.g. "unsplash://soft-plush-toys", "unsplash://luxury-gold-jewelry"). NEVER include trademarked brand names or proprietary terms in unsplash:// URLs.
    - If your rationale describes a custom gradient overlay (e.g. espresso gradient or soft warm tint), set overlay_style appropriately AND supply custom CSS in delta_css (e.g. .hero-media__overlay { --hero-overlay-bg: linear-gradient(180deg, rgba(44,24,16,0.3) 0%, rgba(30,15,10,0.7) 100%); }).
    - If your rationale describes pill buttons or custom rounded corners, include explicit CSS in delta_css (e.g. .hero-button { border-radius: 999px; }).
 5. Generate only the delta CSS/JS that the registry cannot already provide.
@@ -1465,6 +1513,7 @@ Design Tokens: ${JSON.stringify(designTokens)}
 Brief Content: ${JSON.stringify(sectionContent[componentNameFull] || sectionContent[targetComponent.name] || {})}`,
                         schema: z.object({
                             rationale: z.string().describe("Explanation of configuration choices."),
+                            preset_id: z.string().optional().describe("Preset ID to load (e.g. 'default', 'split-screen', 'video-background', 'minimal-typography')."),
                             settings_patch: z.record(z.any()).optional().describe("Key-value settings patch to customize section schema defaults."),
                             delta_css: z.string().optional().describe("Optional custom CSS override delta."),
                             delta_js: z.string().optional().describe("Optional custom JS delta.")
@@ -1483,6 +1532,12 @@ Brief Content: ${JSON.stringify(sectionContent[componentNameFull] || sectionCont
                     }
 
                     finalObject = await object;
+                    logger.info(`[Graph] 🎨 Hero Registry Section Configuration:`);
+                    logger.info(`   - Target Component: "${componentNameFull}"`);
+                    logger.info(`   - Selected Preset: "${finalObject.preset_id || 'default'}"`);
+                    if (finalObject.rationale) {
+                        logger.info(`   - LLM Rationale Thinking:\n${finalObject.rationale}`);
+                    }
                     break;
                 } catch (err) {
                     logger.error(`[Graph] Registry hero generation error (Attempt ${attempt}): ${err.message}`);
@@ -1577,6 +1632,7 @@ Design Tokens: ${JSON.stringify(designTokens)}
 Brief Content: ${JSON.stringify(sectionContent[componentNameFull] || sectionContent[targetComponent.name] || {})}`,
                         schema: z.object({
                             rationale: z.string().describe("Explanation of configuration choices."),
+                            preset_id: z.string().optional().describe("Preset ID to load (e.g. 'default', 'asymmetric-2x2', 'snap-carousel', 'horizontal-list')."),
                             settings_patch: z.record(z.any()).optional().describe("Key-value settings patch to customize section schema defaults."),
                             delta_css: z.string().optional().describe("Optional custom CSS override delta."),
                             delta_js: z.string().optional().describe("Optional custom JS delta.")
@@ -1595,6 +1651,12 @@ Brief Content: ${JSON.stringify(sectionContent[componentNameFull] || sectionCont
                     }
 
                     finalObject = await object;
+                    logger.info(`[Graph] 🎨 Product Grid Registry Section Configuration:`);
+                    logger.info(`   - Target Component: "${componentNameFull}"`);
+                    logger.info(`   - Selected Preset: "${finalObject.preset_id || 'default'}"`);
+                    if (finalObject.rationale) {
+                        logger.info(`   - LLM Rationale Thinking:\n${finalObject.rationale}`);
+                    }
                     break;
                 } catch (err) {
                     logger.error(`[Graph] Registry product grid generation error (Attempt ${attempt}): ${err.message}`);
@@ -1693,6 +1755,7 @@ Design Tokens: ${JSON.stringify(designTokens)}
 Brief Content: ${JSON.stringify(sectionContent[componentNameFull] || sectionContent[targetComponent.name] || {})}`,
                         schema: z.object({
                             rationale: z.string().describe("Explanation of configuration choices."),
+                            preset_id: z.string().optional().describe("Preset ID to load (e.g. 'default', 'minimal-centered', 'newsletter-prominent-footer')."),
                             settings_patch: z.record(z.any()).optional().describe("Key-value settings patch to customize section schema defaults."),
                             delta_css: z.string().optional().describe("Optional custom CSS override delta."),
                             delta_js: z.string().optional().describe("Optional custom JS delta.")
@@ -1711,6 +1774,12 @@ Brief Content: ${JSON.stringify(sectionContent[componentNameFull] || sectionCont
                     }
 
                     finalObject = await object;
+                    logger.info(`[Graph] 🎨 Footer Registry Section Configuration:`);
+                    logger.info(`   - Target Component: "${componentNameFull}"`);
+                    logger.info(`   - Selected Preset: "${finalObject.preset_id || 'default'}"`);
+                    if (finalObject.rationale) {
+                        logger.info(`   - LLM Rationale Thinking:\n${finalObject.rationale}`);
+                    }
                     break;
                 } catch (err) {
                     logger.error(`[Graph] Registry footer generation error (Attempt ${attempt}): ${err.message}`);

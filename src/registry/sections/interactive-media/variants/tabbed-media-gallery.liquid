@@ -1,0 +1,24 @@
+{{ 'section-interactive-media.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'section-interactive-media.js' | asset_url }}" defer="defer"></script>
+
+<section class="interactive-media-section im-variant-tabbed-gallery">
+  <div class="im-tg-container page-width">
+    <div class="im-tg-tabs">
+      <button type="button" class="im-tg-tab is-active">4K Video</button>
+      <button type="button" class="im-tg-tab">Studio Photos</button>
+      <button type="button" class="im-tg-tab">3D Experience</button>
+    </div>
+
+    <div class="im-tg-display">
+      <img src="unsplash://luxury-hero-banner" alt="Gallery Media" loading="lazy">
+    </div>
+  </div>
+</section>
+
+{% schema %}
+{
+  "name": "Tabbed Media Gallery",
+  "class": "section-interactive-media",
+  "settings": []
+}
+{% endschema %}

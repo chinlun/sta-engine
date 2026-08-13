@@ -1,0 +1,56 @@
+{{ 'section-product-grid.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'section-product-grid.js' | asset_url }}" defer="defer"></script>
+
+<product-grid-section class="product-grid-registry-section pg-variant-bento" id="ProductGrid-{{ section.id }}">
+  <div class="product-grid-container">
+    <div class="pg-bento-header">
+      <span class="product-grid__eyebrow">{{ section.settings.eyebrow | default: "SPOTLIGHT COLLECTION" }}</span>
+      <h2 class="product-grid__title">{{ section.settings.title | default: "Featured Design Icons" }}</h2>
+    </div>
+
+    <div class="pg-bento-grid">
+      <div class="pg-bento-card pg-bento-card--hero">
+        {% render 'product-card',
+          product: nil,
+          card_aspect_ratio: 'portrait',
+          hover_effect: 'image_zoom',
+          placeholder_title: "Hero Icon Chair",
+          placeholder_price: "$580.00",
+          placeholder_image: "unsplash://luxury-hero-chair"
+        %}
+      </div>
+
+      <div class="pg-bento-card">
+        {% render 'product-card',
+          product: nil,
+          card_aspect_ratio: 'square',
+          placeholder_title: "Ceramic Table Lamp",
+          placeholder_price: "$140.00",
+          placeholder_image: "unsplash://minimalist-desk-lamp"
+        %}
+      </div>
+
+      <div class="pg-bento-card">
+        {% render 'product-card',
+          product: nil,
+          card_aspect_ratio: 'square',
+          placeholder_title: "Pure Wool Throw",
+          placeholder_price: "$110.00",
+          placeholder_image: "unsplash://organic-linen-textile"
+        %}
+      </div>
+    </div>
+  </div>
+</product-grid-section>
+
+{% schema %}
+{
+  "name": "Product Grid Bento Showcase",
+  "tag": "section",
+  "class": "section-product-grid-registry",
+  "settings": [
+    { "type": "text", "id": "eyebrow", "label": "Eyebrow Text", "default": "SPOTLIGHT COLLECTION" },
+    { "type": "text", "id": "title", "label": "Heading", "default": "Featured Design Icons" }
+  ]
+}
+{% endschema %}

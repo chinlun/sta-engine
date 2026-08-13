@@ -1,0 +1,10 @@
+{
+  "name": "Sticky Gallery PDP",
+  "settings": {
+    "show_vendor": true,
+    "show_short_description": true,
+    "button_text": "Buy Now",
+    "background_color": "#FAF8F5",
+    "text_color": "#111111"
+  }
+}

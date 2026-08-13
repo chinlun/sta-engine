@@ -1,0 +1,43 @@
+{{ 'section-hero.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'section-hero.js' | asset_url }}" defer="defer"></script>
+
+{%- style -%}
+  #shopify-section-{{ section.id }} .hero-variant-split {
+    --hero-bg-color: {{ section.settings.background_color | default: '#0d0d0d' }};
+    --hero-text-color: {{ section.settings.text_color | default: '#ffffff' }};
+    --hero-accent-color: {{ section.settings.accent_color | default: '#d4af37' }};
+  }
+{%- endstyle -%}
+
+<hero-section class="hero-registry-section hero-variant-split" id="Hero-{{ section.id }}">
+  <div class="hero-split-container">
+    <div class="hero-split-col hero-split-col--content">
+      {% render 'hero-content', section: section %}
+    </div>
+    <div class="hero-split-col hero-split-col--media">
+      {% render 'hero-media', section: section %}
+    </div>
+  </div>
+</hero-section>
+
+{% schema %}
+{
+  "name": "Hero Split Screen",
+  "class": "section-hero",
+  "settings": [
+    { "type": "color", "id": "background_color", "label": "Background Color", "default": "#0d0d0d" },
+    { "type": "color", "id": "text_color", "label": "Text Color", "default": "#ffffff" },
+    { "type": "color", "id": "accent_color", "label": "Accent Color", "default": "#d4af37" },
+    { "type": "checkbox", "id": "show_eyebrow_badge", "label": "Show Eyebrow", "default": true },
+    { "type": "text", "id": "eyebrow_text", "label": "Eyebrow Text", "default": "New Arrivals" },
+    { "type": "text", "id": "heading", "label": "Heading", "default": "Designed For Exceptional Modern Living" },
+    { "type": "textarea", "id": "subheading", "label": "Subheading", "default": "Explore our signature collection crafted with unparalleled materials and precision engineering." },
+    { "type": "text", "id": "primary_button_label", "label": "Primary Button", "default": "Shop Collection" },
+    { "type": "url", "id": "primary_button_link", "label": "Primary Button Link" },
+    { "type": "text", "id": "secondary_button_label", "label": "Secondary Button", "default": "Explore Lookbook" },
+    { "type": "url", "id": "secondary_button_link", "label": "Secondary Button Link" },
+    { "type": "checkbox", "id": "show_trust_badges", "label": "Show Trust Badges", "default": true },
+    { "type": "text", "id": "trust_text", "label": "Trust Rating Text", "default": "Rated 4.9/5 by 10,000+ happy customers" }
+  ]
+}
+{% endschema %}

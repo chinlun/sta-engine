@@ -1,0 +1,51 @@
+{{ 'section-hero.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'section-hero.js' | asset_url }}" defer="defer"></script>
+
+{%- style -%}
+  #shopify-section-{{ section.id }} .hero-variant-bento {
+    --hero-bg-color: {{ section.settings.background_color | default: '#0d0d0d' }};
+    --hero-text-color: {{ section.settings.text_color | default: '#ffffff' }};
+    --hero-accent-color: {{ section.settings.accent_color | default: '#d4af37' }};
+  }
+{%- endstyle -%}
+
+<hero-section class="hero-registry-section hero-variant-bento" id="Hero-{{ section.id }}">
+  <div class="hero-bento-grid">
+    <div class="hero-bento-card hero-bento-card--main">
+      {% render 'hero-content', section: section %}
+    </div>
+    <div class="hero-bento-card hero-bento-card--media">
+      {% render 'hero-media', section: section %}
+    </div>
+    <div class="hero-bento-card hero-bento-card--stat">
+      <div class="hero-bento-stat">
+        <span class="hero-bento-stat__number">99.8%</span>
+        <span class="hero-bento-stat__label">Satisfaction Rate</span>
+      </div>
+    </div>
+    <div class="hero-bento-card hero-bento-card--feature">
+      <div class="hero-bento-feature">
+        <span class="hero-bento-feature__badge">Featured</span>
+        <h3>Award-Winning Craftsmanship</h3>
+      </div>
+    </div>
+  </div>
+</hero-section>
+
+{% schema %}
+{
+  "name": "Hero Bento Grid",
+  "class": "section-hero",
+  "settings": [
+    { "type": "color", "id": "background_color", "label": "Background Color", "default": "#0d0d0d" },
+    { "type": "color", "id": "text_color", "label": "Text Color", "default": "#ffffff" },
+    { "type": "color", "id": "accent_color", "label": "Accent Color", "default": "#d4af37" },
+    { "type": "checkbox", "id": "show_eyebrow_badge", "label": "Show Eyebrow", "default": true },
+    { "type": "text", "id": "eyebrow_text", "label": "Eyebrow Text", "default": "Next-Gen Collection" },
+    { "type": "text", "id": "heading", "label": "Heading", "default": "The Future of Artisanal Luxury" },
+    { "type": "textarea", "id": "subheading", "label": "Subheading", "default": "Handcrafted perfection meets innovative ergonomic technology." },
+    { "type": "text", "id": "primary_button_label", "label": "Primary Button", "default": "Discover Now" },
+    { "type": "url", "id": "primary_button_link", "label": "Primary Button Link" }
+  ]
+}
+{% endschema %}

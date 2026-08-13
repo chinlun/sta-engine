@@ -1,0 +1,26 @@
+{{ 'section-featured-product.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'section-featured-product.js' | asset_url }}" defer="defer"></script>
+
+<section class="featured-product-section fp-variant-minimal-qa" id="featured-product-{{ section.id }}" style="--bg-color: {{ section.settings.background_color | default: '#F4F4F5' }}; --text-color: {{ section.settings.text_color | default: '#18181B' }};">
+  <div class="fp-qa-card">
+    <div class="fp-qa-thumb">
+      <img src="unsplash://minimalist-desk-lamp" alt="Minimal Product" loading="lazy">
+    </div>
+    <div class="fp-qa-details">
+      <span class="fp-qa-badge">FEATURED PICK</span>
+      <h3 class="fp-qa-title">Architectural Desk Lamp</h3>
+      <div class="fp-qa-price">$160.00</div>
+    </div>
+    <button type="button" class="fp-qa-btn">+ Quick Add</button>
+  </div>
+</section>
+
+{% schema %}
+{
+  "name": "Featured Product Minimal Quick Add",
+  "class": "section-featured-product",
+  "settings": [
+    { "type": "color", "id": "background_color", "label": "Background color", "default": "#F4F4F5" }
+  ]
+}
+{% endschema %}

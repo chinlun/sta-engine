@@ -1,0 +1,38 @@
+{{ 'section-faq-accordion.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'section-faq-accordion.js' | asset_url }}" defer="defer"></script>
+
+<section class="faq-accordion-section faq-variant-card-grid">
+  <div class="faq-cg-container page-width">
+    <div class="faq-cg-header">
+      <h2>Frequently Asked Questions</h2>
+    </div>
+
+    <div class="faq-cg-grid">
+      <div class="faq-cg-card">
+        <div class="faq-cg-icon">&#128666;</div>
+        <h3>Global Shipping</h3>
+        <p>Free express worldwide shipping on orders over $150. Delivery within 3-5 business days.</p>
+      </div>
+
+      <div class="faq-cg-card">
+        <div class="faq-cg-icon">&#8634;</div>
+        <h3>Hassle-Free Returns</h3>
+        <p>30-day money-back guarantee with complimentary return shipping labels included.</p>
+      </div>
+
+      <div class="faq-cg-card">
+        <div class="faq-cg-icon">&#128737;</div>
+        <h3>2-Year Warranty</h3>
+        <p>Every piece is backed by our comprehensive 2-year warranty against structural defects.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+{% schema %}
+{
+  "name": "FAQ Card Grid",
+  "class": "section-faq-accordion",
+  "settings": []
+}
+{% endschema %}

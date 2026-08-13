@@ -1,0 +1,29 @@
+{{ 'section-collection-list.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'section-collection-list.js' | asset_url }}" defer="defer"></script>
+
+<section class="collection-list-section cl-variant-overlay-stack">
+  <div class="cl-obs-container">
+    <a href="#" class="cl-obs-banner">
+      <img src="unsplash://luxury-hero-banner" alt="Banner 1">
+      <div class="cl-obs-content">
+        <h2>The Spring Collection</h2>
+        <span class="cl-obs-btn">Shop Now &rarr;</span>
+      </div>
+    </a>
+    <a href="#" class="cl-obs-banner">
+      <img src="unsplash://luxury-living-room-interior" alt="Banner 2">
+      <div class="cl-obs-content">
+        <h2>Handcrafted Seating</h2>
+        <span class="cl-obs-btn">Explore Category &rarr;</span>
+      </div>
+    </a>
+  </div>
+</section>
+
+{% schema %}
+{
+  "name": "Collection List Banner Stack",
+  "class": "section-collection-list",
+  "settings": []
+}
+{% endschema %}

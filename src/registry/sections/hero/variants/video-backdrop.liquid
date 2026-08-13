@@ -1,0 +1,37 @@
+{{ 'section-hero.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'section-hero.js' | asset_url }}" defer="defer"></script>
+
+<hero-section class="hero-registry-section hero-variant-video-backdrop" id="Hero-{{ section.id }}">
+  <div class="hero-vb-bg">
+    <video autoplay loop muted playsinline class="hero-vb-video">
+      <source src="{{ section.settings.video_url | default: 'https://cdn.shopify.com/videos/c/o/v/placeholder.mp4' }}" type="video/mp4">
+    </video>
+    <div class="hero-vb-overlay"></div>
+  </div>
+
+  <div class="hero-vb-content">
+    <span class="hero-vb-badge">{{ section.settings.eyebrow_text | default: "CINEMATIC EXPERIENCE" }}</span>
+    <h1 class="hero-vb-title">{{ section.settings.heading | default: "Unrivaled Performance & Design" }}</h1>
+    <p class="hero-vb-sub">{{ section.settings.subheading | default: "Immerse yourself in precision luxury engineered for extraordinary living." }}</p>
+
+    <div class="hero-vb-actions">
+      <a href="{{ section.settings.primary_button_link | default: '#' }}" class="hero-vb-btn hero-vb-btn--primary">
+        {{ section.settings.primary_button_label | default: "Watch Showcase" }}
+      </a>
+    </div>
+  </div>
+</hero-section>
+
+{% schema %}
+{
+  "name": "Hero Video Backdrop",
+  "class": "section-hero",
+  "settings": [
+    { "type": "text", "id": "eyebrow_text", "label": "Eyebrow Text", "default": "CINEMATIC EXPERIENCE" },
+    { "type": "text", "id": "heading", "label": "Heading", "default": "Unrivaled Performance & Design" },
+    { "type": "textarea", "id": "subheading", "label": "Subheading", "default": "Immerse yourself in precision luxury." },
+    { "type": "text", "id": "primary_button_label", "label": "Primary Button", "default": "Watch Showcase" },
+    { "type": "text", "id": "video_url", "label": "MP4 Video URL" }
+  ]
+}
+{% endschema %}

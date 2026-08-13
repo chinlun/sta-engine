@@ -1,0 +1,42 @@
+{{ 'section-collection-list.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'section-collection-list.js' | asset_url }}" defer="defer"></script>
+
+<section class="collection-list-section cl-variant-text-list">
+  <div class="cl-tl-container page-width">
+    <div class="cl-tl-header">
+      <h2>Index of Categories</h2>
+    </div>
+
+    <ul class="cl-tl-list">
+      <li>
+        <a href="#">
+          <span class="cl-tl-num">01</span>
+          <span class="cl-tl-name">Architectural Furniture</span>
+          <span class="cl-tl-count">18 Items</span>
+        </a>
+      </li>
+      <li>
+        <a href="#">
+          <span class="cl-tl-num">02</span>
+          <span class="cl-tl-name">Lighting & Ambient</span>
+          <span class="cl-tl-count">24 Items</span>
+        </a>
+      </li>
+      <li>
+        <a href="#">
+          <span class="cl-tl-num">03</span>
+          <span class="cl-tl-name">Organic Textiles</span>
+          <span class="cl-tl-count">12 Items</span>
+        </a>
+      </li>
+    </ul>
+  </div>
+</section>
+
+{% schema %}
+{
+  "name": "Collection List Text Directory",
+  "class": "section-collection-list",
+  "settings": []
+}
+{% endschema %}

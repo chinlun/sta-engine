@@ -1,0 +1,20 @@
+{{ 'section-newsletter-popup.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'section-newsletter-popup.js' | asset_url }}" defer="defer"></script>
+
+<section class="newsletter-section nl-variant-banner-bar">
+  <div class="nl-bb-container page-width">
+    <span>Sign up for 15% off your first order</span>
+    <form class="nl-bb-form">
+      <input type="email" placeholder="Your email" required>
+      <button type="submit">Subscribe</button>
+    </form>
+  </div>
+</section>
+
+{% schema %}
+{
+  "name": "Newsletter Minimal Banner Bar",
+  "class": "section-newsletter",
+  "settings": []
+}
+{% endschema %}

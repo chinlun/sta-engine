@@ -1,0 +1,52 @@
+.pg-variant-masonry {
+  padding: 5rem 2rem;
+}
+
+.pg-masonry-header {
+  text-align: center;
+  margin-bottom: 3rem;
+}
+
+.pg-masonry-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.pg-masonry-col {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.pg-editorial-quote-card {
+  padding: 3rem 2rem;
+  background: #111111;
+  color: #ffffff;
+  border-radius: 16px;
+  text-align: center;
+}
+
+.pg-editorial-quote-card span {
+  font-size: 0.75rem;
+  letter-spacing: 0.2em;
+  color: #c9a86a;
+  display: block;
+  margin-bottom: 1rem;
+}
+
+.pg-editorial-quote-card blockquote {
+  font-family: Georgia, serif;
+  font-size: 1.3rem;
+  font-style: italic;
+  line-height: 1.5;
+  margin: 0;
+}
+
+@media (max-width: 768px) {
+  .pg-masonry-grid {
+    grid-template-columns: 1fr;
+  }
+}

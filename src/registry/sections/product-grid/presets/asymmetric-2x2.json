@@ -1,0 +1,13 @@
+{
+  "name": "Asymmetric 2x2 Lead Card",
+  "settings": {
+    "columns_desktop": 3,
+    "layout_mode": "asymmetric",
+    "card_aspect_ratio": "portrait",
+    "show_swatches": true,
+    "show_secondary_image": true,
+    "show_quick_view": true,
+    "background_color": "#FFFFFF",
+    "text_color": "#111111"
+  }
+}

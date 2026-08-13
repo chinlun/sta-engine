@@ -1,0 +1,10 @@
+{
+  "name": "Circle Avatars Grid",
+  "settings": {
+    "title": "Explore Categories",
+    "columns": "4",
+    "show_product_count": false,
+    "background_color": "#FFFFFF",
+    "text_color": "#111111"
+  }
+}

@@ -1,0 +1,41 @@
+{{ 'section-product-grid.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'section-product-grid.js' | asset_url }}" defer="defer"></script>
+
+<product-grid-section class="product-grid-registry-section pg-variant-horizontal" id="ProductGrid-{{ section.id }}">
+  <div class="product-grid-container">
+    <div class="pg-hz-header">
+      <h2>Catalog Index</h2>
+    </div>
+
+    <div class="pg-hz-list">
+      <div class="pg-hz-item">
+        <img src="unsplash://minimalist-ceramic-vase" alt="Vase" class="pg-hz-thumb">
+        <div class="pg-hz-info">
+          <h3>Minimalist Ceramic Vase</h3>
+          <span class="pg-hz-cat">Home Decor &bull; Handcrafted</span>
+        </div>
+        <div class="pg-hz-price">$120.00</div>
+        <button type="button" class="pg-hz-btn">Add to Cart</button>
+      </div>
+
+      <div class="pg-hz-item">
+        <img src="unsplash://luxury-watch-lifestyle" alt="Watch" class="pg-hz-thumb">
+        <div class="pg-hz-info">
+          <h3>Architectural Steel Watch</h3>
+          <span class="pg-hz-cat">Accessories &bull; Swiss Movement</span>
+        </div>
+        <div class="pg-hz-price">$245.00</div>
+        <button type="button" class="pg-hz-btn">Add to Cart</button>
+      </div>
+    </div>
+  </div>
+</product-grid-section>
+
+{% schema %}
+{
+  "name": "Product Grid Horizontal Catalog",
+  "tag": "section",
+  "class": "section-product-grid-registry",
+  "settings": []
+}
+{% endschema %}

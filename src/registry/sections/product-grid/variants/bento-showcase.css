@@ -1,0 +1,26 @@
+.pg-variant-bento {
+  padding: 4rem 2rem;
+}
+
+.pg-bento-header {
+  margin-bottom: 2.5rem;
+  text-align: center;
+}
+
+.pg-bento-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 1.5rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.pg-bento-card--hero {
+  grid-column: span 1;
+}
+
+@media (max-width: 989px) {
+  .pg-bento-grid {
+    grid-template-columns: 1fr;
+  }
+}

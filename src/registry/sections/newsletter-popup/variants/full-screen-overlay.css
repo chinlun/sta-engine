@@ -1,0 +1,60 @@
+.nl-variant-fullscreen {
+  padding: 6rem 2rem;
+  background: radial-gradient(circle at center, #1c1c1e 0%, #000000 100%);
+  color: #ffffff;
+}
+
+.nl-fs-card {
+  max-width: 600px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.nl-fs-tag {
+  font-size: 0.75rem;
+  letter-spacing: 0.25em;
+  color: #c9a86a;
+  display: block;
+  margin-bottom: 1rem;
+}
+
+.nl-fs-card h2 {
+  font-family: Georgia, serif;
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.nl-fs-card p {
+  font-size: 1.05rem;
+  opacity: 0.85;
+  margin-bottom: 2.5rem;
+  line-height: 1.6;
+}
+
+.nl-fs-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-width: 420px;
+  margin: 0 auto;
+}
+
+.nl-fs-form input {
+  padding: 1.1rem 1.5rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.2);
+  background: rgba(255,255,255,0.05);
+  color: #ffffff;
+  font-size: 1rem;
+  text-align: center;
+}
+
+.nl-fs-form button {
+  padding: 1.1rem;
+  border-radius: 999px;
+  border: none;
+  background: #c9a86a;
+  color: #000000;
+  font-weight: 700;
+  cursor: pointer;
+}

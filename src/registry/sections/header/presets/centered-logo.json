@@ -1,0 +1,12 @@
+{
+  "name": "Centered Logo Header",
+  "settings": {
+    "layout_style": "centered_logo",
+    "placement": "top",
+    "width_mode": "boxed",
+    "show_announcement_bar": true,
+    "announcement_text": "Free Shipping on All Orders Over $75",
+    "background_color": "#FFFFFF",
+    "text_color": "#111111"
+  }
+}

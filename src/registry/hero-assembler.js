@@ -32,10 +32,34 @@ function loadHeroRegistry() {
         }
 
         const presetsDir = path.join(REGISTRY_DIR, 'presets');
+        const presets = {};
+        if (fs.existsSync(presetsDir)) {
+            const presetFiles = fs.readdirSync(presetsDir).filter(f => f.endsWith('.json'));
+            for (const file of presetFiles) {
+                const presetName = file.replace('.json', '');
+                try {
+                    presets[presetName] = JSON.parse(fs.readFileSync(path.join(presetsDir, file), 'utf8'));
+                } catch (err) {}
+            }
+        }
         const defaultPresetPath = path.join(presetsDir, 'default.json');
         const defaultPreset = fs.existsSync(defaultPresetPath) 
             ? JSON.parse(fs.readFileSync(defaultPresetPath, 'utf8'))
             : {};
+
+        const variantsDir = path.join(REGISTRY_DIR, 'variants');
+        const variants = {};
+        if (fs.existsSync(variantsDir)) {
+            const variantFiles = fs.readdirSync(variantsDir);
+            for (const file of variantFiles) {
+                const ext = path.extname(file);
+                const name = path.basename(file, ext);
+                if (!variants[name]) variants[name] = {};
+                const fullPath = path.join(variantsDir, file);
+                if (ext === '.liquid') variants[name].liquid = fs.readFileSync(fullPath, 'utf8');
+                else if (ext === '.css') variants[name].css = fs.readFileSync(fullPath, 'utf8');
+            }
+        }
 
         return {
             manifest,
@@ -43,6 +67,8 @@ function loadHeroRegistry() {
             stylesCss,
             scriptJs,
             snippets,
+            presets,
+            variants,
             defaultPreset
         };
     } catch (e) {
@@ -56,16 +82,57 @@ function loadHeroRegistry() {
  * applying LLM configuration patch and design tokens.
  */
 function assembleHeroFiles(registry, configPatch, designTokens = {}, shopName = "") {
-    const { sectionLiquid, stylesCss, scriptJs, snippets } = registry;
+    const { variants } = registry;
+    let { sectionLiquid, stylesCss, scriptJs, snippets, presets } = registry;
     const settingsPatch = configPatch?.settings_patch || {};
-    const deltaCss = configPatch?.delta_css || "";
+    let deltaCss = configPatch?.delta_css || "";
     const deltaJs = configPatch?.delta_js || "";
+    const rationale = (configPatch?.rationale || "").toLowerCase();
 
-    // 1. Inject design tokens into color defaults if not explicitly set in patch
+    // 1. Load requested preset (or fallback to default)
+    const presetId = configPatch?.preset_id || 'default';
+    const selectedPreset = presets?.[presetId] || registry?.defaultPreset || {};
+    const presetSettings = selectedPreset.settings || {};
+
+    let targetVariantId = configPatch?.variant || configPatch?.variant_id || configPatch?.preset_id || selectedPreset.variant || presetId || "default";
+
+    if (variants && Object.keys(variants).length > 0) {
+        if (!variants[targetVariantId] || targetVariantId === 'default') {
+            const variantKeys = Object.keys(variants);
+            if (rationale.includes('bento') && variants['bento-grid']) targetVariantId = 'bento-grid';
+            else if (rationale.includes('split') && variants['split-screen']) targetVariantId = 'split-screen';
+            else if ((rationale.includes('editorial') || rationale.includes('magazine')) && variants['editorial-overlay']) targetVariantId = 'editorial-overlay';
+            else if (rationale.includes('video') && variants['video-backdrop']) targetVariantId = 'video-backdrop';
+            else if ((rationale.includes('minimal') || rationale.includes('centered')) && variants['minimal-centered']) targetVariantId = 'minimal-centered';
+            else if (variantKeys.length > 0) {
+                targetVariantId = variantKeys[Math.floor(Math.random() * variantKeys.length)];
+            }
+        }
+        if (variants[targetVariantId]) {
+            if (variants[targetVariantId].liquid) sectionLiquid = variants[targetVariantId].liquid;
+            if (variants[targetVariantId].css) stylesCss = `${stylesCss}\n${variants[targetVariantId].css}`;
+        }
+    }
+
+    logger.info(`[HeroRegistry] Assembling hero section using variant "${targetVariantId}" (requested preset: "${presetId}")`);
+
+    // 2. Inject design tokens into color defaults if not explicitly set in patch
     const colors = designTokens.colors || designTokens.palette || {};
     const defaultBg = colors.background || '#0d0d0d';
     const defaultText = colors.text || '#ffffff';
     const defaultAccent = colors.primary || colors.accent || '#d4af37';
+
+    // Rationale Auto-Bridge: Translate LLM thinking into concrete CSS overrides if missing
+    if (rationale.includes('pill') && !deltaCss.includes('border-radius')) {
+        deltaCss += `\n.hero-button { border-radius: 999px !important; }\n.hero-content__badge { border-radius: 999px !important; }`;
+    }
+    if (rationale.includes('sharp') && !deltaCss.includes('border-radius')) {
+        deltaCss += `\n.hero-button { border-radius: 0px !important; }\n.hero-content__badge { border-radius: 0px !important; }`;
+    }
+    if (rationale.includes('espresso') || rationale.includes('#2b2623')) {
+        settingsPatch.background_color = settingsPatch.background_color || '#2b2623';
+        settingsPatch.overlay_style = settingsPatch.overlay_style || 'dark_gradient';
+    }
 
     let customizedSectionLiquid = sectionLiquid;
 
@@ -87,8 +154,7 @@ function assembleHeroFiles(registry, configPatch, designTokens = {}, shopName = 
         logger.warn(`[HeroRegistry] Failed to parse schema JSON for validation: ${err.message}`);
     }
 
-    // Apply settings patch on top of registry default.json preset and schema defaults
-    const presetSettings = registry?.defaultPreset?.settings || {};
+    // Apply settings patch on top of requested preset and schema defaults
     const mergedSettings = {
         ...presetSettings,
         background_color: defaultBg,
@@ -102,6 +168,12 @@ function assembleHeroFiles(registry, configPatch, designTokens = {}, shopName = 
     for (let [key, val] of Object.entries(mergedSettings)) {
         const settingDef = validSettingsMap[key];
         if (!settingDef) continue; // Skip unknown setting IDs
+
+        // BUGFIX: Sanitize null / "null" / "undefined" strings
+        if (val === null || val === undefined || String(val).toLowerCase() === 'null' || String(val).toLowerCase() === 'undefined') {
+            sanitizedSettings[key] = "";
+            continue;
+        }
 
         if (settingDef.type === 'select') {
             const validOptions = (settingDef.options || []).map(o => String(o.value));

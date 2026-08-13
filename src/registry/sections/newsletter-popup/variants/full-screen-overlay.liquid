@@ -1,0 +1,24 @@
+{{ 'section-newsletter-popup.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'section-newsletter-popup.js' | asset_url }}" defer="defer"></script>
+
+<section class="newsletter-section nl-variant-fullscreen">
+  <div class="nl-fs-backdrop">
+    <div class="nl-fs-card">
+      <span class="nl-fs-tag">VIP ACCESS</span>
+      <h2>Join The Insider Club</h2>
+      <p>Subscribe for early access drops, VIP sales events, and editorial journal stories.</p>
+      <form class="nl-fs-form">
+        <input type="email" placeholder="Enter your email" required>
+        <button type="submit">Unlock Pass</button>
+      </form>
+    </div>
+  </div>
+</section>
+
+{% schema %}
+{
+  "name": "Newsletter Fullscreen Splash",
+  "class": "section-newsletter",
+  "settings": []
+}
+{% endschema %}

@@ -1,0 +1,38 @@
+{{ 'section-footer.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'section-footer.js' | asset_url }}" defer="defer"></script>
+
+<footer-section class="footer-registry-section footer-variant-minimal" id="Footer-{{ section.id }}">
+  <div class="footer-minimal-container">
+    <a href="/" class="footer-minimal-logo">
+      {{ section.settings.logo_text | default: "Shopify Store" }}
+    </a>
+    
+    <p class="footer-minimal-bio">
+      {{ section.settings.brand_bio | default: "Curated objects for intentional, modern living." }}
+    </p>
+
+    <ul class="footer-minimal-nav">
+      <li><a href="/collections/all">Shop</a></li>
+      <li><a href="/pages/about">About</a></li>
+      <li><a href="/pages/contact">Contact</a></li>
+      <li><a href="/policies/privacy-policy">Privacy</a></li>
+    </ul>
+
+    {% render 'footer-social' %}
+
+    <div class="footer-minimal-copyright">
+      &copy; {{ 'now' | date: '%Y' }} {{ section.settings.logo_text | default: "Store" }}. All rights reserved.
+    </div>
+  </div>
+</footer-section>
+
+{% schema %}
+{
+  "name": "Footer Minimal Centered",
+  "class": "section-footer-registry",
+  "settings": [
+    { "type": "text", "id": "logo_text", "label": "Logo Text", "default": "Shopify Store" },
+    { "type": "textarea", "id": "brand_bio", "label": "Brand Bio", "default": "Curated objects for intentional, modern living." }
+  ]
+}
+{% endschema %}

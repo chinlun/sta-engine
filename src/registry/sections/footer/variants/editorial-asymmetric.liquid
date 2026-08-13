@@ -1,0 +1,29 @@
+{{ 'section-footer.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'section-footer.js' | asset_url }}" defer="defer"></script>
+
+<footer-section class="footer-registry-section footer-variant-editorial-asymmetric" id="Footer-{{ section.id }}">
+  <div class="footer-ea-container page-width">
+    <div class="footer-ea-brand">
+      <h2>ATELIER</h2>
+      <p>Crafting intentional spaces through timeless design and artisanal integrity.</p>
+    </div>
+
+    <div class="footer-ea-nav">
+      <div class="footer-ea-stack">
+        <a href="/collections/all">Explore Catalog</a>
+        <a href="/pages/philosophy">Our Philosophy</a>
+        <a href="/pages/journal">Read Journal</a>
+        <a href="/pages/contact">Get In Touch</a>
+      </div>
+      {% render 'footer-social' %}
+    </div>
+  </div>
+</footer-section>
+
+{% schema %}
+{
+  "name": "Footer Editorial Asymmetric",
+  "class": "section-footer-registry",
+  "settings": []
+}
+{% endschema %}

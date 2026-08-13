@@ -1,0 +1,31 @@
+{{ 'section-testimonials.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'section-testimonials.js' | asset_url }}" defer="defer"></script>
+
+<section class="testimonials-section t-variant-single-quote" style="--bg-color: {{ section.settings.background_color | default: '#0F172A' }}; --text-color: {{ section.settings.text_color | default: '#F8FAFC' }};">
+  <div class="t-single-container">
+    <div class="t-single-stars">★★★★★</div>
+    <blockquote class="t-single-quote">
+      "The craftsmanship exceeded all my expectations. It completely elevated our space with effortless sophistication."
+    </blockquote>
+    <div class="t-single-author">
+      <div class="t-single-avatar">
+        <img src="unsplash://customer-portrait-1" alt="Elena R." loading="lazy">
+      </div>
+      <div>
+        <strong class="t-single-name">Elena R.</strong>
+        <span class="t-single-title">Architectural Designer &bull; Verified Buyer</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+{% schema %}
+{
+  "name": "Testimonials Single Quote",
+  "class": "section-testimonials",
+  "settings": [
+    { "type": "color", "id": "background_color", "label": "Background Color", "default": "#0F172A" },
+    { "type": "color", "id": "text_color", "label": "Text Color", "default": "#F8FAFC" }
+  ]
+}
+{% endschema %}

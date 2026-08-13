@@ -1,0 +1,33 @@
+{{ 'section-header.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'section-header.js' | asset_url }}" defer="defer"></script>
+
+<shopify-header id="shopify-header-{{ section.id }}" class="site-header header-variant-centered-split" style="--header-bg: {{ section.settings.background_color | default: '#ffffff' }}; --header-text: {{ section.settings.text_color | default: '#111111' }};">
+  <div class="header-inner page-width">
+    <div class="header-split-nav header-split-nav--left">
+      <a href="/collections/all">Shop</a>
+      <a href="/collections/new">New Arrivals</a>
+    </div>
+
+    <div class="header-split-logo">
+      <a href="/">{{ section.settings.logo_text | default: "ATELIER" }}</a>
+    </div>
+
+    <div class="header-split-nav header-split-nav--right">
+      <a href="/pages/about">About</a>
+      <a href="/pages/contact">Contact</a>
+      {% render 'header-icons', section: section, device: 'desktop', slot: 'right' %}
+    </div>
+  </div>
+</shopify-header>
+
+{% schema %}
+{
+  "name": "Header Centered Split",
+  "class": "shopify-section--advanced-header",
+  "settings": [
+    { "type": "text", "id": "logo_text", "label": "Logo Text", "default": "ATELIER" },
+    { "type": "color", "id": "background_color", "label": "Background Color", "default": "#ffffff" },
+    { "type": "color", "id": "text_color", "label": "Text Color", "default": "#111111" }
+  ]
+}
+{% endschema %}

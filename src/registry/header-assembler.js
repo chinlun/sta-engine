@@ -32,10 +32,34 @@ function loadHeaderRegistry() {
         }
 
         const presetsDir = path.join(REGISTRY_DIR, 'presets');
+        const presets = {};
+        if (fs.existsSync(presetsDir)) {
+            const presetFiles = fs.readdirSync(presetsDir).filter(f => f.endsWith('.json'));
+            for (const file of presetFiles) {
+                const presetName = file.replace('.json', '');
+                try {
+                    presets[presetName] = JSON.parse(fs.readFileSync(path.join(presetsDir, file), 'utf8'));
+                } catch (err) {}
+            }
+        }
         const defaultPresetPath = path.join(presetsDir, 'default.json');
         const defaultPreset = fs.existsSync(defaultPresetPath) 
             ? JSON.parse(fs.readFileSync(defaultPresetPath, 'utf8'))
             : {};
+
+        const variantsDir = path.join(REGISTRY_DIR, 'variants');
+        const variants = {};
+        if (fs.existsSync(variantsDir)) {
+            const variantFiles = fs.readdirSync(variantsDir);
+            for (const file of variantFiles) {
+                const ext = path.extname(file);
+                const name = path.basename(file, ext);
+                if (!variants[name]) variants[name] = {};
+                const fullPath = path.join(variantsDir, file);
+                if (ext === '.liquid') variants[name].liquid = fs.readFileSync(fullPath, 'utf8');
+                else if (ext === '.css') variants[name].css = fs.readFileSync(fullPath, 'utf8');
+            }
+        }
 
         return {
             manifest,
@@ -43,6 +67,8 @@ function loadHeaderRegistry() {
             stylesCss,
             scriptJs,
             snippets,
+            presets,
+            variants,
             defaultPreset
         };
     } catch (e) {
@@ -56,15 +82,53 @@ function loadHeaderRegistry() {
  * applying LLM configuration patch and design tokens.
  */
 function assembleHeaderFiles(registry, configPatch, designTokens = {}, shopName = "") {
-    const { sectionLiquid, stylesCss, scriptJs, snippets } = registry;
+    const { variants } = registry;
+    let { sectionLiquid, stylesCss, scriptJs, snippets, presets } = registry;
     const settingsPatch = configPatch?.settings_patch || {};
-    const deltaCss = configPatch?.delta_css || "";
+    let deltaCss = configPatch?.delta_css || "";
     const deltaJs = configPatch?.delta_js || "";
+    const rationale = (configPatch?.rationale || "").toLowerCase();
 
-    // 1. Inject design tokens into color defaults if not explicitly set in patch
+    // 1. Load requested preset (or fallback to default)
+    const presetId = configPatch?.preset_id || 'default';
+    const selectedPreset = presets?.[presetId] || registry?.defaultPreset || {};
+    const presetSettings = selectedPreset.settings || {};
+
+    let targetVariantId = configPatch?.variant || configPatch?.variant_id || configPatch?.preset_id || selectedPreset.variant || presetId || "default";
+
+    if (variants && Object.keys(variants).length > 0) {
+        if (!variants[targetVariantId] || targetVariantId === 'default') {
+            const variantKeys = Object.keys(variants);
+            if ((rationale.includes('split') || rationale.includes('centered logo')) && variants['centered-split']) targetVariantId = 'centered-split';
+            else if (rationale.includes('drawer') && variants['stacked-drawer']) targetVariantId = 'stacked-drawer';
+            else if (rationale.includes('minimal') && variants['minimal-icon']) targetVariantId = 'minimal-icon';
+            else if (rationale.includes('pill') && variants['floating-pill']) targetVariantId = 'floating-pill';
+            else if (variantKeys.length > 0) {
+                targetVariantId = variantKeys[Math.floor(Math.random() * variantKeys.length)];
+            }
+        }
+        if (variants[targetVariantId]) {
+            if (variants[targetVariantId].liquid) sectionLiquid = variants[targetVariantId].liquid;
+            if (variants[targetVariantId].css) stylesCss = `${stylesCss}\n${variants[targetVariantId].css}`;
+        }
+    }
+
+    logger.info(`[HeaderRegistry] Assembling header section using variant "${targetVariantId}" (requested preset: "${presetId}")`);
+
     const colors = designTokens.palette || {};
     const defaultBg = colors.background || '#FFFFFF';
     const defaultText = colors.text || '#111111';
+
+    // Rationale Auto-Bridge for Header variations
+    if (rationale.includes('centered logo') && !settingsPatch.desktop_logo_position) {
+        settingsPatch.desktop_logo_position = 'center';
+    }
+    if (rationale.includes('drawer') && !settingsPatch.desktop_menu_content) {
+        settingsPatch.desktop_menu_content = 'burger';
+    }
+    if (rationale.includes('sticky') && settingsPatch.enable_sticky_header === undefined) {
+        settingsPatch.enable_sticky_header = true;
+    }
 
     let customizedSectionLiquid = sectionLiquid;
 
@@ -86,8 +150,7 @@ function assembleHeaderFiles(registry, configPatch, designTokens = {}, shopName 
         logger.warn(`[HeaderRegistry] Failed to parse schema JSON for validation: ${err.message}`);
     }
 
-    // Apply settings patch on top of registry default.json preset and schema defaults
-    const presetSettings = registry?.defaultPreset?.settings || {};
+    // Apply settings patch on top of requested preset and schema defaults
     const mergedSettings = {
         ...presetSettings,
         placement: "top",
@@ -106,6 +169,12 @@ function assembleHeaderFiles(registry, configPatch, designTokens = {}, shopName 
         const settingDef = validSettingsMap[key];
         if (!settingDef) continue; // Skip unknown setting IDs
 
+        // BUGFIX: Sanitize null / "null" / "undefined" strings
+        if (val === null || val === undefined || String(val).toLowerCase() === 'null' || String(val).toLowerCase() === 'undefined') {
+            sanitizedSettings[key] = "";
+            continue;
+        }
+
         if (settingDef.type === 'select') {
             const validOptions = (settingDef.options || []).map(o => String(o.value));
             const strVal = String(val);
@@ -122,7 +191,7 @@ function assembleHeaderFiles(registry, configPatch, designTokens = {}, shopName 
             }
         } else if (settingDef.type === 'checkbox') {
             sanitizedSettings[key] = Boolean(val);
-        } else if (settingDef.type === 'color' || settingDef.type === 'text' || settingDef.type === 'textarea' || settingDef.type === 'liquid' || settingDef.type === 'link_list' || settingDef.type === 'url') {
+        } else if (settingDef.type === 'color' || settingDef.type === 'text' || settingDef.type === 'textarea' || settingDef.type === 'liquid' || settingDef.type === 'url') {
             sanitizedSettings[key] = String(val);
         } else if (settingDef.type === 'range' || settingDef.type === 'number') {
             const numVal = Number(val);

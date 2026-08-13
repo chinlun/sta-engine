@@ -32,10 +32,34 @@ function loadProductGridRegistry() {
         }
 
         const presetsDir = path.join(REGISTRY_DIR, 'presets');
+        const presets = {};
+        if (fs.existsSync(presetsDir)) {
+            const presetFiles = fs.readdirSync(presetsDir).filter(f => f.endsWith('.json'));
+            for (const file of presetFiles) {
+                const presetName = file.replace('.json', '');
+                try {
+                    presets[presetName] = JSON.parse(fs.readFileSync(path.join(presetsDir, file), 'utf8'));
+                } catch (err) {}
+            }
+        }
         const defaultPresetPath = path.join(presetsDir, 'default.json');
         const defaultPreset = fs.existsSync(defaultPresetPath) 
             ? JSON.parse(fs.readFileSync(defaultPresetPath, 'utf8'))
             : {};
+
+        const variantsDir = path.join(REGISTRY_DIR, 'variants');
+        const variants = {};
+        if (fs.existsSync(variantsDir)) {
+            const variantFiles = fs.readdirSync(variantsDir);
+            for (const file of variantFiles) {
+                const ext = path.extname(file);
+                const name = path.basename(file, ext);
+                if (!variants[name]) variants[name] = {};
+                const fullPath = path.join(variantsDir, file);
+                if (ext === '.liquid') variants[name].liquid = fs.readFileSync(fullPath, 'utf8');
+                else if (ext === '.css') variants[name].css = fs.readFileSync(fullPath, 'utf8');
+            }
+        }
 
         return {
             manifest,
@@ -43,6 +67,8 @@ function loadProductGridRegistry() {
             stylesCss,
             scriptJs,
             snippets,
+            presets,
+            variants,
             defaultPreset
         };
     } catch (e) {
@@ -56,15 +82,63 @@ function loadProductGridRegistry() {
  * applying LLM configuration patch and design tokens.
  */
 function assembleProductGridFiles(registry, configPatch, designTokens = {}, shopName = "", sectionTargetName = "featured-collection") {
-    const { sectionLiquid, stylesCss, scriptJs, snippets } = registry;
+    const { variants } = registry;
+    let { sectionLiquid, stylesCss, scriptJs, snippets, presets } = registry;
     const settingsPatch = configPatch?.settings_patch || {};
-    const deltaCss = configPatch?.delta_css || "";
+    let deltaCss = configPatch?.delta_css || "";
     const deltaJs = configPatch?.delta_js || "";
+    const rationale = (configPatch?.rationale || "").toLowerCase();
+
+    // 1. Load requested preset (or fallback to default)
+    const presetId = configPatch?.preset_id || 'default';
+    const selectedPreset = presets?.[presetId] || registry?.defaultPreset || {};
+    const presetSettings = selectedPreset.settings || {};
+
+    let targetVariantId = configPatch?.variant || configPatch?.variant_id || configPatch?.preset_id || selectedPreset.variant || presetId || "default";
+
+    if (variants && Object.keys(variants).length > 0) {
+        if (!variants[targetVariantId] || targetVariantId === 'default') {
+            const variantKeys = Object.keys(variants);
+            if ((rationale.includes('carousel') || rationale.includes('slider')) && variants['carousel-slider']) targetVariantId = 'carousel-slider';
+            else if (rationale.includes('bento') && variants['bento-showcase']) targetVariantId = 'bento-showcase';
+            else if (rationale.includes('editorial') && variants['editorial-masonry']) targetVariantId = 'editorial-masonry';
+            else if ((rationale.includes('catalog') || rationale.includes('list')) && variants['horizontal-catalog']) targetVariantId = 'horizontal-catalog';
+            else if (variantKeys.length > 0) {
+                targetVariantId = variantKeys[Math.floor(Math.random() * variantKeys.length)];
+            }
+        }
+        if (variants[targetVariantId]) {
+            if (variants[targetVariantId].liquid) sectionLiquid = variants[targetVariantId].liquid;
+            if (variants[targetVariantId].css) stylesCss = `${stylesCss}\n${variants[targetVariantId].css}`;
+        }
+    }
+
+    logger.info(`[ProductGridRegistry] Assembling product grid section using variant "${targetVariantId}" (requested preset: "${presetId}")`);
 
     const colors = designTokens.colors || designTokens.palette || {};
     const defaultBg = colors.background || '#ffffff';
     const defaultText = colors.text || '#111111';
     const defaultPrimary = colors.primary || '#000000';
+
+    // Rationale Auto-Bridge for Product Grid variations
+    if ((rationale.includes('carousel') || rationale.includes('slider')) && !settingsPatch.layout_mode) {
+        settingsPatch.layout_mode = 'carousel_slider';
+    }
+    if ((rationale.includes('asymmetric') || rationale.includes('lead card')) && !settingsPatch.layout_mode) {
+        settingsPatch.layout_mode = 'asymmetric_editorial';
+    }
+    if ((rationale.includes('list') || rationale.includes('horizontal list')) && !settingsPatch.layout_mode) {
+        settingsPatch.layout_mode = 'horizontal_list';
+    }
+    if (rationale.includes('portrait') && !settingsPatch.card_aspect_ratio) {
+        settingsPatch.card_aspect_ratio = 'portrait';
+    }
+    if (rationale.includes('square') && !settingsPatch.card_aspect_ratio) {
+        settingsPatch.card_aspect_ratio = 'square';
+    }
+    if (rationale.includes('pill') && !deltaCss.includes('border-radius')) {
+        deltaCss += `\n.product-badge { border-radius: 999px !important; }\n.product-card__action-btn { border-radius: 999px !important; }`;
+    }
 
     let customizedSectionLiquid = sectionLiquid;
 
@@ -86,8 +160,7 @@ function assembleProductGridFiles(registry, configPatch, designTokens = {}, shop
         logger.warn(`[ProductGridRegistry] Failed to parse schema JSON for validation: ${err.message}`);
     }
 
-    // Apply settings patch on top of registry default.json preset and schema defaults
-    const presetSettings = registry?.defaultPreset?.settings || {};
+    // Apply settings patch on top of requested preset and schema defaults
     const mergedSettings = {
         ...presetSettings,
         background_color: defaultBg,
@@ -101,6 +174,12 @@ function assembleProductGridFiles(registry, configPatch, designTokens = {}, shop
     for (let [key, val] of Object.entries(mergedSettings)) {
         const settingDef = validSettingsMap[key];
         if (!settingDef) continue; // Skip unknown setting IDs
+
+        // BUGFIX: Sanitize null / "null" / "undefined" strings
+        if (val === null || val === undefined || String(val).toLowerCase() === 'null' || String(val).toLowerCase() === 'undefined') {
+            sanitizedSettings[key] = "";
+            continue;
+        }
 
         if (settingDef.type === 'select') {
             const validOptions = (settingDef.options || []).map(o => String(o.value));

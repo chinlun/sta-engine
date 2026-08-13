@@ -1,0 +1,11 @@
+{
+  "name": "Promotional Newsletter Banner",
+  "settings": {
+    "subtitle": "GET EXCLUSIVE DISCOUNTS",
+    "title": "Stay In The Loop",
+    "description": "Join over 50,000 subscribers getting VIP early access.",
+    "button_text": "Join VIP Club",
+    "background_color": "#FAF8F5",
+    "text_color": "#111111"
+  }
+}

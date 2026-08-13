@@ -1,0 +1,40 @@
+{{ 'section-testimonials.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'section-testimonials.js' | asset_url }}" defer="defer"></script>
+
+<section class="testimonials-section t-variant-photo-cards">
+  <div class="t-pc-container page-width">
+    <h2 class="t-pc-heading">Loved By Design Enthusiasts</h2>
+
+    <div class="t-pc-grid">
+      <div class="t-pc-card">
+        <div class="t-pc-image">
+          <img src="unsplash://customer-portrait-1" alt="User Photo" loading="lazy">
+        </div>
+        <div class="t-pc-body">
+          <div class="t-pc-stars">★★★★★</div>
+          <p>"The aesthetic and structural quality of this piece transformed my home office entirely."</p>
+          <strong>Sophia L. &bull; Verified Buyer</strong>
+        </div>
+      </div>
+
+      <div class="t-pc-card">
+        <div class="t-pc-image">
+          <img src="unsplash://customer-portrait-2" alt="User Photo" loading="lazy">
+        </div>
+        <div class="t-pc-body">
+          <div class="t-pc-stars">★★★★★</div>
+          <p>"Unbelievably fast shipping and the unboxing experience was pure luxury."</p>
+          <strong>Marcus K. &bull; Verified Buyer</strong>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+{% schema %}
+{
+  "name": "Testimonials Photo Cards",
+  "class": "section-testimonials",
+  "settings": []
+}
+{% endschema %}

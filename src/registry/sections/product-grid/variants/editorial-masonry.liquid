@@ -1,0 +1,34 @@
+{{ 'section-product-grid.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'section-product-grid.js' | asset_url }}" defer="defer"></script>
+
+<product-grid-section class="product-grid-registry-section pg-variant-masonry" id="ProductGrid-{{ section.id }}">
+  <div class="product-grid-container">
+    <div class="pg-masonry-header">
+      <h2 class="product-grid__title">The Atelier Edit</h2>
+      <p class="product-grid__subheading">Curated objects defined by structural purity and quiet luxury.</p>
+    </div>
+
+    <div class="pg-masonry-grid">
+      <div class="pg-masonry-col">
+        {% render 'product-card', product: nil, card_aspect_ratio: 'tall', placeholder_title: "Artisanal Vase", placeholder_price: "$145.00", placeholder_image: "unsplash://minimalist-ceramic-vase" %}
+        {% render 'product-card', product: nil, card_aspect_ratio: 'square', placeholder_title: "Amber Scented Candle", placeholder_price: "$48.00", placeholder_image: "unsplash://scented-candle-home" %}
+      </div>
+      <div class="pg-masonry-col">
+        <div class="pg-editorial-quote-card">
+          <span>CURATOR'S NOTE</span>
+          <blockquote>"Design is not merely what it looks like; design is how it functions within your personal sanctuary."</blockquote>
+        </div>
+        {% render 'product-card', product: nil, card_aspect_ratio: 'portrait', placeholder_title: "Leather Tote", placeholder_price: "$310.00", placeholder_image: "unsplash://handcrafted-leather-bag" %}
+      </div>
+    </div>
+  </div>
+</product-grid-section>
+
+{% schema %}
+{
+  "name": "Product Grid Editorial Masonry",
+  "tag": "section",
+  "class": "section-product-grid-registry",
+  "settings": []
+}
+{% endschema %}

@@ -1,0 +1,59 @@
+.header-variant-floating-pill {
+  position: fixed;
+  top: 1.5rem;
+  left: 0;
+  width: 100%;
+  z-index: 999;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.header-fp-pill {
+  pointer-events: auto;
+  background: rgba(17, 17, 17, 0.85);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 0.75rem 2rem;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  gap: 3rem;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+  color: #ffffff;
+}
+
+.header-fp-logo {
+  font-size: 1.2rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: #ffffff;
+  text-decoration: none;
+}
+
+.header-fp-nav {
+  display: flex;
+  gap: 1.5rem;
+}
+
+.header-fp-nav a {
+  color: rgba(255,255,255,0.85);
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: color 0.2s ease;
+}
+
+.header-fp-nav a:hover {
+  color: #ffffff;
+}
+
+.header-fp-cart {
+  padding: 0.4rem 1rem;
+  background: #ffffff;
+  color: #111111;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-decoration: none;
+}

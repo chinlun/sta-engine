@@ -1,0 +1,24 @@
+{{ 'section-header.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'section-header.js' | asset_url }}" defer="defer"></script>
+
+<shopify-header id="shopify-header-{{ section.id }}" class="site-header header-variant-stacked" style="--header-bg: {{ section.settings.background_color | default: '#ffffff' }};">
+  <div class="header-stacked-announcement">
+    <span>Free Express Worldwide Shipping Over $150</span>
+  </div>
+  <div class="header-stacked-main page-width">
+    <button type="button" class="header-stacked-burger" aria-label="Menu">&#9776;</button>
+    <a href="/" class="header-stacked-logo">{{ section.settings.logo_text | default: "STOREFRONT" }}</a>
+    {% render 'header-icons', section: section, device: 'desktop', slot: 'right' %}
+  </div>
+</shopify-header>
+
+{% schema %}
+{
+  "name": "Header Stacked Drawer",
+  "class": "shopify-section--advanced-header",
+  "settings": [
+    { "type": "text", "id": "logo_text", "label": "Logo Text", "default": "STOREFRONT" },
+    { "type": "color", "id": "background_color", "label": "Background Color", "default": "#ffffff" }
+  ]
+}
+{% endschema %}

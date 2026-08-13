@@ -1,0 +1,11 @@
+{
+  "name": "Minimal Drawer Header",
+  "settings": {
+    "layout_style": "minimal_drawer",
+    "placement": "top",
+    "width_mode": "full",
+    "show_announcement_bar": false,
+    "background_color": "#FAF8F5",
+    "text_color": "#111111"
+  }
+}

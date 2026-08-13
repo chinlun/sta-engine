@@ -1,0 +1,21 @@
+{{ 'section-testimonials.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'section-testimonials.js' | asset_url }}" defer="defer"></script>
+
+<section class="testimonials-section t-variant-marquee">
+  <div class="t-mq-track">
+    <div class="t-mq-content">
+      <span>"Best purchase of the year" &bull; Elena R.</span>
+      <span>"Pure luxury craftsmanship" &bull; David K.</span>
+      <span>"Exceeded all expectations" &bull; Sarah M.</span>
+      <span>"Unmatched customer care" &bull; James P.</span>
+    </div>
+  </div>
+</section>
+
+{% schema %}
+{
+  "name": "Testimonials Marquee Ticker",
+  "class": "section-testimonials",
+  "settings": []
+}
+{% endschema %}

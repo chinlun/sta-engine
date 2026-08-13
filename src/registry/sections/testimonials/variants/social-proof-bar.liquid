@@ -1,0 +1,28 @@
+{{ 'section-testimonials.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'section-testimonials.js' | asset_url }}" defer="defer"></script>
+
+<section class="testimonials-section t-variant-sp-bar">
+  <div class="t-sp-container page-width">
+    <div class="t-sp-left">
+      <span class="t-sp-stars">★★★★★</span>
+      <strong>4.9 / 5.0 Rating</strong>
+      <span>Based on 12,400+ verified customer reviews</span>
+    </div>
+    <div class="t-sp-right">
+      <div class="t-sp-avatars">
+        <img src="unsplash://customer-portrait-1" alt="User 1">
+        <img src="unsplash://customer-portrait-2" alt="User 2">
+        <img src="unsplash://customer-portrait-3" alt="User 3">
+        <span class="t-sp-more">+12k</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+{% schema %}
+{
+  "name": "Testimonials Social Proof Bar",
+  "class": "section-testimonials",
+  "settings": []
+}
+{% endschema %}

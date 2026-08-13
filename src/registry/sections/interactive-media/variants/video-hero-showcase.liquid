@@ -1,0 +1,23 @@
+{{ 'section-interactive-media.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'section-interactive-media.js' | asset_url }}" defer="defer"></script>
+
+<section class="interactive-media-section im-variant-video-hero">
+  <div class="im-vh-container page-width">
+    <div class="im-vh-player">
+      <video controls poster="unsplash://luxury-hero-banner" class="im-vh-video">
+        <source src="https://cdn.shopify.com/videos/c/o/v/placeholder.mp4" type="video/mp4">
+      </video>
+      <div class="im-vh-caption">
+        <h3>Behind The Craft &bull; Documented in 4K</h3>
+      </div>
+    </div>
+  </div>
+</section>
+
+{% schema %}
+{
+  "name": "Video Hero Showcase",
+  "class": "section-interactive-media",
+  "settings": []
+}
+{% endschema %}

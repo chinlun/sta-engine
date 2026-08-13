@@ -1,0 +1,37 @@
+{{ 'section-featured-product.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'section-featured-product.js' | asset_url }}" defer="defer"></script>
+
+<section class="featured-product-section fp-variant-carousel" id="featured-product-{{ section.id }}" style="--bg-color: {{ section.settings.background_color | default: '#FFFFFF' }}; --text-color: {{ section.settings.text_color | default: '#111111' }};">
+  <div class="fp-carousel-container">
+    <div class="fp-carousel-gallery">
+      <div class="fp-carousel-track">
+        <img src="unsplash://luxury-product-1" alt="Product View 1" loading="lazy">
+        <img src="unsplash://luxury-product-2" alt="Product View 2" loading="lazy">
+        <img src="unsplash://luxury-product-3" alt="Product View 3" loading="lazy">
+      </div>
+    </div>
+
+    <div class="fp-carousel-info">
+      <h2 class="fp-carousel-title">Organic Botanical Face Oil</h2>
+      <div class="fp-carousel-price">$88.00</div>
+      <p class="fp-carousel-desc">Cold-pressed organic jojoba, rosehip, and marula oils for radiant deep hydration.</p>
+      
+      <div class="fp-carousel-swatches">
+        <span class="fp-swatch is-selected" style="background:#e2cbb2;"></span>
+        <span class="fp-swatch" style="background:#c69c6d;"></span>
+      </div>
+
+      <button type="button" class="fp-carousel-add">Add to Cart &bull; $88.00</button>
+    </div>
+  </div>
+</section>
+
+{% schema %}
+{
+  "name": "Featured Product Carousel",
+  "class": "section-featured-product",
+  "settings": [
+    { "type": "color", "id": "background_color", "label": "Background color", "default": "#FFFFFF" }
+  ]
+}
+{% endschema %}

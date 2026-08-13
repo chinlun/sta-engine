@@ -1,0 +1,13 @@
+{
+  "name": "Video Background Hero",
+  "settings": {
+    "layout_style": "video_background",
+    "desktop_height": "850px",
+    "mobile_height": "600px",
+    "content_alignment": "center",
+    "overlay_opacity": 30,
+    "show_secondary_button": true,
+    "background_color": "#111111",
+    "text_color": "#FFFFFF"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "name": "Split Screen Hero",
+  "settings": {
+    "layout_style": "split",
+    "desktop_height": "750px",
+    "mobile_height": "500px",
+    "content_alignment": "left",
+    "overlay_opacity": 0,
+    "show_secondary_button": true,
+    "background_color": "#FAF8F5",
+    "text_color": "#111111"
+  }
+}

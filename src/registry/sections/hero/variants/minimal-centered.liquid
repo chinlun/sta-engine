@@ -1,0 +1,29 @@
+{{ 'section-hero.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'section-hero.js' | asset_url }}" defer="defer"></script>
+
+<hero-section class="hero-registry-section hero-variant-minimal-centered" id="Hero-{{ section.id }}">
+  <div class="hero-mc-container">
+    <span class="hero-mc-eyebrow">{{ section.settings.eyebrow_text | default: "ESSENTIAL LIVING" }}</span>
+    <h1 class="hero-mc-heading">{{ section.settings.heading | default: "Simplicity in Every Element" }}</h1>
+    <p class="hero-mc-subheading">{{ section.settings.subheading | default: "Purity of line, organic texture, and uncompromised structural elegance." }}</p>
+
+    <div class="hero-mc-buttons">
+      <a href="{{ section.settings.primary_button_link | default: '#' }}" class="hero-mc-btn">
+        {{ section.settings.primary_button_label | default: "Discover Collection" }}
+      </a>
+    </div>
+  </div>
+</hero-section>
+
+{% schema %}
+{
+  "name": "Hero Minimal Centered",
+  "class": "section-hero",
+  "settings": [
+    { "type": "text", "id": "eyebrow_text", "label": "Eyebrow Text", "default": "ESSENTIAL LIVING" },
+    { "type": "text", "id": "heading", "label": "Heading", "default": "Simplicity in Every Element" },
+    { "type": "textarea", "id": "subheading", "label": "Subheading", "default": "Purity of line and uncompromised structural elegance." },
+    { "type": "text", "id": "primary_button_label", "label": "Primary Button", "default": "Discover Collection" }
+  ]
+}
+{% endschema %}

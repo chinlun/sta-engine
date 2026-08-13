@@ -1,0 +1,55 @@
+{{ 'section-featured-product.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'section-featured-product.js' | asset_url }}" defer="defer"></script>
+
+{%- assign product = all_products[section.settings.product] -%}
+
+<section class="featured-product-section fp-variant-sticky" id="featured-product-{{ section.id }}" style="--bg-color: {{ section.settings.background_color | default: '#FAFAFA' }}; --text-color: {{ section.settings.text_color | default: '#111111' }};">
+  <div class="fp-sticky-container">
+    <div class="fp-sticky-gallery">
+      {%- if product != blank and product.images.size > 0 -%}
+        {%- for image in product.images limit: 4 -%}
+          <div class="fp-sticky-image-wrapper">
+            <img src="{{ image | image_url: width: 1200 }}" alt="{{ product.title | escape }}" loading="lazy">
+          </div>
+        {%- endfor -%}
+      {%- else -%}
+        <div class="fp-sticky-image-wrapper">
+          {{ 'product-1' | placeholder_svg_tag: 'featured-product__placeholder' }}
+        </div>
+      {%- endif -%}
+    </div>
+
+    <div class="fp-sticky-buybox">
+      <div class="fp-sticky-buybox__inner">
+        {%- if section.settings.show_vendor and product.vendor != blank -%}
+          <span class="fp-vendor">{{ product.vendor }}</span>
+        {%- endif -%}
+
+        <h2 class="fp-title">{{ product.title | default: "Signature Luxury Spotlight" }}</h2>
+        <div class="fp-price">{{ product.price | default: 14900 | money }}</div>
+        
+        <p class="fp-desc">{{ product.description | default: "Engineered with modern precision, sustainable materials, and timeless aesthetic details." | strip_html | truncatewords: 30 }}</p>
+
+        <form class="fp-form">
+          <button type="submit" class="fp-add-btn">
+            {{ section.settings.button_text | default: "Add to Cart" }}
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>
+
+{% schema %}
+{
+  "name": "Featured Product Sticky Split",
+  "class": "section-featured-product",
+  "settings": [
+    { "type": "product", "id": "product", "label": "Product" },
+    { "type": "checkbox", "id": "show_vendor", "label": "Show vendor", "default": true },
+    { "type": "text", "id": "button_text", "label": "Button label", "default": "Add to Cart" },
+    { "type": "color", "id": "background_color", "label": "Background color", "default": "#FAFAFA" },
+    { "type": "color", "id": "text_color", "label": "Text color", "default": "#111111" }
+  ]
+}
+{% endschema %}

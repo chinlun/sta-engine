@@ -1,0 +1,46 @@
+{{ 'section-footer.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'section-footer.js' | asset_url }}" defer="defer"></script>
+
+<footer-section class="footer-registry-section footer-variant-mega" id="Footer-{{ section.id }}">
+  <div class="footer-mega-container page-width">
+    <div class="footer-mega-grid">
+      <div class="footer-mega-col">
+        <h3>Catalog</h3>
+        <ul>
+          <li><a href="/collections/all">New Arrivals</a></li>
+          <li><a href="/collections/bestsellers">Bestsellers</a></li>
+          <li><a href="/collections/sale">Special Offers</a></li>
+        </ul>
+      </div>
+      <div class="footer-mega-col">
+        <h3>Support</h3>
+        <ul>
+          <li><a href="/pages/contact">Contact Us</a></li>
+          <li><a href="/pages/faq">FAQ</a></li>
+          <li><a href="/pages/shipping">Shipping & Returns</a></li>
+        </ul>
+      </div>
+      <div class="footer-mega-col">
+        <h3>Company</h3>
+        <ul>
+          <li><a href="/pages/about">Our Story</a></li>
+          <li><a href="/pages/sustainability">Sustainability</a></li>
+          <li><a href="/pages/press">Press</a></li>
+        </ul>
+      </div>
+      <div class="footer-mega-col footer-mega-col--trust">
+        <h3>Trust Badges</h3>
+        <p>100% Secure Checkout &bull; Free Global Shipping &bull; 30-Day Money Back Guarantee</p>
+        {% render 'footer-payments' %}
+      </div>
+    </div>
+  </div>
+</footer-section>
+
+{% schema %}
+{
+  "name": "Footer Mega",
+  "class": "section-footer-registry",
+  "settings": []
+}
+{% endschema %}

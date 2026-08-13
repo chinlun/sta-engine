@@ -1,0 +1,52 @@
+{{ 'section-faq-accordion.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'section-faq-accordion.js' | asset_url }}" defer="defer"></script>
+
+<section class="faq-accordion-section faq-variant-split" style="--bg-color: {{ section.settings.background_color | default: '#FFFFFF' }}; --text-color: {{ section.settings.text_color | default: '#111111' }};">
+  <div class="faq-split-container">
+    <div class="faq-split-sidebar">
+      <span class="faq-split-tag">HELP & SUPPORT</span>
+      <h2 class="faq-split-heading">{{ section.settings.title | default: "Got Questions? We Have Answers." }}</h2>
+      <p class="faq-split-subtext">Find everything you need to know about our products, shipping policies, and warranty coverage.</p>
+    </div>
+
+    <div class="faq-split-main">
+      <details class="faq-accordion__item" open>
+        <summary class="faq-accordion__question">
+          <span>What is your shipping & return policy?</span>
+          <span class="faq-accordion__icon">+</span>
+        </summary>
+        <div class="faq-accordion__answer">
+          <p>We offer free global express shipping on all orders over $75. Returns are accepted within 30 days of delivery.</p>
+        </div>
+      </details>
+      <details class="faq-accordion__item">
+        <summary class="faq-accordion__question">
+          <span>How do I track my order status live?</span>
+          <span class="faq-accordion__icon">+</span>
+        </summary>
+        <div class="faq-accordion__answer">
+          <p>Once your order ships, you will receive an automated email notification containing your live tracking code.</p>
+        </div>
+      </details>
+      <details class="faq-accordion__item">
+        <summary class="faq-accordion__question">
+          <span>Are your products sustainably sourced?</span>
+          <span class="faq-accordion__icon">+</span>
+        </summary>
+        <div class="faq-accordion__answer">
+          <p>Yes, 100% of our packaging is biodegradable and our manufacturing process relies exclusively on renewable energy.</p>
+        </div>
+      </details>
+    </div>
+  </div>
+</section>
+
+{% schema %}
+{
+  "name": "FAQ Two Column Split",
+  "class": "section-faq-accordion",
+  "settings": [
+    { "type": "text", "id": "title", "label": "Heading", "default": "Got Questions? We Have Answers." }
+  ]
+}
+{% endschema %}

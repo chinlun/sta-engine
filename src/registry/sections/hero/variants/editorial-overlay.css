@@ -1,0 +1,77 @@
+.hero-variant-editorial {
+  padding: 4rem 2rem;
+  background-color: var(--hero-bg-color, #1a1816);
+  color: var(--hero-text-color, #f7f4ef);
+}
+
+.hero-editorial-container {
+  max-width: 1300px;
+  margin: 0 auto;
+}
+
+.hero-editorial-media {
+  position: relative;
+  min-height: 650px;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.hero-editorial-overlay-card {
+  position: absolute;
+  bottom: 3rem;
+  left: 3rem;
+  max-width: 540px;
+  padding: 3rem;
+  background: rgba(26, 24, 22, 0.85);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  color: var(--hero-text-color, #f7f4ef);
+}
+
+.hero-editorial-issue {
+  font-size: 0.75rem;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--hero-accent-color, #c9a86a);
+  display: block;
+  margin-bottom: 1rem;
+}
+
+.hero-editorial-title {
+  font-family: Georgia, serif;
+  font-size: 2.8rem;
+  font-weight: 400;
+  line-height: 1.15;
+  margin-bottom: 1rem;
+}
+
+.hero-editorial-subtext {
+  font-size: 1.05rem;
+  line-height: 1.6;
+  opacity: 0.9;
+  margin-bottom: 1.75rem;
+}
+
+.hero-editorial-btn {
+  display: inline-block;
+  font-size: 0.9rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--hero-accent-color, #c9a86a);
+  text-decoration: none;
+  font-weight: 600;
+  border-bottom: 1px solid var(--hero-accent-color, #c9a86a);
+  padding-bottom: 4px;
+}
+
+@media (max-width: 768px) {
+  .hero-editorial-overlay-card {
+    position: relative;
+    bottom: auto;
+    left: auto;
+    max-width: 100%;
+    margin-top: -2rem;
+    padding: 2rem;
+  }
+}

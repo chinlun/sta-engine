@@ -1,0 +1,30 @@
+{{ 'section-footer.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'section-footer.js' | asset_url }}" defer="defer"></script>
+
+<footer-section class="footer-registry-section footer-variant-newsletter-prominent" id="Footer-{{ section.id }}">
+  <div class="footer-np-container page-width">
+    <div class="footer-np-hero">
+      <h2>Join The Insider List</h2>
+      <p>Receive private collection previews, secret seasonal offers, and 10% off your initial order.</p>
+      <form class="footer-np-form">
+        <input type="email" placeholder="Enter your email" required class="footer-np-input">
+        <button type="submit" class="footer-np-btn">Subscribe</button>
+      </form>
+    </div>
+
+    <div class="footer-np-bottom">
+      <span class="footer-np-copy">&copy; {{ 'now' | date: '%Y' }} {{ section.settings.logo_text | default: "Store" }}. All rights reserved.</span>
+      {% render 'footer-social' %}
+    </div>
+  </div>
+</footer-section>
+
+{% schema %}
+{
+  "name": "Footer Newsletter Prominent",
+  "class": "section-footer-registry",
+  "settings": [
+    { "type": "text", "id": "logo_text", "label": "Logo Text", "default": "Store" }
+  ]
+}
+{% endschema %}

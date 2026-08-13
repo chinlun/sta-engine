@@ -1,0 +1,10 @@
+{
+  "name": "Fullwidth Showcase PDP",
+  "settings": {
+    "show_vendor": true,
+    "show_short_description": true,
+    "button_text": "Claim Offer",
+    "background_color": "#111111",
+    "text_color": "#FFFFFF"
+  }
+}

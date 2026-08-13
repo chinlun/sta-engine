@@ -31,10 +31,34 @@ function loadFooterRegistry() {
         }
 
         const presetsDir = path.join(REGISTRY_DIR, 'presets');
+        const presets = {};
+        if (fs.existsSync(presetsDir)) {
+            const presetFiles = fs.readdirSync(presetsDir).filter(f => f.endsWith('.json'));
+            for (const file of presetFiles) {
+                const presetName = file.replace('.json', '');
+                try {
+                    presets[presetName] = JSON.parse(fs.readFileSync(path.join(presetsDir, file), 'utf8'));
+                } catch (err) {}
+            }
+        }
         const defaultPresetPath = path.join(presetsDir, 'default.json');
         const defaultPreset = fs.existsSync(defaultPresetPath) 
             ? JSON.parse(fs.readFileSync(defaultPresetPath, 'utf8'))
             : {};
+
+        const variantsDir = path.join(REGISTRY_DIR, 'variants');
+        const variants = {};
+        if (fs.existsSync(variantsDir)) {
+            const variantFiles = fs.readdirSync(variantsDir);
+            for (const file of variantFiles) {
+                const ext = path.extname(file);
+                const name = path.basename(file, ext);
+                if (!variants[name]) variants[name] = {};
+                const fullPath = path.join(variantsDir, file);
+                if (ext === '.liquid') variants[name].liquid = fs.readFileSync(fullPath, 'utf8');
+                else if (ext === '.css') variants[name].css = fs.readFileSync(fullPath, 'utf8');
+            }
+        }
 
         return {
             manifest,
@@ -42,6 +66,8 @@ function loadFooterRegistry() {
             stylesCss,
             scriptJs,
             snippets,
+            presets,
+            variants,
             defaultPreset
         };
     } catch (e) {
@@ -55,14 +81,50 @@ function loadFooterRegistry() {
  * applying LLM configuration patch and design tokens.
  */
 function assembleFooterFiles(registry, configPatch, designTokens = {}, shopName = "") {
-    const { sectionLiquid, stylesCss, scriptJs, snippets } = registry;
+    const { variants } = registry;
+    let { sectionLiquid, stylesCss, scriptJs, snippets, presets } = registry;
     const settingsPatch = configPatch?.settings_patch || {};
-    const deltaCss = configPatch?.delta_css || "";
+    let deltaCss = configPatch?.delta_css || "";
     const deltaJs = configPatch?.delta_js || "";
+    const rationale = (configPatch?.rationale || "").toLowerCase();
+
+    // 1. Load requested preset (or fallback to default)
+    const presetId = configPatch?.preset_id || 'default';
+    const selectedPreset = presets?.[presetId] || registry?.defaultPreset || {};
+    const presetSettings = selectedPreset.settings || {};
+
+    let targetVariantId = configPatch?.variant || configPatch?.variant_id || configPatch?.preset_id || selectedPreset.variant || presetId || "default";
+
+    if (variants && Object.keys(variants).length > 0) {
+        if (!variants[targetVariantId] || targetVariantId === 'default') {
+            const variantKeys = Object.keys(variants);
+            if ((rationale.includes('minimal') || rationale.includes('centered')) && variants['minimal-centered']) targetVariantId = 'minimal-centered';
+            else if (rationale.includes('newsletter') && variants['newsletter-prominent']) targetVariantId = 'newsletter-prominent';
+            else if (rationale.includes('mega') && variants['mega-footer']) targetVariantId = 'mega-footer';
+            else if (rationale.includes('editorial') && variants['editorial-asymmetric']) targetVariantId = 'editorial-asymmetric';
+            else if (variantKeys.length > 0) {
+                targetVariantId = variantKeys[Math.floor(Math.random() * variantKeys.length)];
+            }
+        }
+        if (variants[targetVariantId]) {
+            if (variants[targetVariantId].liquid) sectionLiquid = variants[targetVariantId].liquid;
+            if (variants[targetVariantId].css) stylesCss = `${stylesCss}\n${variants[targetVariantId].css}`;
+        }
+    }
+
+    logger.info(`[FooterRegistry] Assembling footer section using variant "${targetVariantId}" (requested preset: "${presetId}")`);
 
     const colors = designTokens.colors || designTokens.palette || {};
     const defaultBg = colors.surface || colors.background || '#111111';
     const defaultText = colors.text || '#ffffff';
+
+    // Rationale Auto-Bridge for Footer variations
+    if ((rationale.includes('minimal') || rationale.includes('centered')) && !settingsPatch.layout_mode) {
+        settingsPatch.layout_mode = 'centered_minimal';
+    }
+    if ((rationale.includes('editorial') || rationale.includes('split')) && !settingsPatch.layout_mode) {
+        settingsPatch.layout_mode = 'editorial_split';
+    }
 
     let customizedSectionLiquid = sectionLiquid;
 
@@ -84,8 +146,7 @@ function assembleFooterFiles(registry, configPatch, designTokens = {}, shopName 
         logger.warn(`[FooterRegistry] Failed to parse schema JSON for validation: ${err.message}`);
     }
 
-    // Apply settings patch on top of registry default.json preset and schema defaults
-    const presetSettings = registry?.defaultPreset?.settings || {};
+    // Apply settings patch on top of requested preset and schema defaults
     const mergedSettings = {
         ...presetSettings,
         logo_text: shopName || presetSettings.logo_text || "Shopify Store",
@@ -99,6 +160,12 @@ function assembleFooterFiles(registry, configPatch, designTokens = {}, shopName 
     for (let [key, val] of Object.entries(mergedSettings)) {
         const settingDef = validSettingsMap[key];
         if (!settingDef) continue; // Skip unknown setting IDs
+
+        // BUGFIX: Sanitize null / "null" / "undefined" strings
+        if (val === null || val === undefined || String(val).toLowerCase() === 'null' || String(val).toLowerCase() === 'undefined') {
+            sanitizedSettings[key] = "";
+            continue;
+        }
 
         if (settingDef.type === 'select') {
             const validOptions = (settingDef.options || []).map(o => String(o.value));

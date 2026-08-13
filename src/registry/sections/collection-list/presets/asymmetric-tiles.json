@@ -1,0 +1,10 @@
+{
+  "name": "Asymmetric Tiles Mosaic",
+  "settings": {
+    "title": "Explore Collections",
+    "columns": "3",
+    "show_product_count": true,
+    "background_color": "#FAF8F5",
+    "text_color": "#111111"
+  }
+}

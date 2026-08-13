@@ -1,0 +1,68 @@
+.cl-variant-bubble {
+  padding: 3rem 2rem;
+  background-color: var(--bg-color, #fafafa);
+}
+
+.cl-bubble-container {
+  max-width: 1300px;
+  margin: 0 auto;
+}
+
+.cl-bubble-heading {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 2rem;
+  text-align: center;
+}
+
+.cl-bubble-track {
+  display: flex;
+  gap: 2.5rem;
+  justify-content: center;
+  align-items: center;
+  overflow-x: auto;
+  padding-bottom: 1rem;
+  scrollbar-width: none;
+}
+
+.cl-bubble-track::-webkit-scrollbar {
+  display: none;
+}
+
+.cl-bubble-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  text-decoration: none;
+  flex: 0 0 auto;
+}
+
+.cl-bubble-avatar {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  padding: 4px;
+  border: 2px solid #111111;
+  overflow: hidden;
+  transition: transform 0.2s ease;
+}
+
+.cl-bubble-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.cl-bubble-item:hover .cl-bubble-avatar {
+  transform: scale(1.08);
+}
+
+.cl-bubble-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-color, #111111);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}

@@ -1,0 +1,24 @@
+{{ 'section-header.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'section-header.js' | asset_url }}" defer="defer"></script>
+
+<shopify-header id="shopify-header-{{ section.id }}" class="site-header header-variant-floating-pill">
+  <div class="header-fp-pill">
+    <a href="/" class="header-fp-logo">{{ section.settings.logo_text | default: "STUDIO" }}</a>
+    <nav class="header-fp-nav">
+      <a href="/collections/all">Shop</a>
+      <a href="/pages/about">About</a>
+      <a href="/pages/contact">Contact</a>
+    </nav>
+    <a href="/cart" class="header-fp-cart">Cart</a>
+  </div>
+</shopify-header>
+
+{% schema %}
+{
+  "name": "Header Floating Pill",
+  "class": "shopify-section--advanced-header",
+  "settings": [
+    { "type": "text", "id": "logo_text", "label": "Logo Text", "default": "STUDIO" }
+  ]
+}
+{% endschema %}

@@ -1,0 +1,41 @@
+.header-variant-minimal-icon {
+  padding: 1rem 2rem;
+  background: transparent;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  z-index: 100;
+}
+
+.header-mi-inner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.header-mi-burger {
+  background: none;
+  border: none;
+  font-size: 1.4rem;
+  cursor: pointer;
+}
+
+.header-mi-brand {
+  font-size: 1.5rem;
+  font-weight: 900;
+  letter-spacing: 0.2em;
+  text-decoration: none;
+  color: #111111;
+}
+
+.header-mi-cart-icon {
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  text-decoration: none;
+  color: #111111;
+}

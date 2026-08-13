@@ -1,0 +1,9 @@
+{
+  "name": "Minimal Centered Footer",
+  "settings": {
+    "background_color": "#111111",
+    "text_color": "#FFFFFF",
+    "show_social_icons": true,
+    "show_newsletter": false
+  }
+}

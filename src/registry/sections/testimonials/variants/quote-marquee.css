@@ -1,0 +1,26 @@
+.t-variant-marquee {
+  padding: 2rem 0;
+  background: #111111;
+  color: #ffffff;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.t-mq-track {
+  display: flex;
+  width: 100%;
+}
+
+.t-mq-content {
+  display: flex;
+  gap: 3rem;
+  font-family: Georgia, serif;
+  font-size: 1.4rem;
+  font-style: italic;
+  animation: marquee 25s linear infinite;
+}
+
+@keyframes marquee {
+  0% { transform: translateX(0%); }
+  100% { transform: translateX(-50%); }
+}

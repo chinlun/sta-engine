@@ -1,0 +1,69 @@
+.t-variant-sp-bar {
+  padding: 2.5rem 2rem;
+  background: #f4f4f5;
+  border-y: 1px solid #e4e4e7;
+}
+
+.t-sp-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.t-sp-left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.t-sp-stars {
+  color: #fbbf24;
+  font-size: 1.2rem;
+}
+
+.t-sp-left strong {
+  font-size: 1.1rem;
+}
+
+.t-sp-left span {
+  font-size: 0.9rem;
+  color: #71717a;
+}
+
+.t-sp-avatars {
+  display: flex;
+  align-items: center;
+}
+
+.t-sp-avatars img {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 2px solid #ffffff;
+  margin-left: -12px;
+  object-fit: cover;
+}
+
+.t-sp-more {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: #18181b;
+  color: #ffffff;
+  font-size: 0.75rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: -12px;
+}
+
+@media (max-width: 768px) {
+  .t-sp-container {
+    flex-direction: column;
+    gap: 1.5rem;
+    text-align: center;
+  }
+}
